@@ -1,0 +1,10 @@
+# Build Files
+build/*
+# Object files
+*.o
+
+# Output files for tests
+tests/*/out
+
+# VSCode setting
+.vscode
