@@ -11,24 +11,28 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *error
     );
     return false;
   }
+  NameValue *nameValue = NULL;
   uint32_t left, right;
   switch (leftToken->type) {
   case TOKEN_VALUE:
     left = *((uint32_t*) leftToken->data);
     break;
   case TOKEN_NAME:
-    left = *((uint32_t*) getElementFromHashTable(table, (const char*) leftToken->data));
+    nameValue = leftToken->data;
+    left = *((uint32_t*) getElementFromHashTable(table, nameValue->name));
     break;
   default:
     left = *((uint32_t*) interpretBinaryOperation(leftToken, table, error));
     break;
   }
+
   switch (rightToken->type) {
   case TOKEN_VALUE:
     right = *((uint32_t*) rightToken->data);
     break;
   case TOKEN_NAME:
-    right = *((uint32_t*) getElementFromHashTable(table, (const char*) rightToken->data));
+    nameValue = rightToken->data;
+    right = *((uint32_t*) getElementFromHashTable(table, nameValue->name));
     break;
   default:
     right = *((uint32_t*) interpretBinaryOperation(rightToken, table, error));
@@ -54,14 +58,10 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *error
 bool interpretToken(Program *program, size_t i, HashTable *table, char *name, char **namePtr, char *error) {
   Token *token = program->instructions[i];
   switch(token->type) {
-    case TOKEN_TYPE: {
-      // Since we don't allocate memory in simulate
-      // We don't need this type
-      break;
-    }
     case TOKEN_NAME: {
-      char *mName = token->data;
-      if(i == 0) {
+      NameValue *value = token->data;
+      char *mName = value->name;
+      if(!value->type) {
         snprintf(
           error, 512,
           "%s:%zu:%zu: No type for variable `%s`!",
@@ -69,6 +69,11 @@ bool interpretToken(Program *program, size_t i, HashTable *table, char *name, ch
           mName
         );
         return false;
+      }
+      if(i == 0) {
+        (*namePtr) = mName;
+        setElementInHashTable(table, mName, NULL);
+        break;
       }
       switch (program->instructions[i - 1]->type) {
       case TOKEN_ASSIGN:
@@ -92,7 +97,7 @@ bool interpretToken(Program *program, size_t i, HashTable *table, char *name, ch
         void *value = getElementFromHashTable(table, mName);
         setElementInHashTable(table, name, value);
         break;
-      case TOKEN_TYPE:
+      case TOKEN_SEMICOLON:
         (*namePtr) = mName;
         setElementInHashTable(table, mName, NULL);
         break;
@@ -140,10 +145,14 @@ bool interpretToken(Program *program, size_t i, HashTable *table, char *name, ch
 }
 
 void interpret(Program *program, char *error) {
-  ASSERT(TOKEN_COUNT == 8, "Not all operations are implemented in interpret!");
+  ASSERT(TOKEN_COUNT == 7, "Not all operations are implemented in interpret!");
   char *name = NULL;
   HashTable *table = createHashTable(255);
+  NameValue *nameValue = NULL;
   for(size_t i = 0;i < program->count;i++) {
+    if(program->instructions[i]->type == TOKEN_NAME) {
+      nameValue = program->instructions[i]->data;
+    }
     if(!interpretToken(program, i, table, name, &name, error)) {
       return;
     }

@@ -97,7 +97,6 @@ void setElementInHashTable(HashTable *hashTable, const char *key, void *value) {
   }
 
   hashTable->size++;
-  // hashTable->elements[index].key = strdup(key);
   hashTable->elements[index].key = key;
   hashTable->elements[index].value = value;
 }

@@ -4,8 +4,7 @@
 #include "utils/hashtable.h"
 
 typedef enum TokenType {
-  TOKEN_TYPE = 0,
-  TOKEN_NAME,
+  TOKEN_NAME = 0,
   TOKEN_SEMICOLON,
   TOKEN_ASSIGN,
   TOKEN_VALUE,
@@ -16,7 +15,8 @@ typedef enum TokenType {
 } TokenType;
 
 typedef enum Type {
-  TYPE_INT = 0,
+  TYPE_NONE = 0,
+  TYPE_INT,
   TYPES_COUNT
 } Type;
 
@@ -26,9 +26,17 @@ typedef struct Token
   void *data;
 
   const char *file;
+
+  // Starts at 1
   size_t line;
   size_t column;
 } Token;
+
+typedef struct NameValue {
+  char *name;
+  Type *type;
+  bool assignType;
+} NameValue;
 
 typedef struct BinaryOperationValue {
   Token *operandOne;
@@ -41,6 +49,8 @@ typedef struct Program {
   Token **instructions;
   size_t count;
   size_t capacity;
+
+  HashTable *variableTypes;
 } Program;
 
 typedef struct CreateTokenFromString {
@@ -54,12 +64,19 @@ typedef struct CreateTokenFromString {
   size_t column;
   const char *error;
 } CreateTokenFromString;
+
 Token *createTokenFromString(CreateTokenFromString *createTokenFromString);
 
 Program *createProgram();
 void expandProgramInstructions(Program *program);
 void pushProgramInstruction(Program *program, Token *instruction);
 Token *popProgramInstruction(Program *program);
+Token *getProgramInstruction(Program *program, size_t i);
+Type *getTokenType(Program *program, Token *token);
+
+// Returns NULL if there are no errors
+// Otherwise returns the Token that provides the error
+Token *checkProgram(Program *program);
 
 Program *createProgramFromFile(const char *filePath, char *error);
 

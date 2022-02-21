@@ -27,7 +27,10 @@ int main(int argc, char *argv[]) {
     }
     char *fileName = popArgument(&args);
     Program *program = createProgramFromFile(fileName, error);
-    // printProgram(program);
+    if(error[0] != 0) {
+      printf("Error: %s\n", error);
+      return 0;
+    }
     interpret(program, error);
   } else if(strcmp(mode, "com") == 0) {
     if(args.count == 0) {
@@ -71,7 +74,6 @@ int main(int argc, char *argv[]) {
       printf("Error: %s\n", error);
       return 0;
     }
-    // printProgram(program);
 
     FILE *out = fopen(asmName, "w");
     printf("[INFO]: Generating %s\n", asmName);

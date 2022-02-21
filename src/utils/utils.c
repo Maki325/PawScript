@@ -64,9 +64,10 @@ void printProgram(Program *program) {
 void printToken(Token *token) {
   bool isAdd = false;
   switch(token->type) {
-    case TOKEN_TYPE: {
-      printf("TYPE: ");
-      Type type = (Type) token->data;
+    case TOKEN_NAME: {
+      NameValue *value = token->data;
+      printf("NAME: %s, TYPE: ", value->name);
+      Type type = (Type) value->type;
       switch(type) {
         case TYPE_INT: {
           printf("INT");
@@ -78,10 +79,6 @@ void printToken(Token *token) {
         }
       }
       printf("\n");
-      break;
-    }
-    case TOKEN_NAME: {
-      printf("NAME: %s\n", token->data);
       break;
     }
     case TOKEN_SEMICOLON: {

@@ -2,14 +2,16 @@
 
 char *getInitializedType(Type type) {
   static char* bytes[TYPES_COUNT] = {
-    /* INT */ "dd"
+    /* NONE */ "ERROR NONE!!!",
+    /* INT */  "dd"
   };
   if(type >= TYPES_COUNT) return "UI";
   return bytes[type];
 }
 char *getUninitializedType(Type type) {
   static char* bytes[TYPES_COUNT] = {
-    /* INT */ "resd"
+    /* NONE */ "ERROR NONE!!!",
+    /* INT */  "resd"
   };
   if(type >= TYPES_COUNT) return "UU";
   return bytes[type];
@@ -82,13 +84,15 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, const char *error) {
     return false;
   }
 
-  fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) leftToken->data));
+  NameValue *nameValue = NULL;
+
   switch (leftToken->type) {
   case TOKEN_VALUE:
     fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) leftToken->data));
     break;
   case TOKEN_NAME:
-    fprintf(out, "mov eax, [%s]\n", (const char*) leftToken->data);
+    nameValue = leftToken->data;
+    fprintf(out, "mov eax, [%s]\n", nameValue->name);
     break;
   default:
     fprintf(out, "push rbx\n");
@@ -102,7 +106,8 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, const char *error) {
     fprintf(out, "mov ebx, %" PRIu32 "\n", *((uint32_t*) rightToken->data));
     break;
   case TOKEN_NAME:
-    fprintf(out, "mov ebx, [%s]\n", (const char*) rightToken->data);
+    nameValue = rightToken->data;
+    fprintf(out, "mov ebx, [%s]\n", nameValue->name);
     break;
   default:
     fprintf(out, "push rax\n");
@@ -110,8 +115,6 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, const char *error) {
     fprintf(out, "pop rax\n");
     break;
   }
-
-  uint32_t *sum = malloc(sizeof(uint32_t));
 
   switch (token->type) {
   case TOKEN_ADD: {
@@ -130,21 +133,17 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, const char *error) {
 }
 
 void generateAsm(Program *program, FILE *out, const char *error) {
-  ASSERT(TOKEN_COUNT == 8, "Not all operations are implemented in compile!");
+  ASSERT(TOKEN_COUNT == 7, "Not all operations are implemented in compile!");
   prepareFileForCompile(out);
   char *name = NULL;
-  Type type = TYPES_COUNT;
   HashTable *table = createHashTable(255);
   for(int i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     switch(token->type) {
-      case TOKEN_TYPE: {
-        type = (Type) token->data;
-        break;
-      }
       case TOKEN_NAME: {
-        char *mName = token->data;
-        if(i == 0) {
+        NameValue *value = token->data;
+        char *mName = value->name;
+        if(!value->type) {
           snprintf(
             error, 512,
             "%s:%zu:%zu: No type for variable `%s`!",
@@ -153,7 +152,17 @@ void generateAsm(Program *program, FILE *out, const char *error) {
           );
           return;
         }
+        if(i == 0) {
+          name = mName;
+          setElementInHashTable(table, name, createVariable(*(value->type), NULL));
+          break;
+        }
         switch (program->instructions[i - 1]->type) {
+        case TOKEN_SEMICOLON: {
+          name = mName;
+          setElementInHashTable(table, name, createVariable(*(value->type), NULL));
+          break;
+        }
         case TOKEN_ASSIGN: {
           if(strcmp(mName, name) == 0) {
             snprintf(
@@ -178,12 +187,6 @@ void generateAsm(Program *program, FILE *out, const char *error) {
           name = NULL;
           break;
         }
-        case TOKEN_TYPE: {
-          name = mName;
-          setElementInHashTable(table, name, createVariable(type, NULL));
-          type = TYPES_COUNT;
-          break;
-        }
         default:
           break;
         }
@@ -202,7 +205,7 @@ void generateAsm(Program *program, FILE *out, const char *error) {
       case TOKEN_PRINT: {
         char *mName = token->data;
         CompileVariable *variable = getElementFromHashTable(table, mName);
-        ASSERT(TYPES_COUNT == 1, "Not all types are implemented in compile print!");
+        ASSERT(TYPES_COUNT == 2, "Not all types are implemented in compile print!");
         
         if(variable->type == TYPE_INT) {
           fprintf(out, "mov eax, [%s]\n", mName);
@@ -212,7 +215,6 @@ void generateAsm(Program *program, FILE *out, const char *error) {
         break;
       }
       case TOKEN_SEMICOLON: {
-        type = TYPES_COUNT;
         name = NULL;
         break;
       }

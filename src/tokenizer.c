@@ -6,6 +6,9 @@ Program *createProgram() {
   program->capacity = 20;
   program->count = 0;
   program->instructions = calloc(program->capacity, sizeof(Token*));
+  program->variableTypes = createHashTable(255);
+
+  return program;
 }
 
 void expandProgramInstructions(Program *program) {
@@ -29,6 +32,9 @@ Token *popProgramInstruction(Program *program) {
   program->instructions[program->count] = NULL;
   return instruction;
 }
+Token *getProgramInstruction(Program *program, size_t i) {
+  return program->instructions[i];
+}
 
 int trimLeft(char **text, size_t length) {
   size_t i = 0;
@@ -49,8 +55,47 @@ Token *createToken(Token *createToken) {
   return token;
 }
 
+// Changes the createOptions and checks them
+void createVariableToken(CreateTokenFromString *createOptions, Token *token) {
+  HashTable *variableTypes = createOptions->program->variableTypes;
+
+  size_t length = createOptions->length;
+  bool assignType = createOptions->string[length - 1] == ':';
+  if(assignType) {
+    length--;
+  }
+
+  const char *name = strndup(createOptions->string, length);
+  NameValue *value = malloc(sizeof(NameValue));
+  value->name = name;
+  value->assignType = assignType;
+  if(existsElementInHashTable(variableTypes, name)) {
+    if(assignType) {
+      snprintf(
+        createOptions->error, 512,
+        "%s:%zu:%zu: Trying to reassign a variable `%s` to another type!",
+        createOptions->file, createOptions->line, createOptions->column,
+        name
+      );
+      return;
+    }
+    value->type = getElementFromHashTable(variableTypes, name);
+  } else {
+    Type *type = malloc(sizeof(Type));
+    *type = TYPE_NONE;
+    setElementInHashTable(variableTypes, name, type);
+    value->type = type;
+  }
+
+  token->type = TOKEN_NAME;
+  token->data = value;
+}
+
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
-  ASSERT(TOKEN_COUNT == 8, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 7, "Not all operations are implemented in createTokenFromString!");
+  // printf("Token string: ");
+  // printn(createOptions->string, createOptions->length);
+  HashTable *variableTypes = createOptions->program->variableTypes;
   Token token = {};
   token.file = createOptions->file;
   token.line = createOptions->line;
@@ -60,9 +105,39 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
   bool isPlus = false;
 
   if(strncmp("int", createOptions->string, 3) == 0) {
-    token.type = TOKEN_TYPE;
-    token.data = TYPE_INT;
-    return createToken(&token);
+    if(createOptions->last == NULL) {
+      snprintf(
+        createOptions->error, 512,
+        "%s:%zu:%zu: Type needs to have a name token before it!",
+        createOptions->file, createOptions->line, createOptions->column
+      );
+      return;
+    } else if(createOptions->last->type == TOKEN_NAME) {
+      NameValue *value = createOptions->last->data;
+      if(value->assignType == false) {
+        snprintf(
+          createOptions->error, 512,
+          "%s:%zu:%zu: Types should only go after!",
+          createOptions->file, createOptions->line, createOptions->column,
+          value->name
+        );
+        return NULL;
+      }
+      value->type = getElementFromHashTable(variableTypes, value->name);
+      if(*value->type != TYPE_NONE) {
+        snprintf(
+          createOptions->error, 512,
+          "%s:%zu:%zu: Trying to reassign a variable `%s` to another type!",
+          createOptions->file, createOptions->line, createOptions->column,
+          value->name
+        );
+        return NULL;
+      } else {
+        *(value->type) = TYPE_INT;
+      }
+    }
+
+    return NULL;
   } else if(strncmp(";", createOptions->string, 1) == 0) {
     token.type = TOKEN_SEMICOLON;
     return createToken(&token);
@@ -80,7 +155,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     (isPlus = (strncmp("+", createOptions->string, 1) == 0)) ||
     strncmp("-", createOptions->string, 1) == 0
   ) {
-    if(createOptions->last->type == NULL) {
+    if(createOptions->last == NULL) {
       snprintf(
         createOptions->error, 512,
         "%s:%zu:%zu: + Operation needs to have a token before it!",
@@ -92,6 +167,13 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     token.type = isPlus ? TOKEN_ADD : TOKEN_SUBTRACT;
     token.data = (BinaryOperationValue*) malloc(sizeof(BinaryOperationValue));
     ((BinaryOperationValue*) token.data)->operandOne = instructionOne;
+    return createToken(&token);
+  } else if(createOptions->last == NULL) {
+    // TODO: Add warnings!
+    if(isDigit(createOptions->string[0])) return NULL;
+    createVariableToken(createOptions, &token);
+    if(createOptions->error[0] != 0) return NULL;
+
     return createToken(&token);
   } else if(createOptions->last != NULL) {
     void *data = NULL;
@@ -110,6 +192,8 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
         if(isDataDigit) {
           token.type = TOKEN_VALUE;
         } else {
+          createVariableToken(createOptions, &token);
+          if(createOptions->error[0] != 0) return NULL;
           token.type = TOKEN_NAME;
         }
         Token *right = createToken(&token);
@@ -118,21 +202,60 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
 
         return NULL;
       }
-      case TOKEN_TYPE:
-        token.type = TOKEN_NAME;
-        token.data = data;
+      case TOKEN_SEMICOLON: {
+        createVariableToken(createOptions, &token);
+        if(createOptions->error[0] != 0) return NULL;
         return createToken(&token);
-      case TOKEN_PRINT:
+      }
+      case TOKEN_PRINT: {
         createOptions->last->data = data;
         return NULL;
-      case TOKEN_ASSIGN:
+      }
+      case TOKEN_ASSIGN:{
         token.data = data;
+
+        Token *name = getProgramInstruction(createOptions->program, createOptions->program->count - 2);
+        NameValue* nameValue = name->data;
+
         if(isDataDigit) {
           token.type = TOKEN_VALUE;
+          if(nameValue->type && *(nameValue->type) != TYPE_NONE) {
+            // TODO: Other types!!!
+            ASSERT(TYPES_COUNT == 1, "Check for other types!");
+            if(*(nameValue->type) != TYPE_INT) {
+              snprintf(
+                createOptions->error, 512,
+                "%s:%zu:%zu: Trying to reassign a variable `%s` to another type!",
+                createOptions->file, createOptions->line, createOptions->column,
+                nameValue->name
+              );
+              return;
+            }
+          } else {
+            *(nameValue->type) = TYPE_INT;
+          }
         } else {
-          token.type = TOKEN_NAME;
+          createVariableToken(createOptions, &token);
+          if(createOptions->error[0] != 0) return NULL;
+          NameValue *other = token.data;
+          if(nameValue->type && *(nameValue->type) != TYPE_NONE) {
+            // TODO: Other types!!!
+            ASSERT(TYPES_COUNT == 1, "Check for other types!");
+            if(*(nameValue->type) != *(other->type)) {
+              snprintf(
+                createOptions->error, 512,
+                "%s:%zu:%zu: Trying to reassign a variable `%s` to another type!",
+                createOptions->file, createOptions->line, createOptions->column,
+                nameValue->name
+              );
+              return 0;
+            }
+          } else {
+            *(nameValue->type) = *(other->type);
+          }
         }
         return createToken(&token);
+      }
       default: {
         free(data);
       }
@@ -171,8 +294,8 @@ Program *createProgramFromFile(const char *filePath, char *error) {
         end++;
       }
 
-      createOptions.line = row;
-      createOptions.column = start;
+      createOptions.line = row + 1;
+      createOptions.column = start + 1;
       createOptions.last = last;
       createOptions.length = end;
       createOptions.string = line;
@@ -192,6 +315,43 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   }
 
   fclose(in);
+
+  Token *token = checkProgram(program);
+  if(token) {
+    snprintf(
+      error, 512,
+      "%s:%zu:%zu: Variable `%s` doesn't have a type!",
+      token->file, token->line, token->column,
+      ((NameValue*)token->data)->name
+    );
+    return NULL;
+  }
+
   return program;
 }
 
+Token *checkProgram(Program *program) {
+  for(size_t i = 0; i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+    if(instruction->type == TOKEN_ADD || instruction->type == TOKEN_SUBTRACT) {
+
+    }
+    if(instruction->type != TOKEN_NAME) continue;
+    NameValue *value = instruction->data;
+    // printf("Token[i: %zu]: %s, type: %p\n", i, value->name, *(value->type));
+    if(*(value->type) == TYPE_NONE) {
+      return instruction;
+      // for(size_t j = 0; j < program->count;j++) {
+      //   Token *checker = program->instructions[j];
+      //   if(checker->type != TOKEN_NAME) continue;
+      //   NameValue *checkerValue = checker->data;
+      //   if(strcmp(value->name, checkerValue->name) == 0) {
+      //     if(!checkerValue->type) return instruction;
+      //     value->type = checkerValue->type;
+      //     break;
+      //   }
+      // }
+    }
+  }
+  return NULL;
+}
