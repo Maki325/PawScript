@@ -68,6 +68,7 @@ typedef struct CreateTokenFromString {
 Token *createTokenFromString(CreateTokenFromString *createTokenFromString);
 
 Program *createProgram();
+void deleteProgram(Program *program);
 void expandProgramInstructions(Program *program);
 void pushProgramInstruction(Program *program, Token *instruction);
 Token *popProgramInstruction(Program *program);

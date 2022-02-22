@@ -17,4 +17,6 @@ void printProgram(Program *program);
 void printToken(Token *token);
 void printn(const char* string, size_t length);
 
+int trimLeft(char **text, size_t *length);
+
 #endif

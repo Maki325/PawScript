@@ -11,6 +11,16 @@ Program *createProgram() {
   return program;
 }
 
+void deleteProgram(Program *program) {
+  for(size_t i = 0;i < program->count;i++) {
+    free(program->instructions[i]->data);
+    free(program->instructions[i]);
+  }
+  free(program->instructions);
+  deleteHashTable(program->variableTypes);
+  free(program);
+}
+
 void expandProgramInstructions(Program *program) {
   program->capacity = program->capacity + min(1000, program->capacity);
 
@@ -34,14 +44,6 @@ Token *popProgramInstruction(Program *program) {
 }
 Token *getProgramInstruction(Program *program, size_t i) {
   return program->instructions[i];
-}
-
-int trimLeft(char **text, size_t length) {
-  size_t i = 0;
-  while(isspace((*text)[0])) {
-    (*text)++;
-  }
-  return i;
 }
 
 Token *createToken(Token *createToken) {
@@ -264,6 +266,21 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
   return NULL;
 }
 
+Token *checkProgram(Program *program) {
+  for(size_t i = 0; i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+    if(instruction->type == TOKEN_ADD || instruction->type == TOKEN_SUBTRACT) {
+
+    }
+    if(instruction->type != TOKEN_NAME) continue;
+    NameValue *value = instruction->data;
+    if(*(value->type) == TYPE_NONE) {
+      return instruction;
+    }
+  }
+  return NULL;
+}
+
 Program *createProgramFromFile(const char *filePath, char *error) {
   Program *program = createProgram();
   FILE *in = fopen(filePath, "r");
@@ -277,18 +294,22 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   createOptions.file = filePath;
   createOptions.error = error;
   while((length = getline(&lineStart, &length, in)) != -1) {
+    if(length == 0) continue;
     char *line = lineStart;
-    for(size_t st = 1; st < length;st++) {
+    trimLeft(&line, &length);
+    for(size_t st = 0; st < length;st++) {
       if(line[st] == '/' && line[st - 1] == '/') {
         length = st - 1;
         break;
       }
     }
-    size_t start = trimLeft(&line, length), end = 1;
-    while(start < length) {
+    trimLeft(&line, &length);
+    size_t start = 0, end = 1;
+    const size_t lineLength = length;
+    while(start < lineLength) {
       end = 1;
       while(
-        end + start < length &&
+        end < length &&
         !isspace(line[end]) && line[end] != ';'
       ) {
         end++;
@@ -301,15 +322,18 @@ Program *createProgramFromFile(const char *filePath, char *error) {
       createOptions.string = line;
 
       last = createTokenFromString(&createOptions);
-      if(error[0] != 0) return 0;
+      if(error[0] != 0) {
+        deleteProgram(program);
+        return 0;
+      }
       if(last == NULL) {
         last = program->instructions[program->count - 1];
       } else {
         pushProgramInstruction(program, last);
       }
       line += end;
-      size_t tl = trimLeft(&line, length);
-      start += end + tl + 1;
+      size_t tl = trimLeft(&line, &length);
+      start += end + tl;
     }
     row++;
   }
@@ -328,30 +352,4 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   }
 
   return program;
-}
-
-Token *checkProgram(Program *program) {
-  for(size_t i = 0; i < program->count;i++) {
-    Token *instruction = program->instructions[i];
-    if(instruction->type == TOKEN_ADD || instruction->type == TOKEN_SUBTRACT) {
-
-    }
-    if(instruction->type != TOKEN_NAME) continue;
-    NameValue *value = instruction->data;
-    // printf("Token[i: %zu]: %s, type: %p\n", i, value->name, *(value->type));
-    if(*(value->type) == TYPE_NONE) {
-      return instruction;
-      // for(size_t j = 0; j < program->count;j++) {
-      //   Token *checker = program->instructions[j];
-      //   if(checker->type != TOKEN_NAME) continue;
-      //   NameValue *checkerValue = checker->data;
-      //   if(strcmp(value->name, checkerValue->name) == 0) {
-      //     if(!checkerValue->type) return instruction;
-      //     value->type = checkerValue->type;
-      //     break;
-      //   }
-      // }
-    }
-  }
-  return NULL;
 }

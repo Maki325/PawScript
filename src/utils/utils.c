@@ -67,8 +67,8 @@ void printToken(Token *token) {
     case TOKEN_NAME: {
       NameValue *value = token->data;
       printf("NAME: %s, TYPE: ", value->name);
-      Type type = (Type) value->type;
-      switch(type) {
+      Type *type = value->type;
+      switch(*type) {
         case TYPE_INT: {
           printf("INT");
           break;
@@ -123,4 +123,14 @@ void printn(const char* string, size_t length) {
     printf("%c", string[i]);
   }
   printf("\n");
+}
+
+int trimLeft(char **text, size_t *length) {
+  size_t i = 0;
+  while(isspace((*text)[0]) && *length) {
+    (*text)++;
+    (*length)--;
+    i++;
+  }
+  return i;
 }
