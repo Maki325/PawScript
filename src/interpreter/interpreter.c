@@ -13,30 +13,37 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *error
   }
   NameValue *nameValue = NULL;
   uint32_t left, right;
+  bool freeLeft = false, freeRight = false;
   switch (leftToken->type) {
-  case TOKEN_VALUE:
-    left = *((uint32_t*) leftToken->data);
-    break;
-  case TOKEN_NAME:
-    nameValue = leftToken->data;
-    left = *((uint32_t*) getElementFromHashTable(table, nameValue->name));
-    break;
-  default:
-    left = *((uint32_t*) interpretBinaryOperation(leftToken, table, error));
-    break;
+    case TOKEN_VALUE:
+      left = *((uint32_t*) leftToken->data);
+      break;
+    case TOKEN_NAME:
+      nameValue = leftToken->data;
+      left = *((uint32_t*) getElementFromHashTable(table, nameValue->name));
+      break;
+    default: {
+      uint32_t *result = interpretBinaryOperation(leftToken, table, error);
+      left = *(result);
+      free(result);
+      break;
+    }
   }
 
   switch (rightToken->type) {
-  case TOKEN_VALUE:
-    right = *((uint32_t*) rightToken->data);
-    break;
-  case TOKEN_NAME:
-    nameValue = rightToken->data;
-    right = *((uint32_t*) getElementFromHashTable(table, nameValue->name));
-    break;
-  default:
-    right = *((uint32_t*) interpretBinaryOperation(rightToken, table, error));
-    break;
+    case TOKEN_VALUE:
+      right = *((uint32_t*) rightToken->data);
+      break;
+    case TOKEN_NAME:
+      nameValue = rightToken->data;
+      right = *((uint32_t*) getElementFromHashTable(table, nameValue->name));
+      break;
+    default: {
+      uint32_t *result = interpretBinaryOperation(rightToken, table, error);
+      right = *(result);
+      free(result);
+      break;
+    }
   }
 
   uint32_t *sum = malloc(sizeof(uint32_t));
@@ -44,15 +51,27 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *error
   switch (token->type) {
   case TOKEN_ADD: {
     (*sum) = left + right;
-    return sum;
+    break;
   }
   case TOKEN_SUBTRACT: {
     (*sum) = left - right;
-    return sum;
-  }
-  default:
     break;
   }
+  case TOKEN_GREATER_THAN: {
+    (*sum) = left > right;
+    break;
+  }
+  case TOKEN_LESS_THAN: {
+    (*sum) = left < right;
+    break;
+  }
+  default:
+    free(sum);
+    sum = NULL;
+    break;
+  }
+
+  return sum;
 }
 
 bool interpretToken(Program *program, size_t i, HashTable *table, char *name, char **namePtr, char *error) {
@@ -132,7 +151,9 @@ bool interpretToken(Program *program, size_t i, HashTable *table, char *name, ch
       break;
     }
     case TOKEN_ADD:
-    case TOKEN_SUBTRACT: {
+    case TOKEN_SUBTRACT:
+    case TOKEN_GREATER_THAN:
+    case TOKEN_LESS_THAN: {
       setElementInHashTable(table, name, interpretBinaryOperation(token, table, error));
       (*namePtr) = NULL;
       break;
@@ -145,7 +166,7 @@ bool interpretToken(Program *program, size_t i, HashTable *table, char *name, ch
 }
 
 void interpret(Program *program, char *error) {
-  ASSERT(TOKEN_COUNT == 7, "Not all operations are implemented in interpret!");
+  ASSERT(TOKEN_COUNT == 9, "Not all operations are implemented in interpret!");
   char *name = NULL;
   HashTable *table = createHashTable(255);
   NameValue *nameValue = NULL;

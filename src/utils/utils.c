@@ -63,6 +63,8 @@ void printProgram(Program *program) {
 }
 void printToken(Token *token) {
   bool isAdd = false;
+  ASSERT(TOKEN_COUNT == 9, "Not all operations are implemented in createTokenFromString!");
+  
   switch(token->type) {
     case TOKEN_NAME: {
       NameValue *value = token->data;
@@ -105,6 +107,21 @@ void printToken(Token *token) {
   
       if(isAdd) printf("ADD\n");
       else printf("SUBTRACT\n");
+      printf("  - Left: ");
+      printToken(leftToken);
+
+      printf("  - Right: ");
+      printToken(rightToken);
+      break;
+    }
+    case TOKEN_GREATER_THAN:
+      isAdd = true;
+    case TOKEN_LESS_THAN: {
+      BinaryOperationValue *value = (BinaryOperationValue*) token->data;
+      Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
+  
+      if(isAdd) printf("GREATER\n");
+      else printf("LESS\n");
       printf("  - Left: ");
       printToken(leftToken);
 

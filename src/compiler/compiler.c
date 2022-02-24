@@ -16,9 +16,10 @@ char *getUninitializedType(Type type) {
   if(type >= TYPES_COUNT) return "UU";
   return bytes[type];
 }
-CompileVariable *createVariable(Type type, void *initialValue) {
+CompileVariable *createVariable(Type type, bool assignType, void *initialValue) {
   CompileVariable *value = malloc(sizeof(CompileVariable));
   value->type = type;
+  value->assignType = assignType;
   value->initialValue = initialValue;
 
   return value;
@@ -73,6 +74,7 @@ void postCompile(FILE *out) {
 }
 
 bool generateBinaryOperationAsm(Token *token, FILE *out, const char *error) {
+  ASSERT(TOKEN_COUNT == 9, "Not all operations are implemented in compile!");
   BinaryOperationValue *value = (BinaryOperationValue*) token->data;
   Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
   if(!leftToken || !rightToken) {
@@ -112,6 +114,7 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, const char *error) {
   default:
     fprintf(out, "push rax\n");
     generateBinaryOperationAsm(rightToken, out, error);
+    fprintf(out, "mov ebx, eax\n");
     fprintf(out, "pop rax\n");
     break;
   }
@@ -125,6 +128,28 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, const char *error) {
     fprintf(out, "sub eax, ebx\n");
     return true;
   }
+  case TOKEN_GREATER_THAN:
+  case TOKEN_LESS_THAN: {
+    fprintf(out, "; LG\n");
+    fprintf(out, "push rcx\n");
+    fprintf(out, "push rdx\n");
+
+    // Prepare compare values
+    fprintf(out, "mov ecx, 0\n");
+    fprintf(out, "mov edx, 1\n");
+
+    if(token->type == TOKEN_GREATER_THAN)
+      fprintf(out, "cmp eax, ebx\n");
+    else
+      fprintf(out, "cmp ebx, eax\n");
+
+    fprintf(out, "cmovg ecx, edx\n");
+    fprintf(out, "mov eax, ecx\n");
+
+    fprintf(out, "pop rdx\n");
+    fprintf(out, "pop rcx\n");
+    return true;
+  }
   default:
     break;
   }
@@ -133,7 +158,7 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, const char *error) {
 }
 
 void generateAsm(Program *program, FILE *out, const char *error) {
-  ASSERT(TOKEN_COUNT == 7, "Not all operations are implemented in compile!");
+  ASSERT(TOKEN_COUNT == 9, "Not all operations are implemented in compile!");
   prepareFileForCompile(out);
   char *name = NULL;
   HashTable *table = createHashTable(255);
@@ -154,13 +179,15 @@ void generateAsm(Program *program, FILE *out, const char *error) {
         }
         if(i == 0) {
           name = mName;
-          setElementInHashTable(table, name, createVariable(*(value->type), NULL));
+          if(!existsElementInHashTable(table, name))
+            setElementInHashTable(table, name, createVariable(*(value->type), value->assignType, NULL));
           break;
         }
         switch (program->instructions[i - 1]->type) {
         case TOKEN_SEMICOLON: {
           name = mName;
-          setElementInHashTable(table, name, createVariable(*(value->type), NULL));
+          if(!existsElementInHashTable(table, name))
+            setElementInHashTable(table, name, createVariable(*(value->type), value->assignType, NULL));
           break;
         }
         case TOKEN_ASSIGN: {
@@ -198,7 +225,12 @@ void generateAsm(Program *program, FILE *out, const char *error) {
       }
       case TOKEN_VALUE: {
         CompileVariable *value = getElementFromHashTable(table, name);
-        value->initialValue = token->data;
+        if(value->assignType || value->initialValue){
+          fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) token->data));
+          fprintf(out, "mov [%s], eax\n", name);
+        } else {
+          value->initialValue = token->data;
+        }
         name = NULL;
         break;
       }
@@ -219,7 +251,9 @@ void generateAsm(Program *program, FILE *out, const char *error) {
         break;
       }
       case TOKEN_ADD:
-      case TOKEN_SUBTRACT: {
+      case TOKEN_SUBTRACT:
+      case TOKEN_GREATER_THAN:
+      case TOKEN_LESS_THAN: {
         if(!generateBinaryOperationAsm(token, out, error)) {
           snprintf(
             error, 512,

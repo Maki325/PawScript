@@ -94,9 +94,7 @@ void createVariableToken(CreateTokenFromString *createOptions, Token *token) {
 }
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
-  ASSERT(TOKEN_COUNT == 7, "Not all operations are implemented in createTokenFromString!");
-  // printf("Token string: ");
-  // printn(createOptions->string, createOptions->length);
+  ASSERT(TOKEN_COUNT == 9, "Not all operations are implemented in createTokenFromString!");
   HashTable *variableTypes = createOptions->program->variableTypes;
   Token token = {};
   token.file = createOptions->file;
@@ -104,7 +102,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
   token.column = createOptions->column;
   token.data = NULL;
 
-  bool isPlus = false;
+  bool isPlus = false, isGreater = false;
 
   if(strncmp("int", createOptions->string, 3) == 0) {
     if(createOptions->last == NULL) {
@@ -153,7 +151,38 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
   ) {
     token.type = TOKEN_PRINT;
     return createToken(&token);
-  } else if(
+  } 
+  else if(
+    (isGreater = (strncmp(">", createOptions->string, 1) == 0)) ||
+    strncmp("<", createOptions->string, 1) == 0
+  ) {
+    if(createOptions->last == NULL) {
+      snprintf(
+        createOptions->error, 512,
+        "%s:%zu:%zu: > Operation needs to have a token before it!",
+        createOptions->file, createOptions->line, createOptions->column
+      );
+      return;
+    }
+    token.type = isGreater ? TOKEN_GREATER_THAN : TOKEN_LESS_THAN;
+    BinaryOperationValue *data = malloc(sizeof(BinaryOperationValue));
+    token.data = data;
+    if(
+      createOptions->last->type == TOKEN_VALUE ||
+      createOptions->last->type == TOKEN_NAME ||
+      createOptions->last->type == TOKEN_ADD ||
+      createOptions->last->type == TOKEN_SUBTRACT
+    ) {
+      data->operandOne = popProgramInstruction(createOptions->program);
+      return createToken(&token);
+    } else if(createOptions->last->type == TOKEN_PRINT) {
+      Token *printInstruction = createOptions->last;
+      data->operandOne = printInstruction->data;
+      printInstruction->data = createToken(&token);
+      return NULL;
+    }
+  }
+  else if(
     (isPlus = (strncmp("+", createOptions->string, 1) == 0)) ||
     strncmp("-", createOptions->string, 1) == 0
   ) {
@@ -165,11 +194,41 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
       );
       return;
     }
-    Token *instructionOne = popProgramInstruction(createOptions->program);
+    Token *instructionOne;
+
     token.type = isPlus ? TOKEN_ADD : TOKEN_SUBTRACT;
-    token.data = (BinaryOperationValue*) malloc(sizeof(BinaryOperationValue));
-    ((BinaryOperationValue*) token.data)->operandOne = instructionOne;
-    return createToken(&token);
+    BinaryOperationValue *data = malloc(sizeof(BinaryOperationValue));
+    token.data = data;
+
+    if(createOptions->last->type == TOKEN_GREATER_THAN || createOptions->last->type == TOKEN_LESS_THAN) {
+      instructionOne = createOptions->last;
+      BinaryOperationValue *lg = instructionOne->data;
+
+      if(lg->operandTwo->type == TOKEN_ADD || lg->operandTwo->type == TOKEN_SUBTRACT) {
+        BinaryOperationValue *pm = lg->operandTwo->data;
+        if(pm->operandTwo == NULL) {
+          snprintf(
+            createOptions->error, 512,
+            "%s:%zu:%zu: Not enough arguments!",
+            createOptions->file, createOptions->line, createOptions->column
+          );
+          return NULL;
+        } else {
+          data->operandOne = lg->operandTwo;
+          lg->operandTwo = createToken(&token);
+          return NULL;
+        }
+      } else {
+        data->operandOne = lg->operandTwo;
+        lg->operandTwo = createToken(&token);
+      }
+      return NULL;
+    } else {
+      instructionOne = popProgramInstruction(createOptions->program);
+
+      data->operandOne = instructionOne;
+      return createToken(&token);
+    }
   } else if(createOptions->last == NULL) {
     // TODO: Add warnings!
     if(isDigit(createOptions->string[0])) return NULL;
@@ -204,6 +263,39 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
 
         return NULL;
       }
+      case TOKEN_GREATER_THAN:
+      case TOKEN_LESS_THAN: {
+        token.data = data;
+        if(isDataDigit) {
+          token.type = TOKEN_VALUE;
+        } else {
+          createVariableToken(createOptions, &token);
+          if(createOptions->error[0] != 0) return NULL;
+          token.type = TOKEN_NAME;
+        }
+        Token *right = createToken(&token);
+        BinaryOperationValue *value = createOptions->last->data;
+        if(value->operandTwo != NULL) {
+          if(
+            value->operandTwo->type == TOKEN_ADD ||
+            value->operandTwo->type == TOKEN_SUBTRACT
+          ) {
+            BinaryOperationValue *data = value->operandTwo->data;
+            data->operandTwo = right;
+          } else {
+            snprintf(
+              createOptions->error, 512,
+              "%s:%zu:%zu: Too much arguments for > operation!",
+              createOptions->file, createOptions->line, createOptions->column
+            );
+            return;
+          }
+        } else {
+          value->operandTwo = right;
+        }
+
+        return NULL;
+      }
       case TOKEN_SEMICOLON: {
         createVariableToken(createOptions, &token);
         if(createOptions->error[0] != 0) return NULL;
@@ -219,11 +311,11 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
         Token *name = getProgramInstruction(createOptions->program, createOptions->program->count - 2);
         NameValue* nameValue = name->data;
 
+        ASSERT(TYPES_COUNT == 2, "Check for other types!");
         if(isDataDigit) {
           token.type = TOKEN_VALUE;
           if(nameValue->type && *(nameValue->type) != TYPE_NONE) {
             // TODO: Other types!!!
-            ASSERT(TYPES_COUNT == 1, "Check for other types!");
             if(*(nameValue->type) != TYPE_INT) {
               snprintf(
                 createOptions->error, 512,
@@ -242,7 +334,6 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
           NameValue *other = token.data;
           if(nameValue->type && *(nameValue->type) != TYPE_NONE) {
             // TODO: Other types!!!
-            ASSERT(TYPES_COUNT == 1, "Check for other types!");
             if(*(nameValue->type) != *(other->type)) {
               snprintf(
                 createOptions->error, 512,

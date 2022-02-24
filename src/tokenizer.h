@@ -11,6 +11,8 @@ typedef enum TokenType {
   TOKEN_PRINT,
   TOKEN_ADD,
   TOKEN_SUBTRACT,
+  TOKEN_GREATER_THAN,
+  TOKEN_LESS_THAN,
   TOKEN_COUNT
 } TokenType;
 
