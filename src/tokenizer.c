@@ -42,19 +42,19 @@ Token *popProgramInstruction(Program *program) {
   program->instructions[program->count] = NULL;
   return instruction;
 }
-Token *getProgramInstruction(Program *program, size_t i) {
-  return program->instructions[i];
-}
-
-Token *createToken(Token *createToken) {
-  Token *token = malloc(sizeof(Token));
-  token->type = createToken->type;
-  token->data = createToken->data;
-  token->file = createToken->file;
-  token->line = createToken->line;
-  token->column = createToken->column;
-
-  return token;
+Token *getProgramInstruction(Program *program, size_t pos, bool remove) {
+  Token *instruction = program->instructions[pos];
+  if(remove) {
+    program->count--;
+    if(pos == program->count) {
+      program->instructions[pos] = NULL;
+    } else {
+      for(size_t i = pos;i < program->count;i++) {
+        program->instructions[i] = program->instructions[i + 1];
+      }
+    }
+  }
+  return instruction;
 }
 
 // Changes the createOptions and checks them
@@ -93,267 +93,110 @@ void createVariableToken(CreateTokenFromString *createOptions, Token *token) {
   token->data = value;
 }
 
+Token *createToken(Token *createToken) {
+  Token *token = malloc(sizeof(Token));
+  token->type = createToken->type;
+  token->data = createToken->data;
+  token->file = createToken->file;
+  token->line = createToken->line;
+  token->column = createToken->column;
+
+  return token;
+}
+
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
-  ASSERT(TOKEN_COUNT == 9, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in createTokenFromString!");
   HashTable *variableTypes = createOptions->program->variableTypes;
-  Token token = {};
-  token.file = createOptions->file;
-  token.line = createOptions->line;
-  token.column = createOptions->column;
-  token.data = NULL;
+  Token *token = malloc(sizeof(Token));
+  token->file = createOptions->file;
+  token->line = createOptions->line;
+  token->column = createOptions->column;
+  token->data = NULL;
 
-  bool isPlus = false, isGreater = false;
-
-  if(strncmp("int", createOptions->string, 3) == 0) {
-    if(createOptions->last == NULL) {
-      snprintf(
-        createOptions->error, 512,
-        "%s:%zu:%zu: Type needs to have a name token before it!",
-        createOptions->file, createOptions->line, createOptions->column
-      );
-      return;
-    } else if(createOptions->last->type == TOKEN_NAME) {
-      NameValue *value = createOptions->last->data;
-      if(value->assignType == false) {
-        snprintf(
-          createOptions->error, 512,
-          "%s:%zu:%zu: Types should only go after!",
-          createOptions->file, createOptions->line, createOptions->column,
-          value->name
-        );
-        return NULL;
-      }
-      value->type = getElementFromHashTable(variableTypes, value->name);
-      if(*value->type != TYPE_NONE) {
-        snprintf(
-          createOptions->error, 512,
-          "%s:%zu:%zu: Trying to reassign a variable `%s` to another type!",
-          createOptions->file, createOptions->line, createOptions->column,
-          value->name
-        );
-        return NULL;
-      } else {
-        *(value->type) = TYPE_INT;
-      }
-    }
-
-    return NULL;
+  if(strncmp("(", createOptions->string, 1) == 0) {
+    createOptions->length -= 1;
+    token->type = TOKEN_PARENTHESES_OPEN;
+    return token;
+  } else if(strncmp(")", createOptions->string, 1) == 0) {
+    createOptions->length -= 1;
+    token->type = TOKEN_PARENTHESES_CLOSE;
+    return token;
+  } else if(strncmp("{", createOptions->string, 1) == 0) {
+    createOptions->length -= 1;
+    token->type = TOKEN_BRACES_OPEN;
+    return token;
+  } else if(strncmp("}", createOptions->string, 1) == 0) {
+    createOptions->length -= 1;
+    token->type = TOKEN_BRACES_CLOSE;
+    return token;
   } else if(strncmp(";", createOptions->string, 1) == 0) {
-    token.type = TOKEN_SEMICOLON;
-    return createToken(&token);
+    createOptions->length -= 1;
+    token->type = TOKEN_SEMICOLON;
+    return token;
   } else if(strncmp("=", createOptions->string, 1) == 0) {
-    token.data = strdup(createOptions->last->data);
-    token.type = TOKEN_ASSIGN;
-    return createToken(&token);
-  } else if(
-    strncmp("print", createOptions->string, 5) == 0 ||
-    strncmp("meow", createOptions->string, 4) == 0
-  ) {
-    token.type = TOKEN_PRINT;
-    return createToken(&token);
-  } 
-  else if(
-    (isGreater = (strncmp(">", createOptions->string, 1) == 0)) ||
-    strncmp("<", createOptions->string, 1) == 0
-  ) {
-    if(createOptions->last == NULL) {
-      snprintf(
-        createOptions->error, 512,
-        "%s:%zu:%zu: > Operation needs to have a token before it!",
-        createOptions->file, createOptions->line, createOptions->column
-      );
-      return;
-    }
-    token.type = isGreater ? TOKEN_GREATER_THAN : TOKEN_LESS_THAN;
-    BinaryOperationValue *data = malloc(sizeof(BinaryOperationValue));
-    token.data = data;
-    if(
-      createOptions->last->type == TOKEN_VALUE ||
-      createOptions->last->type == TOKEN_NAME ||
-      createOptions->last->type == TOKEN_ADD ||
-      createOptions->last->type == TOKEN_SUBTRACT
-    ) {
-      data->operandOne = popProgramInstruction(createOptions->program);
-      return createToken(&token);
-    } else if(createOptions->last->type == TOKEN_PRINT) {
-      Token *printInstruction = createOptions->last;
-      data->operandOne = printInstruction->data;
-      printInstruction->data = createToken(&token);
-      return NULL;
-    }
+    createOptions->length -= 1;
+    token->type = TOKEN_ASSIGN;
+    return token;
+  } else if(strncmp("int", createOptions->string, 3) == 0) {
+    createOptions->length -= 3;
+    token->type = TOKEN_TYPE;
+    token->data = (void*) TYPE_INT;
+    return token;
+  } else if(strncmp("print", createOptions->string, 5) == 0) {
+    createOptions->length -= 5;
+    token->type = TOKEN_PRINT;
+    return token;
+  } else if(strncmp("meow", createOptions->string, 4) == 0) {
+    createOptions->length -= 4;
+    token->type = TOKEN_PRINT;
+    return token;
+  } else if(strncmp("<", createOptions->string, 1) == 0) {
+    createOptions->length -= 1;
+    token->type = TOKEN_LESS_THAN;
+    return token;
+  } else if(strncmp(">", createOptions->string, 1) == 0) {
+    createOptions->length -= 1;
+    token->type = TOKEN_GREATER_THAN;
+    return token;
   }
-  else if(
-    (isPlus = (strncmp("+", createOptions->string, 1) == 0)) ||
-    strncmp("-", createOptions->string, 1) == 0
-  ) {
-    if(createOptions->last == NULL) {
-      snprintf(
-        createOptions->error, 512,
-        "%s:%zu:%zu: + Operation needs to have a token before it!",
-        createOptions->file, createOptions->line, createOptions->column
-      );
-      return;
-    }
-    Token *instructionOne;
-
-    token.type = isPlus ? TOKEN_ADD : TOKEN_SUBTRACT;
-    BinaryOperationValue *data = malloc(sizeof(BinaryOperationValue));
-    token.data = data;
-
-    if(createOptions->last->type == TOKEN_GREATER_THAN || createOptions->last->type == TOKEN_LESS_THAN) {
-      instructionOne = createOptions->last;
-      BinaryOperationValue *lg = instructionOne->data;
-
-      if(lg->operandTwo->type == TOKEN_ADD || lg->operandTwo->type == TOKEN_SUBTRACT) {
-        BinaryOperationValue *pm = lg->operandTwo->data;
-        if(pm->operandTwo == NULL) {
-          snprintf(
-            createOptions->error, 512,
-            "%s:%zu:%zu: Not enough arguments!",
-            createOptions->file, createOptions->line, createOptions->column
-          );
-          return NULL;
-        } else {
-          data->operandOne = lg->operandTwo;
-          lg->operandTwo = createToken(&token);
-          return NULL;
-        }
-      } else {
-        data->operandOne = lg->operandTwo;
-        lg->operandTwo = createToken(&token);
-      }
-      return NULL;
-    } else {
-      instructionOne = popProgramInstruction(createOptions->program);
-
-      data->operandOne = instructionOne;
-      return createToken(&token);
-    }
-  } else if(createOptions->last == NULL) {
+  else if(strncmp("+", createOptions->string, 1) == 0) {
+    createOptions->length -= 1;
+    token->type = TOKEN_ADD;
+    return token;
+  } else if(strncmp("-", createOptions->string, 1) == 0) {
+    createOptions->length -= 1;
+    token->type = TOKEN_SUBTRACT;
+    return token;
+  }
+  else if(createOptions->last == NULL) {
     // TODO: Add warnings!
-    if(isDigit(createOptions->string[0])) return NULL;
-    createVariableToken(createOptions, &token);
-    if(createOptions->error[0] != 0) return NULL;
-
-    return createToken(&token);
+    if(isDigit(createOptions->string[0])) {
+      createOptions->length = 0;
+      free(token);
+      return NULL;
+    }
+    createVariableToken(createOptions, token);
+    createOptions->length = 0;
+    if(createOptions->error[0] != 0) {
+      free(token);
+      return NULL;
+    }
+    return token;
   } else if(createOptions->last != NULL) {
-    void *data = NULL;
-    bool isDataDigit = isDigit(createOptions->string[0]);
-    if(isDataDigit) {
+    if(isDigit(createOptions->string[0])) {
+      token->type = TOKEN_VALUE;
       int *value = malloc(sizeof(int));
       (*value) = strnint(createOptions->string, createOptions->length);
-      data = value;
+      token->data = value;
     } else {
-      data = strndup(createOptions->string, createOptions->length);
+      createVariableToken(createOptions, token);
     }
-    switch (createOptions->last->type) {
-      case TOKEN_ADD:
-      case TOKEN_SUBTRACT: {
-        token.data = data;
-        if(isDataDigit) {
-          token.type = TOKEN_VALUE;
-        } else {
-          createVariableToken(createOptions, &token);
-          if(createOptions->error[0] != 0) return NULL;
-          token.type = TOKEN_NAME;
-        }
-        Token *right = createToken(&token);
-        BinaryOperationValue *value = createOptions->last->data;
-        value->operandTwo = right;
-
-        return NULL;
-      }
-      case TOKEN_GREATER_THAN:
-      case TOKEN_LESS_THAN: {
-        token.data = data;
-        if(isDataDigit) {
-          token.type = TOKEN_VALUE;
-        } else {
-          createVariableToken(createOptions, &token);
-          if(createOptions->error[0] != 0) return NULL;
-          token.type = TOKEN_NAME;
-        }
-        Token *right = createToken(&token);
-        BinaryOperationValue *value = createOptions->last->data;
-        if(value->operandTwo != NULL) {
-          if(
-            value->operandTwo->type == TOKEN_ADD ||
-            value->operandTwo->type == TOKEN_SUBTRACT
-          ) {
-            BinaryOperationValue *data = value->operandTwo->data;
-            data->operandTwo = right;
-          } else {
-            snprintf(
-              createOptions->error, 512,
-              "%s:%zu:%zu: Too much arguments for > operation!",
-              createOptions->file, createOptions->line, createOptions->column
-            );
-            return;
-          }
-        } else {
-          value->operandTwo = right;
-        }
-
-        return NULL;
-      }
-      case TOKEN_SEMICOLON: {
-        createVariableToken(createOptions, &token);
-        if(createOptions->error[0] != 0) return NULL;
-        return createToken(&token);
-      }
-      case TOKEN_PRINT: {
-        createOptions->last->data = data;
-        return NULL;
-      }
-      case TOKEN_ASSIGN:{
-        token.data = data;
-
-        Token *name = getProgramInstruction(createOptions->program, createOptions->program->count - 2);
-        NameValue* nameValue = name->data;
-
-        ASSERT(TYPES_COUNT == 2, "Check for other types!");
-        if(isDataDigit) {
-          token.type = TOKEN_VALUE;
-          if(nameValue->type && *(nameValue->type) != TYPE_NONE) {
-            // TODO: Other types!!!
-            if(*(nameValue->type) != TYPE_INT) {
-              snprintf(
-                createOptions->error, 512,
-                "%s:%zu:%zu: Trying to reassign a variable `%s` to another type!",
-                createOptions->file, createOptions->line, createOptions->column,
-                nameValue->name
-              );
-              return;
-            }
-          } else {
-            *(nameValue->type) = TYPE_INT;
-          }
-        } else {
-          createVariableToken(createOptions, &token);
-          if(createOptions->error[0] != 0) return NULL;
-          NameValue *other = token.data;
-          if(nameValue->type && *(nameValue->type) != TYPE_NONE) {
-            // TODO: Other types!!!
-            if(*(nameValue->type) != *(other->type)) {
-              snprintf(
-                createOptions->error, 512,
-                "%s:%zu:%zu: Trying to reassign a variable `%s` to another type!",
-                createOptions->file, createOptions->line, createOptions->column,
-                nameValue->name
-              );
-              return 0;
-            }
-          } else {
-            *(nameValue->type) = *(other->type);
-          }
-        }
-        return createToken(&token);
-      }
-      default: {
-        free(data);
-      }
-    }
+    createOptions->length = 0;
+    return token;
   }
+
+  createOptions->length = 0;
+  free(token);
   return NULL;
 }
 
@@ -372,6 +215,294 @@ Token *checkProgram(Program *program) {
   return NULL;
 }
 
+size_t isStringTokenFromRight(const char *string, size_t length) {
+  if(rstrncmp("if", 2, string, length, 2) == 0) {
+    return 2;
+  } else if(rstrncmp("(", 1, string, length, 1) == 0) {
+    return 1;
+  } else if(rstrncmp(")", 1, string, length, 1) == 0) {
+    return 1;
+  } else if(rstrncmp("{", 1, string, length, 1) == 0) {
+    return 1;
+  } else if(rstrncmp("}", 1, string, length, 1) == 0) {
+    return 1;
+  } else if(rstrncmp(";", 1, string, length, 1) == 0) {
+    return 1;
+  } else if(rstrncmp("=", 1, string, length, 1) == 0) {
+    return 1;
+  } else if(rstrncmp("int", 3, string, length, 3) == 0) {
+    return 3;
+  } else if(rstrncmp("print", 5, string, length, 5) == 0) {
+    return 5;
+  } else if(rstrncmp("meow", 4, string, length, 4) == 0) {
+    return 4;
+  } else if(rstrncmp("<", 1, string, length, 1) == 0) {
+    return 1;
+  } else if(rstrncmp(">", 1, string, length, 1) == 0) {
+    return 1;
+  } else if(rstrncmp("+", 1, string, length, 1) == 0) {
+    return 1;
+  } else if(rstrncmp("-", 1, string, length, 1) == 0) {
+    return 1;
+  }
+  return 0;
+}
+
+int typesetProgram(Program *program) {
+  for(size_t i = 0;i < program->count;i++) {
+    Token *token = program->instructions[i], *next;
+    if(token->type != TOKEN_NAME) {
+      continue;
+    }
+    NameValue *value = token->data;
+    if(*value->type != TYPE_NONE) continue;
+    if(value->assignType && i == program->count - 1) {
+      // Error: Variable without a type
+      return -1;
+    }
+    next = program->instructions[i + 1];
+    switch (next->type) {
+      case TOKEN_TYPE: {
+        if(!value->assignType) {
+          // Error: Wrong syntax (No `:`)! Expected `var: type` got `var type`
+          return -4;
+        } else if(*value->type == TYPE_NONE) {
+          *value->type = (Type) next->data;
+        } else if(*value->type != (Type) next->data) {
+          // Error: Wrong type reasignment
+          return -3;
+        }
+        free(getProgramInstruction(program, i + 1, true));
+        break;
+      }
+      case TOKEN_ASSIGN: {
+        next = program->instructions[i + 2];
+        switch (next->type) {
+          case TOKEN_VALUE: {
+            if(*(value->type) == TYPE_NONE) {
+              *(value->type) = TYPE_INT;
+            } else if(*(value->type) != TYPE_INT) {
+              // Error: Wrong type reasignment
+              return -3;
+            }
+            break;
+          }
+          case TOKEN_NAME: {
+            NameValue *nextValue = next->data;
+            if(*nextValue->type == TYPE_NONE) {
+              // Error: No type!
+              return -5;
+            } else {
+              *(value->type) = *(nextValue->type);
+            }
+          }
+          
+          default:
+            break;
+        }
+        break;
+      }
+      default: {
+        // Error: No type after token
+        return -2;
+      }
+    }
+  }
+
+  return 0;
+}
+
+int crossrefrenceBlocks(Program *program) {
+  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in crossrefrenceProgram!");
+  size_t refrences[program->count], count = 0;
+  Token token;
+  for(size_t i = 0;i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+    switch (instruction->type) {
+      case TOKEN_PARENTHESES_OPEN: {
+        refrences[count++] = ++i;
+        break;
+      }
+      case TOKEN_PARENTHESES_CLOSE: {
+        size_t start = refrences[--count],
+          length = i - start, pos = 0;
+        Token **tokens = calloc(length, sizeof(Token*));
+        for(size_t j = 0;j < length;j++) {
+          tokens[pos++] = getProgramInstruction(program, start, true);
+        }
+        // Get `(` token for location
+        Token *startToken = getProgramInstruction(program, start - 1, true);
+        token.file = startToken->file;
+        token.line = startToken->line;
+        token.column = startToken->column;
+        token.type = TOKEN_PRIORITY;
+        TokenPriorityValue *value = malloc(sizeof(TokenPriorityValue));
+        value->instructions = tokens;
+        value->count = length;
+        token.data = value;
+        free(startToken);
+
+        // Replace `)` token with actual priority token
+        free(getProgramInstruction(program, start - 1, false));
+        program->instructions[start - 1] = createToken(&token);
+        i = start - 1;
+
+        break;
+      }
+    }
+  }
+  if(count != 0) {
+    PSLOG("Count: %zu\n", count);
+    for(size_t i = 0;i < count;i++) {
+      PSLOG("Ref[%zu]: %zu\n", i, refrences[i]);
+    }
+    // Not all blocks are closed!
+    return -1;
+  }
+
+  return 0;
+}
+
+bool canBeUsedInArithmeticOperations(TokenType type) {
+  return type == TOKEN_NAME || type == TOKEN_VALUE || type == TOKEN_ADD
+          || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY;
+}
+bool canBeUsedInComparisonOperations(TokenType type) {
+  return type == TOKEN_NAME || type == TOKEN_VALUE || type == TOKEN_ADD
+          || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY
+          || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN;
+}
+
+int crossrefrencePriority(Token **holder, size_t *iPtr) {
+  Token *instruction = *holder;
+
+  TokenPriorityValue *value = instruction->data;
+  
+  int errorCode = 8888;
+  if(value->count > 1) {
+    Program prog = {.instructions = value->instructions, .count = value->count};
+    errorCode = crossrefrenceOperations(&prog);
+    value->count = prog.count;
+  }
+  
+  if(value->count == 1) {
+    (*holder) = value->instructions[0];
+    if(iPtr != NULL && errorCode == 8888) {
+      (*iPtr) = (*iPtr) - 1;
+    }
+    free(value->instructions);
+    free(value);
+    free(instruction);
+  }
+}
+
+int crossrefrenceOperations(Program *program) {
+  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in crossrefrenceProgram!");
+  for(size_t i = 0;i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+    switch (instruction->type) {
+      case TOKEN_PRIORITY: {
+        crossrefrencePriority(&program->instructions[i], &i);
+        break;
+      }
+      case TOKEN_ADD:
+      case TOKEN_SUBTRACT: {
+        if(instruction->data) {
+          BinaryOperationValue *value = instruction->data;
+          if(value->operandOne && value->operandTwo) break;
+          else if(value->operandOne || value->operandTwo) {
+            fprintf(stderr, "Operation{pos: %zu, type: \"%s\"} doesn't have both operands!", i, getTokenTypeName(instruction->type));
+            exit(1);
+          }
+        }
+        if(i == 0 || i == program->count - 1) {
+          // Not enought operands for token!
+          return -1;
+        }
+
+        Token *left  = getProgramInstruction(program, i - 1, false),
+              *right = getProgramInstruction(program, i + 1, false);
+        if(!canBeUsedInArithmeticOperations(left->type)) {
+          printf("Op 1 cant be used! I: %zu, type[i-1]: %d\n", i, getProgramInstruction(program, i - 1, false)->type);
+          return i;
+        }
+        if(!canBeUsedInArithmeticOperations(right->type)) {
+          printf("Op 2 cant be used! I: %zu\n", i);
+          return i;
+        }
+        if(left->type == TOKEN_PRIORITY) {
+          crossrefrencePriority(&program->instructions[i - 1], NULL);
+        }
+        if(right->type == TOKEN_PRIORITY) {
+          crossrefrencePriority(&program->instructions[i + 1], NULL);
+        }
+        BinaryOperationValue *value = instruction->data = malloc(sizeof(BinaryOperationValue));
+
+        value->operandTwo = getProgramInstruction(program, i + 1, true);
+        value->operandOne = getProgramInstruction(program, i - 1, true);
+        i -= 1;
+
+        break;
+      }
+    }
+  }
+  
+  for(size_t i = 0;i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+    switch (instruction->type) {
+      case TOKEN_GREATER_THAN:
+      case TOKEN_LESS_THAN: {
+        if(i == 0 || i == program->count - 1) {
+          // Not enought operands for token!
+          return -1;
+        }
+
+        Token *left  = getProgramInstruction(program, i - 1, false),
+              *right = getProgramInstruction(program, i + 1, false);
+        if(!canBeUsedInComparisonOperations(left->type)) {
+          printf("Op 1 cant be used! I: %zu, type[i-1]: %d\n", i, getProgramInstruction(program, i - 1, false)->type);
+          return i;
+        }
+        if(!canBeUsedInComparisonOperations(right->type)) {
+          printf("Op 2 cant be used! I: %zu\n", i);
+          return i;
+        }
+        
+        // NOTE: Since the crossrefrences are done above
+        // No need to redo them?
+        BinaryOperationValue *value = instruction->data = malloc(sizeof(BinaryOperationValue));
+        value->operandTwo = getProgramInstruction(program, i + 1, true);
+        value->operandOne = getProgramInstruction(program, i - 1, true);
+        i -= 1;
+
+        break;
+      }
+    }
+  }
+
+  for(size_t i = 0;i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+    switch (instruction->type) {
+      case TOKEN_PRINT: {
+        if(i == program->count - 1) {
+          // Not enought operands for token!
+          return -1;
+        }
+
+        Token *right = getProgramInstruction(program, i + 1, true);
+        NameValue *value = right->data;
+        free(right);
+        instruction->data = (void*) value->name;
+        free(value);
+
+        break;
+      }
+    }
+  }
+
+  return 0;
+}
+
 Program *createProgramFromFile(const char *filePath, char *error) {
   Program *program = createProgram();
   FILE *in = fopen(filePath, "r");
@@ -385,8 +516,9 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   createOptions.file = filePath;
   createOptions.error = error;
   while((length = getline(&lineStart, &length, in)) != -1) {
-    if(length == 0) continue;
     char *line = lineStart;
+    trimRight(line, &length);
+    if(length == 0) continue;
     trimLeft(&line, &length);
     for(size_t st = 0; st < length;st++) {
       if(line[st] == '/' && line[st - 1] == '/') {
@@ -399,12 +531,22 @@ Program *createProgramFromFile(const char *filePath, char *error) {
     const size_t lineLength = length;
     while(start < lineLength) {
       end = 1;
-      while(
-        end < length &&
-        !isspace(line[end]) && line[end] != ';'
-      ) {
-        end++;
+      while(end <= length) {
+        if(isspace(line[end - 1])) {
+          end--;
+          break;
+        }
+        size_t s = isStringTokenFromRight(line, end);
+        if(s == 0) {
+          end++;
+        } else if(s == end) {
+          break;
+        } else {
+          end -= s;
+          break;
+        }
       }
+      end = min(end, length);
 
       createOptions.line = row + 1;
       createOptions.column = start + 1;
@@ -413,23 +555,34 @@ Program *createProgramFromFile(const char *filePath, char *error) {
       createOptions.string = line;
 
       last = createTokenFromString(&createOptions);
-      if(error[0] != 0) {
-        deleteProgram(program);
-        return 0;
-      }
       if(last == NULL) {
-        last = program->instructions[program->count - 1];
-      } else {
-        pushProgramInstruction(program, last);
+        deleteProgram(program);
+        return NULL;
       }
-      line += end;
-      size_t tl = trimLeft(&line, &length);
-      start += end + tl;
+
+      pushProgramInstruction(program, last);
+
+      if(createOptions.length != 0) {
+        line += end - createOptions.length;
+        length -= end - createOptions.length;
+        size_t tl = trimLeft(&line, &length);
+        start += end - createOptions.length + tl;
+      } else {
+        line += end;
+        length -= end;
+        size_t tl = trimLeft(&line, &length);
+        start += end + tl;
+      }
     }
     row++;
   }
 
   fclose(in);
+
+  int typesetError = typesetProgram(program);
+  if(typesetError != 0) printf("Typeset error: %d\n", typesetError);
+  crossrefrenceBlocks(program);
+  crossrefrenceOperations(program);
 
   Token *token = checkProgram(program);
   if(token) {

@@ -1,6 +1,6 @@
 #include "interpreter.h"
 
-void *interpretBinaryOperation(Token *token, HashTable *table, const char *error) {
+void *interpretBinaryOperation(Token *token, HashTable *table, const char *name, const char **namePtr, char *error) {
   BinaryOperationValue *value = (BinaryOperationValue*) token->data;
   Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
   if(!leftToken || !rightToken) {
@@ -22,11 +22,17 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *error
       nameValue = leftToken->data;
       left = *((uint32_t*) getElementFromHashTable(table, nameValue->name));
       break;
-    default: {
-      uint32_t *result = interpretBinaryOperation(leftToken, table, error);
+    case TOKEN_ADD:
+    case TOKEN_SUBTRACT:
+    case TOKEN_GREATER_THAN:
+    case TOKEN_LESS_THAN: {
+      uint32_t *result = interpretBinaryOperation(leftToken, table, name, namePtr, error);
       left = *(result);
       free(result);
       break;
+    }
+    default: {
+      ASSERT(false, "Operand type not expected in interpretBinaryOperation!");
     }
   }
 
@@ -38,11 +44,24 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *error
       nameValue = rightToken->data;
       right = *((uint32_t*) getElementFromHashTable(table, nameValue->name));
       break;
-    default: {
-      uint32_t *result = interpretBinaryOperation(rightToken, table, error);
+    case TOKEN_ADD:
+    case TOKEN_SUBTRACT:
+    case TOKEN_GREATER_THAN:
+    case TOKEN_LESS_THAN: {
+      uint32_t *result = interpretBinaryOperation(rightToken, table, name, namePtr, error);
       right = *(result);
       free(result);
       break;
+    }
+    case TOKEN_PRIORITY: {
+      TokenPriorityValue *value = (TokenPriorityValue*) token->data;
+      Program prog = {.instructions = value->instructions, .count = value->count};
+      for(size_t j = 0; j < value->count;j++) {
+        interpretToken(&prog, j, table, name, namePtr, error);
+      }
+    }
+    default: {
+      ASSERT(false, "Operand type not expected in interpretBinaryOperation!");
     }
   }
 
@@ -74,12 +93,12 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *error
   return sum;
 }
 
-bool interpretToken(Program *program, size_t i, HashTable *table, char *name, char **namePtr, char *error) {
+bool interpretToken(Program *program, size_t i, HashTable *table, const char *name, const char **namePtr, char *error) {
   Token *token = program->instructions[i];
   switch(token->type) {
     case TOKEN_NAME: {
       NameValue *value = token->data;
-      char *mName = value->name;
+      const char *mName = value->name;
       if(!value->type) {
         snprintf(
           error, 512,
@@ -129,7 +148,7 @@ bool interpretToken(Program *program, size_t i, HashTable *table, char *name, ch
       if(name == NULL) {
         snprintf(
           error, 512,
-          "%s:%zu:%zu: Trying to assign to no variable! %d",
+          "%s:%zu:%zu: Trying to assign to no variable! %zu",
           token->file, token->line, token->column,
           i
         );
@@ -154,11 +173,19 @@ bool interpretToken(Program *program, size_t i, HashTable *table, char *name, ch
     case TOKEN_SUBTRACT:
     case TOKEN_GREATER_THAN:
     case TOKEN_LESS_THAN: {
-      setElementInHashTable(table, name, interpretBinaryOperation(token, table, error));
+      setElementInHashTable(table, name, interpretBinaryOperation(token, table, name, namePtr, error));
       (*namePtr) = NULL;
       break;
     }
+    case TOKEN_PRIORITY: {
+      TokenPriorityValue *value = (TokenPriorityValue*) token->data;
+      Program prog = {.instructions = value->instructions, .count = value->count};
+      for(size_t j = 0; j < value->count;j++) {
+        interpretToken(&prog, j, table, name, namePtr, error);
+      }
+    }
     default: {
+      printf("Token: %d\n", token->type);
       ASSERT(false, "Not all operations are implemented in interpret!");
     }
   }
@@ -166,8 +193,8 @@ bool interpretToken(Program *program, size_t i, HashTable *table, char *name, ch
 }
 
 void interpret(Program *program, char *error) {
-  ASSERT(TOKEN_COUNT == 9, "Not all operations are implemented in interpret!");
-  char *name = NULL;
+  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in interpret!");
+  const char *name = NULL;
   HashTable *table = createHashTable(255);
   NameValue *nameValue = NULL;
   for(size_t i = 0;i < program->count;i++) {

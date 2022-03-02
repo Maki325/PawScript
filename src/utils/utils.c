@@ -58,29 +58,37 @@ void printProgram(Program *program) {
   for(size_t i = 0; i < program->count;i++) {
     Token *token = program->instructions[i];
     printf("  - ");
-    printToken(token);
+    printToken(token, 0);
   }
 }
-void printToken(Token *token) {
+void printToken(Token *token, size_t depth) {
   bool isAdd = false;
-  ASSERT(TOKEN_COUNT == 9, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in createTokenFromString!");
   
   switch(token->type) {
+    case TOKEN_TYPE: {
+      printf("TYPE: %zu\n", (size_t) token->data);
+      break;
+    }
     case TOKEN_NAME: {
       NameValue *value = token->data;
-      printf("NAME: %s, TYPE: ", value->name);
-      Type *type = value->type;
-      switch(*type) {
-        case TYPE_INT: {
-          printf("INT");
-          break;
+      if(!value->type) {
+        printf("NAME: %s, TYPE: (NULL)\n", value->name);
+      } else {
+        printf("NAME: %s, TYPE: (%p, ", value->name, value->type);
+        Type *type = value->type;
+        switch(*type) {
+          case TYPE_INT: {
+            printf("INT");
+            break;
+          }
+          default: {
+            printf("UNKNOWN");
+            break;
+          }
         }
-        default: {
-          printf("UNKNOWN");
-          break;
-        }
+        printf(")\n");
       }
-      printf("\n");
       break;
     }
     case TOKEN_SEMICOLON: {
@@ -96,41 +104,81 @@ void printToken(Token *token) {
       break;
     }
     case TOKEN_PRINT: {
-      printf("PRINT: %s\n", token->data);
+      printf("PRINT: %s\n", (char*) token->data);
+      break;
+    }
+    case TOKEN_PARENTHESES_OPEN: {
+      printf("(\n");
+      break;
+    }
+    case TOKEN_PARENTHESES_CLOSE: {
+      printf(")\n");
+      break;
+    }
+    case TOKEN_BRACES_OPEN: {
+      printf("{\n");
+      break;
+    }
+    case TOKEN_BRACES_CLOSE: {
+      printf("}\n");
+      break;
+    }
+    case TOKEN_PRIORITY: {
+      printf("PRIORITY\n");
+      TokenPriorityValue *value = token->data;
+      for(size_t i = 0; i < value->count;i++) {
+        printf("\t- ");
+        printToken(value->instructions[i], depth + 1);
+      }
       break;
     }
     case TOKEN_ADD:
       isAdd = true;
     case TOKEN_SUBTRACT: {
-      BinaryOperationValue *value = (BinaryOperationValue*) token->data;
-      Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
-  
       if(isAdd) printf("ADD\n");
       else printf("SUBTRACT\n");
+  
+      BinaryOperationValue *value = (BinaryOperationValue*) token->data;
+      if(!value) break;
+      Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
+
       printf("  - Left: ");
-      printToken(leftToken);
+      if(leftToken)
+        printToken(leftToken, depth + 1);
+      else
+        printf("(NULL)\n");
 
       printf("  - Right: ");
-      printToken(rightToken);
+      if(rightToken)
+        printToken(rightToken, depth + 1);
+      else
+        printf("(NULL)\n");
       break;
     }
     case TOKEN_GREATER_THAN:
       isAdd = true;
     case TOKEN_LESS_THAN: {
-      BinaryOperationValue *value = (BinaryOperationValue*) token->data;
-      Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
-  
       if(isAdd) printf("GREATER\n");
       else printf("LESS\n");
+      BinaryOperationValue *value = (BinaryOperationValue*) token->data;
+      if(!value) break;
+      Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
+
       printf("  - Left: ");
-      printToken(leftToken);
+      if(leftToken)
+        printToken(leftToken, depth + 1);
+      else
+        printf("(NULL)\n");
 
       printf("  - Right: ");
-      printToken(rightToken);
+      if(rightToken)
+        printToken(rightToken, depth + 1);
+      else
+        printf("(NULL)\n");
       break;
     }
     default: {
-      printf("UNKNOWN!!!\n");
+      printf("UNKNOWN TOKEN (Type id: %d)!!!\n", token->type);
       break;
     }
   }
@@ -150,4 +198,22 @@ int trimLeft(char **text, size_t *length) {
     i++;
   }
   return i;
+}
+int trimRight(const char *text, size_t *length) {
+  if(*length == 0) return 0;
+  size_t i = 0;
+  while(isspace(text[*length - 1]) && *length) {
+    (*length)--;
+    i++;
+  }
+  return i;
+}
+
+int rstrncmp(const char *a, size_t aLength, const char *b, size_t bLength, size_t length) {
+  while(length > 0 && aLength > 0 && bLength > 0) {
+    if(a[--aLength] != b[--bLength]) return a - b;
+    length--;
+  }
+  if(length == 0) return 0;
+  return a - b;
 }

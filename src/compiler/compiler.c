@@ -73,8 +73,8 @@ void postCompile(FILE *out) {
   fputs("syscall\n", out);
 }
 
-bool generateBinaryOperationAsm(Token *token, FILE *out, const char *error) {
-  ASSERT(TOKEN_COUNT == 9, "Not all operations are implemented in compile!");
+bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
+  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in compile!");
   BinaryOperationValue *value = (BinaryOperationValue*) token->data;
   Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
   if(!leftToken || !rightToken) {
@@ -89,34 +89,52 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, const char *error) {
   NameValue *nameValue = NULL;
 
   switch (leftToken->type) {
-  case TOKEN_VALUE:
-    fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) leftToken->data));
-    break;
-  case TOKEN_NAME:
-    nameValue = leftToken->data;
-    fprintf(out, "mov eax, [%s]\n", nameValue->name);
-    break;
-  default:
-    fprintf(out, "push rbx\n");
-    generateBinaryOperationAsm(leftToken, out, error);
-    fprintf(out, "pop rbx\n");
-    break;
+    case TOKEN_VALUE:
+      fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) leftToken->data));
+      break;
+    case TOKEN_NAME:
+      nameValue = leftToken->data;
+      fprintf(out, "mov eax, [%s]\n", nameValue->name);
+      break;
+    case TOKEN_ADD:
+    case TOKEN_SUBTRACT:
+    case TOKEN_GREATER_THAN:
+    case TOKEN_LESS_THAN: {
+      fprintf(out, "push rbx\n");
+      generateBinaryOperationAsm(leftToken, out, error);
+      fprintf(out, "pop rbx\n");
+      break;
+    }
+    default: {
+      fprintf(stderr, "Operand type left: %d, %s\n", leftToken->type, getTokenTypeName(leftToken->type));
+      ASSERT(false, "Operand type not expected in generateBinaryOperationAsm!");
+      break;
+    }
   }
 
   switch (rightToken->type) {
-  case TOKEN_VALUE:
-    fprintf(out, "mov ebx, %" PRIu32 "\n", *((uint32_t*) rightToken->data));
-    break;
-  case TOKEN_NAME:
-    nameValue = rightToken->data;
-    fprintf(out, "mov ebx, [%s]\n", nameValue->name);
-    break;
-  default:
-    fprintf(out, "push rax\n");
-    generateBinaryOperationAsm(rightToken, out, error);
-    fprintf(out, "mov ebx, eax\n");
-    fprintf(out, "pop rax\n");
-    break;
+    case TOKEN_VALUE:
+      fprintf(out, "mov ebx, %" PRIu32 "\n", *((uint32_t*) rightToken->data));
+      break;
+    case TOKEN_NAME:
+      nameValue = rightToken->data;
+      fprintf(out, "mov ebx, [%s]\n", nameValue->name);
+      break;
+    case TOKEN_ADD:
+    case TOKEN_SUBTRACT:
+    case TOKEN_GREATER_THAN:
+    case TOKEN_LESS_THAN: {
+      fprintf(out, "push rax\n");
+      generateBinaryOperationAsm(rightToken, out, error);
+      fprintf(out, "mov ebx, eax\n");
+      fprintf(out, "pop rax\n");
+      break;
+    }
+    default: {
+      fprintf(stderr, "Operand type right: %d, %s\n", leftToken->type, getTokenTypeName(leftToken->type));
+      ASSERT(false, "Operand type not expected in generateBinaryOperationAsm!");
+      break;
+    }
   }
 
   switch (token->type) {
@@ -157,17 +175,14 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, const char *error) {
   return false;
 }
 
-void generateAsm(Program *program, FILE *out, const char *error) {
-  ASSERT(TOKEN_COUNT == 9, "Not all operations are implemented in compile!");
-  prepareFileForCompile(out);
-  char *name = NULL;
-  HashTable *table = createHashTable(255);
+void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *error) {
+  const char *name = NULL;
   for(int i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     switch(token->type) {
       case TOKEN_NAME: {
         NameValue *value = token->data;
-        char *mName = value->name;
+        const char *mName = value->name;
         if(!value->type) {
           snprintf(
             error, 512,
@@ -266,8 +281,22 @@ void generateAsm(Program *program, FILE *out, const char *error) {
         fprintf(out, "mov [%s], eax\n", name);
         break;
       }
+      case TOKEN_PRIORITY: {
+        TokenPriorityValue *value = (TokenPriorityValue*) token->data;
+        Program prog = {.instructions = value->instructions, .count = value->count};
+        for(size_t j = 0; j < value->count;j++) {
+          generateAsm(&prog, out, error);
+        }
+      }
     }
   }
+}
+
+void generateAsm(Program *program, FILE *out, char *error) {
+  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in compile!");
+  prepareFileForCompile(out);
+  HashTable *table = createHashTable(255);
+  generateProgramAsm(program, table, out, error);
   postCompile(out);
   
   bool data = false, bss = false;

@@ -1,4 +1,5 @@
-./compile.sh 2> /dev/null
+# ./compile.sh release 2> /dev/null
+./compile.sh
 
 if [ "$1" = "s" ]
 then

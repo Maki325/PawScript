@@ -3,6 +3,12 @@
 
 #define ASSERT(condition, message) assert(condition && message)
 
+#ifdef PS_DEBUG
+  #define PSLOG(...) printf(__VA_ARGS__)
+#else
+  #define PSLOG(...)
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

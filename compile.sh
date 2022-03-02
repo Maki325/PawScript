@@ -13,4 +13,10 @@ then
   DisableWarnings="-w"
 fi
 
-gcc $(find ./src -name '*.c') -lm -g $DisableWarnings -o build/pawscript
+DefineMacros="-D PS_DEBUG"
+if [[ "$*" == *"release"* ]]
+then
+  DefineMacros=""
+fi
+
+gcc $(find ./src -name '*.c') -ggdb -lm -g $DisableWarnings $DefineMacros -o build/pawscript

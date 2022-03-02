@@ -4,7 +4,8 @@
 #include "utils/hashtable.h"
 
 typedef enum TokenType {
-  TOKEN_NAME = 0,
+  TOKEN_TYPE = 0,
+  TOKEN_NAME,
   TOKEN_SEMICOLON,
   TOKEN_ASSIGN,
   TOKEN_VALUE,
@@ -13,8 +14,36 @@ typedef enum TokenType {
   TOKEN_SUBTRACT,
   TOKEN_GREATER_THAN,
   TOKEN_LESS_THAN,
+  TOKEN_PARENTHESES_OPEN,   // (
+  TOKEN_PARENTHESES_CLOSE,  // )
+  TOKEN_PRIORITY,
+  TOKEN_BRACES_OPEN,        // {
+  TOKEN_BRACES_CLOSE,       // }
   TOKEN_COUNT
 } TokenType;
+
+static inline const char *getTokenTypeName(TokenType type) {
+  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in getTokenTypeName!");
+  switch (type) {
+    case TOKEN_TYPE: return "TOKEN_TYPE";
+    case TOKEN_NAME: return "TOKEN_NAME";
+    case TOKEN_SEMICOLON: return "TOKEN_SEMICOLON";
+    case TOKEN_ASSIGN: return "TOKEN_ASSIGN";
+    case TOKEN_VALUE: return "TOKEN_VALUE";
+    case TOKEN_PRINT: return "TOKEN_PRINT";
+    case TOKEN_ADD: return "TOKEN_ADD";
+    case TOKEN_SUBTRACT: return "TOKEN_SUBTRACT";
+    case TOKEN_GREATER_THAN: return "TOKEN_GREATER_THAN";
+    case TOKEN_LESS_THAN: return "TOKEN_LESS_THAN";
+    case TOKEN_PARENTHESES_OPEN: return "TOKEN_PARENTHESES_OPEN";
+    case TOKEN_PARENTHESES_CLOSE: return "TOKEN_PARENTHESES_CLOSE";
+    case TOKEN_PRIORITY: return "TOKEN_PRIORITY";
+    case TOKEN_BRACES_OPEN: return "TOKEN_BRACES_OPEN";
+    case TOKEN_BRACES_CLOSE: return "TOKEN_BRACES_CLOSE";
+    case TOKEN_COUNT: return "TOKEN_COUNT";
+    default: return "Unknown Token!!!";
+  }
+}
 
 typedef enum Type {
   TYPE_NONE = 0,
@@ -35,7 +64,7 @@ typedef struct Token
 } Token;
 
 typedef struct NameValue {
-  char *name;
+  const char *name;
   Type *type;
   bool assignType;
 } NameValue;
@@ -45,7 +74,11 @@ typedef struct BinaryOperationValue {
   Token *operandTwo;
 } BinaryOperationValue;
 
-Token *createToken(Token *create);
+typedef struct TokenPriorityValue {
+  Token **instructions;
+  size_t count;
+} TokenPriorityValue;
+
 
 typedef struct Program {
   Token **instructions;
@@ -61,12 +94,13 @@ typedef struct CreateTokenFromString {
   size_t length;
 
   Program *program;
-  char *file;
+  const char *file;
   size_t line;
   size_t column;
-  const char *error;
+  char *error;
 } CreateTokenFromString;
 
+Token *createToken(Token *createToken);
 Token *createTokenFromString(CreateTokenFromString *createTokenFromString);
 
 Program *createProgram();
@@ -74,12 +108,18 @@ void deleteProgram(Program *program);
 void expandProgramInstructions(Program *program);
 void pushProgramInstruction(Program *program, Token *instruction);
 Token *popProgramInstruction(Program *program);
-Token *getProgramInstruction(Program *program, size_t i);
+Token *getProgramInstruction(Program *program, size_t i, bool remove);
 Type *getTokenType(Program *program, Token *token);
 
 // Returns NULL if there are no errors
 // Otherwise returns the Token that provides the error
 Token *checkProgram(Program *program);
+
+size_t isStringTokenFromRight(const char *string, size_t length);
+
+int typesetProgram(Program *program);
+int crossrefrenceBlocks(Program *program);
+int crossrefrenceOperations(Program *program);
 
 Program *createProgramFromFile(const char *filePath, char *error);
 
