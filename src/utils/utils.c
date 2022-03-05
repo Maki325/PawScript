@@ -63,7 +63,7 @@ void printProgram(Program *program) {
 }
 void printToken(Token *token, size_t depth) {
   bool isAdd = false;
-  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in createTokenFromString!");
   
   switch(token->type) {
     case TOKEN_TYPE: {
@@ -129,6 +129,19 @@ void printToken(Token *token, size_t depth) {
       for(size_t i = 0; i < value->count;i++) {
         printf("\t- ");
         printToken(value->instructions[i], depth + 1);
+      }
+      break;
+    }
+    case TOKEN_SCOPE: {
+      printf("SCOPE: ");
+      Program *value = token->data;
+      if(value->instructions == NULL) printf("Undefined scope!\n");
+      else {
+        printf("%p\n", value);
+        for(size_t i = 0; i < value->count;i++) {
+          printf("\t- ");
+          printToken(value->instructions[i], depth + 1);
+        }
       }
       break;
     }

@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "../utils/utils.h"
 
 char *getInitializedType(Type type) {
   static char* bytes[TYPES_COUNT] = {
@@ -175,6 +176,14 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
   return false;
 }
 
+const char *getVariableScopeName(Program *program, const char *name) {
+  size_t nameLen = strlen(name), len = nameLen + 1 + (program->id == 0 ? 1 : ((int) log10(program->id)) + 1) + 1;
+  char *newName = calloc(len, sizeof(char));
+  snprintf(newName, len, "%s_%zu", name, program->id);
+  newName[len - 1] = 0;
+  return newName;
+}
+
 void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *error) {
   const char *name = NULL;
   for(int i = 0;i < program->count;i++) {
@@ -182,7 +191,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
     switch(token->type) {
       case TOKEN_NAME: {
         NameValue *value = token->data;
-        const char *mName = value->name;
+        const char *mName = getVariableScopeName(program, value->name);
         if(!value->type) {
           snprintf(
             error, 512,
@@ -240,7 +249,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
       }
       case TOKEN_VALUE: {
         CompileVariable *value = getElementFromHashTable(table, name);
-        if(value->assignType || value->initialValue){
+        if(value->initialValue){
           fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) token->data));
           fprintf(out, "mov [%s], eax\n", name);
         } else {
@@ -250,7 +259,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
         break;
       }
       case TOKEN_PRINT: {
-        char *mName = token->data;
+        const char *mName = getVariableScopeName(program, token->data);
         CompileVariable *variable = getElementFromHashTable(table, mName);
         ASSERT(TYPES_COUNT == 2, "Not all types are implemented in compile print!");
         
@@ -285,15 +294,20 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
         TokenPriorityValue *value = (TokenPriorityValue*) token->data;
         Program prog = {.instructions = value->instructions, .count = value->count};
         for(size_t j = 0; j < value->count;j++) {
+          // TODO EMERGENCY: REWORK THIS
           generateAsm(&prog, out, error);
         }
+      }
+      case TOKEN_SCOPE: {
+        Program *prog = (Program *) token->data;
+        generateProgramAsm(prog, table, out, error);
       }
     }
   }
 }
 
 void generateAsm(Program *program, FILE *out, char *error) {
-  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in compile!");
+  ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in compile!");
   prepareFileForCompile(out);
   HashTable *table = createHashTable(255);
   generateProgramAsm(program, table, out, error);

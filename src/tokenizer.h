@@ -19,29 +19,31 @@ typedef enum TokenType {
   TOKEN_PRIORITY,
   TOKEN_BRACES_OPEN,        // {
   TOKEN_BRACES_CLOSE,       // }
+  TOKEN_SCOPE,
   TOKEN_COUNT
 } TokenType;
 
 static inline const char *getTokenTypeName(TokenType type) {
-  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in getTokenTypeName!");
+  ASSERT(TOKEN_COUNT == 16, "Not all tokens are implemented in getTokenTypeName!");
   switch (type) {
-    case TOKEN_TYPE: return "TOKEN_TYPE";
-    case TOKEN_NAME: return "TOKEN_NAME";
-    case TOKEN_SEMICOLON: return "TOKEN_SEMICOLON";
-    case TOKEN_ASSIGN: return "TOKEN_ASSIGN";
-    case TOKEN_VALUE: return "TOKEN_VALUE";
-    case TOKEN_PRINT: return "TOKEN_PRINT";
-    case TOKEN_ADD: return "TOKEN_ADD";
-    case TOKEN_SUBTRACT: return "TOKEN_SUBTRACT";
-    case TOKEN_GREATER_THAN: return "TOKEN_GREATER_THAN";
-    case TOKEN_LESS_THAN: return "TOKEN_LESS_THAN";
-    case TOKEN_PARENTHESES_OPEN: return "TOKEN_PARENTHESES_OPEN";
+    case TOKEN_TYPE:              return "TOKEN_TYPE";
+    case TOKEN_NAME:              return "TOKEN_NAME";
+    case TOKEN_SEMICOLON:         return "TOKEN_SEMICOLON";
+    case TOKEN_ASSIGN:            return "TOKEN_ASSIGN";
+    case TOKEN_VALUE:             return "TOKEN_VALUE";
+    case TOKEN_PRINT:             return "TOKEN_PRINT";
+    case TOKEN_ADD:               return "TOKEN_ADD";
+    case TOKEN_SUBTRACT:          return "TOKEN_SUBTRACT";
+    case TOKEN_GREATER_THAN:      return "TOKEN_GREATER_THAN";
+    case TOKEN_LESS_THAN:         return "TOKEN_LESS_THAN";
+    case TOKEN_PARENTHESES_OPEN:  return "TOKEN_PARENTHESES_OPEN";
     case TOKEN_PARENTHESES_CLOSE: return "TOKEN_PARENTHESES_CLOSE";
-    case TOKEN_PRIORITY: return "TOKEN_PRIORITY";
-    case TOKEN_BRACES_OPEN: return "TOKEN_BRACES_OPEN";
-    case TOKEN_BRACES_CLOSE: return "TOKEN_BRACES_CLOSE";
-    case TOKEN_COUNT: return "TOKEN_COUNT";
-    default: return "Unknown Token!!!";
+    case TOKEN_PRIORITY:          return "TOKEN_PRIORITY";
+    case TOKEN_BRACES_OPEN:       return "TOKEN_BRACES_OPEN";
+    case TOKEN_BRACES_CLOSE:      return "TOKEN_BRACES_CLOSE";
+    case TOKEN_SCOPE:             return "TOKEN_SCOPE";
+    case TOKEN_COUNT:             return "TOKEN_COUNT";
+    default:                      return "Unknown Token!!!";
   }
 }
 
@@ -50,6 +52,15 @@ typedef enum Type {
   TYPE_INT,
   TYPES_COUNT
 } Type;
+
+static inline const char *getTypeName(Type type) {
+  ASSERT(TYPES_COUNT == 2, "Not all types are implemented in getTypeName!");
+  switch (type) {
+    case TYPE_INT:  return "int";
+    case TYPE_NONE: return "NONE!!!";
+    default:        return "Unknown Token!!!";
+  }
+}
 
 typedef struct Token
 {
@@ -79,8 +90,10 @@ typedef struct TokenPriorityValue {
   size_t count;
 } TokenPriorityValue;
 
-
+static size_t PROGRAM_COUNT;
 typedef struct Program {
+  size_t id;
+  struct Program *parent;
   Token **instructions;
   size_t count;
   size_t capacity;
@@ -104,12 +117,12 @@ Token *createToken(Token *createToken);
 Token *createTokenFromString(CreateTokenFromString *createTokenFromString);
 
 Program *createProgram();
+Program *createProgramWithParent(Program *parent);
 void deleteProgram(Program *program);
 void expandProgramInstructions(Program *program);
 void pushProgramInstruction(Program *program, Token *instruction);
 Token *popProgramInstruction(Program *program);
 Token *getProgramInstruction(Program *program, size_t i, bool remove);
-Type *getTokenType(Program *program, Token *token);
 
 // Returns NULL if there are no errors
 // Otherwise returns the Token that provides the error
@@ -117,6 +130,11 @@ Token *checkProgram(Program *program);
 
 size_t isStringTokenFromRight(const char *string, size_t length);
 
+typedef struct VariableTypeResponse {
+  Type *type;
+  bool directType;
+} VariableTypeResponse;
+void getVariableType(Program *program, const char* name, VariableTypeResponse *response);
 int typesetProgram(Program *program);
 int crossrefrenceBlocks(Program *program);
 int crossrefrenceOperations(Program *program);

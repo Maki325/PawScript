@@ -15,6 +15,7 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <ctype.h>
+#include <math.h>
 #include "utils/math.h"
 #include "utils/bool.h"
 

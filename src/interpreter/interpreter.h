@@ -5,6 +5,7 @@
 
 void *interpretBinaryOperation(Token *token, HashTable *table, const char *name, const char **namePtr, char *error);
 bool interpretToken(Program *program, size_t i, HashTable *table, const char *name, const char **namePtr, char *error);
+void interpretScope(Program *program, char *error, HashTable *parent);
 void interpret(Program *program, char *error);
 
 #endif

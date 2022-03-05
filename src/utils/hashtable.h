@@ -18,6 +18,7 @@ typedef struct HashTable {
 } HashTable;
 
 HashTable *createHashTable(size_t capacity);
+HashTable *createHashTableFrom(HashTable *origin);
 void deleteHashTable(HashTable* hashTable);
 
 uint64_t hashKey(const char* key);

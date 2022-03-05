@@ -184,6 +184,10 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
         interpretToken(&prog, j, table, name, namePtr, error);
       }
     }
+    case TOKEN_SCOPE: {
+      interpretScope((Program*) token->data, error, table);
+      break;
+    }
     default: {
       printf("Token: %d\n", token->type);
       ASSERT(false, "Not all operations are implemented in interpret!");
@@ -192,17 +196,17 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
   return true;
 }
 
-void interpret(Program *program, char *error) {
-  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in interpret!");
+void interpretScope(Program *program, char *error, HashTable *parent) {
+  ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in interpret!");
   const char *name = NULL;
-  HashTable *table = createHashTable(255);
-  NameValue *nameValue = NULL;
+  HashTable *table = parent == NULL ? createHashTable(255) : createHashTableFrom(parent);
   for(size_t i = 0;i < program->count;i++) {
-    if(program->instructions[i]->type == TOKEN_NAME) {
-      nameValue = program->instructions[i]->data;
-    }
     if(!interpretToken(program, i, table, name, &name, error)) {
       return;
     }
   }
+}
+
+void interpret(Program *program, char *error) {
+  interpretScope(program, error, NULL);
 }

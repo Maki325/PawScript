@@ -1,11 +1,26 @@
 #include "tokenizer.h"
 #include "utils/utils.h"
 
+static size_t PROGRAM_COUNT = 0;
+
 Program *createProgram() {
   Program *program = malloc(sizeof(Program));
+  program->id = PROGRAM_COUNT++;
+  program->parent = NULL;
   program->capacity = 20;
   program->count = 0;
   program->instructions = calloc(program->capacity, sizeof(Token*));
+  program->variableTypes = createHashTable(255);
+
+  return program;
+}
+
+Program *createProgramWithParent(Program *parent) {
+  Program *program = malloc(sizeof(Program));
+  program->id = PROGRAM_COUNT++;
+  program->parent = parent;
+  program->capacity = 20;
+  program->count = 0;
   program->variableTypes = createHashTable(255);
 
   return program;
@@ -71,23 +86,6 @@ void createVariableToken(CreateTokenFromString *createOptions, Token *token) {
   NameValue *value = malloc(sizeof(NameValue));
   value->name = name;
   value->assignType = assignType;
-  if(existsElementInHashTable(variableTypes, name)) {
-    if(assignType) {
-      snprintf(
-        createOptions->error, 512,
-        "%s:%zu:%zu: Trying to reassign a variable `%s` to another type!",
-        createOptions->file, createOptions->line, createOptions->column,
-        name
-      );
-      return;
-    }
-    value->type = getElementFromHashTable(variableTypes, name);
-  } else {
-    Type *type = malloc(sizeof(Type));
-    *type = TYPE_NONE;
-    setElementInHashTable(variableTypes, name, type);
-    value->type = type;
-  }
 
   token->type = TOKEN_NAME;
   token->data = value;
@@ -105,7 +103,7 @@ Token *createToken(Token *createToken) {
 }
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
-  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in createTokenFromString!");
   HashTable *variableTypes = createOptions->program->variableTypes;
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
@@ -184,6 +182,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     return token;
   } else if(createOptions->last != NULL) {
     if(isDigit(createOptions->string[0])) {
+      // TODO: Add multiple types support for value token
       token->type = TOKEN_VALUE;
       int *value = malloc(sizeof(int));
       (*value) = strnint(createOptions->string, createOptions->length);
@@ -248,15 +247,37 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
   return 0;
 }
 
+void getVariableType(Program *program, const char* name, VariableTypeResponse *response) {
+  if(existsElementInHashTable(program->variableTypes, name)) {
+    response->type = getElementFromHashTable(program->variableTypes, name);
+    return;
+  } else {
+    response->directType = false;
+    if(program->parent == NULL) return;
+    getVariableType(program->parent, name, response);
+  }
+}
+
 int typesetProgram(Program *program) {
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i], *next;
+    if(token->type == TOKEN_SCOPE) {
+      int code;
+      if(code = typesetProgram((Program*)token->data))
+        return code;
+    }
     if(token->type != TOKEN_NAME) {
       continue;
     }
+    VariableTypeResponse vtResponse = {.type = NULL, .directType = true};
     NameValue *value = token->data;
-    if(*value->type != TYPE_NONE) continue;
+    getVariableType(program, value->name, &vtResponse);
+
     if(value->assignType && i == program->count - 1) {
+      // Error: Variable without a type
+      return -1;
+    }
+    if(i == program->count - 1 && !vtResponse.type) {
       // Error: Variable without a type
       return -1;
     }
@@ -266,11 +287,14 @@ int typesetProgram(Program *program) {
         if(!value->assignType) {
           // Error: Wrong syntax (No `:`)! Expected `var: type` got `var type`
           return -4;
-        } else if(*value->type == TYPE_NONE) {
-          *value->type = (Type) next->data;
-        } else if(*value->type != (Type) next->data) {
+        } else if(vtResponse.directType) {
           // Error: Wrong type reasignment
           return -3;
+        } else { // No difference if there is or isn't a type, either way we create new variable
+          Type *type = malloc(sizeof(Type));
+          *type = (Type) next->data;
+          setElementInHashTable(program->variableTypes, value->name, type);
+          value->type = type;
         }
         free(getProgramInstruction(program, i + 1, true));
         break;
@@ -279,9 +303,17 @@ int typesetProgram(Program *program) {
         next = program->instructions[i + 2];
         switch (next->type) {
           case TOKEN_VALUE: {
-            if(*(value->type) == TYPE_NONE) {
-              *(value->type) = TYPE_INT;
-            } else if(*(value->type) != TYPE_INT) {
+            if(vtResponse.directType) {
+              // Error: Wrong type reasignment
+              return -3;
+            } else if(!vtResponse.type) { // No difference if there is or isn't a type, either way we create new variable
+              Type *type = malloc(sizeof(Type));
+              *type = TYPE_INT; // TODO: Add multiple types support for value token
+              setElementInHashTable(program->variableTypes, value->name, type);
+              value->type = type;
+            } else if(*vtResponse.type == TYPE_INT) {
+              value->type = vtResponse.type;
+            } else {
               // Error: Wrong type reasignment
               return -3;
             }
@@ -289,11 +321,19 @@ int typesetProgram(Program *program) {
           }
           case TOKEN_NAME: {
             NameValue *nextValue = next->data;
-            if(*nextValue->type == TYPE_NONE) {
-              // Error: No type!
-              return -5;
+            VariableTypeResponse vtNext = {.type = NULL, .directType = true};
+            getVariableType(program, nextValue->name, &vtNext);
+            if(vtResponse.directType) {
+              // Error: Wrong type reasignment
+              return -3;
+            } else if(!vtResponse.type || *vtResponse.type == *vtNext.type) {
+              Type *type = malloc(sizeof(Type));
+              *type = *vtNext.type; // TODO: Add multiple types support for value token
+              setElementInHashTable(program->variableTypes, value->name, type);
+              value->type = type;
             } else {
-              *(value->type) = *(nextValue->type);
+              // Error: Wrong type reasignment2
+              return -3;
             }
           }
           
@@ -303,8 +343,13 @@ int typesetProgram(Program *program) {
         break;
       }
       default: {
-        // Error: No type after token
-        return -2;
+        if(!vtResponse.type) {
+          // Error: Undeclared variable
+          return -2;
+        } else {
+          value->type = vtResponse.type;
+          break;
+        }
       }
     }
   }
@@ -313,7 +358,7 @@ int typesetProgram(Program *program) {
 }
 
 int crossrefrenceBlocks(Program *program) {
-  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in crossrefrenceProgram!");
+  ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in crossrefrenceProgram!");
   size_t refrences[program->count], count = 0;
   Token token;
   for(size_t i = 0;i < program->count;i++) {
@@ -326,6 +371,11 @@ int crossrefrenceBlocks(Program *program) {
       case TOKEN_PARENTHESES_CLOSE: {
         size_t start = refrences[--count],
           length = i - start, pos = 0;
+        if(getProgramInstruction(program, start - 1, false)->type != TOKEN_PARENTHESES_OPEN) {
+          // Not balanced blocks
+          exit(1);
+          return -1;
+        }
         Token **tokens = calloc(length, sizeof(Token*));
         for(size_t j = 0;j < length;j++) {
           tokens[pos++] = getProgramInstruction(program, start, true);
@@ -343,6 +393,61 @@ int crossrefrenceBlocks(Program *program) {
         free(startToken);
 
         // Replace `)` token with actual priority token
+        free(getProgramInstruction(program, start - 1, false));
+        program->instructions[start - 1] = createToken(&token);
+        i = start - 1;
+
+        break;
+      }
+
+
+
+      case TOKEN_BRACES_OPEN: {
+        refrences[count++] = ++i;
+        Program *inside = createProgramWithParent(program);
+        instruction->data = inside;
+        break;
+      }
+      case TOKEN_BRACES_CLOSE: {
+        size_t start = refrences[--count],
+          length = i - start, pos = 0;
+        Token *openInstruction = getProgramInstruction(program, start - 1, false);
+        if(openInstruction->type != TOKEN_BRACES_OPEN) {
+          // Not balanced blocks
+          exit(1);
+          return -1;
+        }
+        Program *inside = openInstruction->data;
+        inside->count = length;
+        inside->capacity = length;
+        Token **tokens = inside->instructions = calloc(length, sizeof(Token*));
+        for(size_t j = 0;j < length;j++) {
+          tokens[pos++] = getProgramInstruction(program, start, true);
+        }
+        // Get `{` token for location
+        Token *startToken = getProgramInstruction(program, start - 1, true);
+        token.file = startToken->file;
+        token.line = startToken->line;
+        token.column = startToken->column;
+        token.type = TOKEN_SCOPE;
+        token.data = inside;
+        free(startToken);
+
+        //Getting the parent
+        if(count == 0) {
+          inside->parent = program;
+        } else {
+          for(int q = count - 1;q >= 0;q--) {
+            Token *tok = program->instructions[refrences[q] - 1];
+            if(tok->type == TOKEN_BRACES_OPEN) {
+              inside->parent = tok->data;
+              break;
+            }
+          }
+          if(inside->parent == NULL) inside->parent = program;
+        }
+
+        // Replace `}` token with actual priority token
         free(getProgramInstruction(program, start - 1, false));
         program->instructions[start - 1] = createToken(&token);
         i = start - 1;
@@ -397,12 +502,16 @@ int crossrefrencePriority(Token **holder, size_t *iPtr) {
 }
 
 int crossrefrenceOperations(Program *program) {
-  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in crossrefrenceProgram!");
+  ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in crossrefrenceProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *instruction = program->instructions[i];
     switch (instruction->type) {
       case TOKEN_PRIORITY: {
         crossrefrencePriority(&program->instructions[i], &i);
+        break;
+      }
+      case TOKEN_SCOPE: {
+        crossrefrenceOperations((Program*) instruction->data);
         break;
       }
       case TOKEN_ADD:
@@ -579,9 +688,13 @@ Program *createProgramFromFile(const char *filePath, char *error) {
 
   fclose(in);
 
+  crossrefrenceBlocks(program); // Moved it before typeset because there can exist multiple scopes
+  // printProgram(program);
   int typesetError = typesetProgram(program);
-  if(typesetError != 0) printf("Typeset error: %d\n", typesetError);
-  crossrefrenceBlocks(program);
+  if(typesetError != 0) {
+    printf("Typeset error: %d\n", typesetError);
+    exit(typesetError);
+  }
   crossrefrenceOperations(program);
 
   Token *token = checkProgram(program);

@@ -5,7 +5,21 @@ HashTable *createHashTable(size_t capacity) {
   HashTable *hashTable = malloc(sizeof(HashTable));
   hashTable->capacity = capacity;
   hashTable->size = 0;
-  hashTable->elements = calloc(capacity, sizeof(HashTableElement));
+  hashTable->elements = calloc(hashTable->capacity, sizeof(HashTableElement));
+
+  return hashTable;
+}
+
+HashTable *createHashTableFrom(HashTable *origin) {
+  HashTable *hashTable = malloc(sizeof(HashTable));
+  hashTable->capacity = origin->capacity;
+  hashTable->size = origin->size;
+  hashTable->elements = calloc(hashTable->capacity, sizeof(HashTableElement));
+  for(size_t i = 0; i < hashTable->capacity;i++) {
+    if(!origin->elements[i].key) continue;
+    hashTable->elements[i].key   = strdup(origin->elements[i].key);
+    hashTable->elements[i].value = origin->elements[i].value;
+  }
 
   return hashTable;
 }
