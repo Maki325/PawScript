@@ -1,7 +1,7 @@
 #include "tokenizer.h"
 #include "utils/utils.h"
 
-static size_t PROGRAM_COUNT = 0;
+size_t PROGRAM_COUNT = 0;
 
 Program *createProgram() {
   Program *program = malloc(sizeof(Program));
@@ -74,8 +74,6 @@ Token *getProgramInstruction(Program *program, size_t pos, bool remove) {
 
 // Changes the createOptions and checks them
 void createVariableToken(CreateTokenFromString *createOptions, Token *token) {
-  HashTable *variableTypes = createOptions->program->variableTypes;
-
   size_t length = createOptions->length;
   bool assignType = createOptions->string[length - 1] == ':';
   if(assignType) {
@@ -104,7 +102,6 @@ Token *createToken(Token *createToken) {
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
   ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in createTokenFromString!");
-  HashTable *variableTypes = createOptions->program->variableTypes;
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
   token->line = createOptions->line;
@@ -252,7 +249,7 @@ int typesetProgram(Program *program) {
     Token *token = program->instructions[i], *next;
     if(token->type == TOKEN_SCOPE) {
       int code;
-      if(code = typesetProgram((Program*)token->data))
+      if((code = typesetProgram((Program*)token->data)))
         return code;
     }
     if(token->type != TOKEN_NAME) {
@@ -373,8 +370,6 @@ int crossrefrenceBlocks(Program *program) {
         break;
       }
 
-
-
       case TOKEN_BRACES_OPEN: {
         refrences[count++] = ++i;
         Program *inside = createProgramWithParent(program);
@@ -427,6 +422,8 @@ int crossrefrenceBlocks(Program *program) {
 
         break;
       }
+      default:
+        break;
     }
   }
   if(count != 0) {
@@ -521,6 +518,8 @@ int crossrefrencePriority(Token **holder, size_t *iPtr) {
     free(value);
     free(instruction);
   }
+
+  return 0;
 }
 
 int crossrefrenceOperations(Program *program) {
@@ -575,6 +574,8 @@ int crossrefrenceOperations(Program *program) {
 
         break;
       }
+      default:
+        break;
     }
   }
   
@@ -608,6 +609,8 @@ int crossrefrenceOperations(Program *program) {
 
         break;
       }
+      default:
+        break;
     }
   }
 
@@ -628,6 +631,8 @@ int crossrefrenceOperations(Program *program) {
 
         break;
       }
+      default:
+        break;
     }
   }
 

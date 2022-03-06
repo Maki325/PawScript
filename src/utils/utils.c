@@ -24,12 +24,11 @@ char *getBasename(char *path) {
   return basename;
 }
 char *getBasenameWithDirectory(char *path) {
-  size_t dot = 0, slash = 0, len = strlen(path);
+  size_t dot = 0, len = strlen(path);
   for(int i = len - 1;i >= 0;i--) {
     if(dot == 0 && path[i] == '.') {
       dot = i;
     } else if(path[i] == '/' || path[i] == '\\') {
-      slash = i + 1;
       break;
     }
   }

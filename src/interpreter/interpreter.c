@@ -13,7 +13,6 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *name,
   }
   NameValue *nameValue = NULL;
   uint32_t left, right;
-  bool freeLeft = false, freeRight = false;
   switch (leftToken->type) {
     case TOKEN_VALUE:
       left = *((uint32_t*) leftToken->data);

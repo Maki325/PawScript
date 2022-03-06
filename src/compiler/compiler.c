@@ -294,6 +294,11 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
         Program *prog = (Program *) token->data;
         generateProgramAsm(prog, table, out, error);
       }
+      default: {
+        fprintf(stderr, "Error: Token(%s) not implemented in compilation!", getTokenTypeName(token->type));
+        exit(1);
+        break;
+      }
     }
   }
 }

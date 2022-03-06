@@ -90,7 +90,7 @@ typedef struct TokenPriorityValue {
   size_t count;
 } TokenPriorityValue;
 
-static size_t PROGRAM_COUNT;
+extern size_t PROGRAM_COUNT;
 typedef struct Program {
   size_t id;
   struct Program *parent;
