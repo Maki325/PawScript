@@ -17,10 +17,10 @@ char *getUninitializedType(Type type) {
   if(type >= TYPES_COUNT) return "UU";
   return bytes[type];
 }
-CompileVariable *createVariable(Type type, bool assignType, void *initialValue) {
+CompileVariable *createVariable(Type type, void *initialValue) {
   CompileVariable *value = malloc(sizeof(CompileVariable));
   value->type = type;
-  value->assignType = assignType;
+  value->usageCount = 0;
   value->initialValue = initialValue;
 
   return value;
@@ -75,7 +75,7 @@ void postCompile(FILE *out) {
 }
 
 bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
-  ASSERT(TOKEN_COUNT == 15, "Not all operations are implemented in compile!");
+  ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in compile!");
   BinaryOperationValue *value = (BinaryOperationValue*) token->data;
   Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
   if(!leftToken || !rightToken) {
@@ -196,7 +196,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
         if(i == 0) {
           name = mName;
           if(!existsElementInHashTable(table, name))
-            setElementInHashTable(table, name, createVariable(*(value->type), value->assignType, NULL));
+            setElementInHashTable(table, name, createVariable(*(value->type), NULL));
           break;
         }
         switch (program->instructions[i - 1]->type) {
@@ -227,7 +227,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
           default: {
             name = mName;
             if(!existsElementInHashTable(table, name))
-              setElementInHashTable(table, name, createVariable(*(value->type), value->assignType, NULL));
+              setElementInHashTable(table, name, createVariable(*(value->type), NULL));
             break;
           }
         }
@@ -235,11 +235,13 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
       }
       case TOKEN_ASSIGN: {
         ASSERT(name != NULL, "Trying to assign to no variable!");
+        CompileVariable *var = getElementFromHashTable(table, name);
+        var->usageCount++;
         break;
       }
       case TOKEN_VALUE: {
         CompileVariable *value = getElementFromHashTable(table, name);
-        if(value->initialValue){
+        if(value->initialValue || value->usageCount > 1) {
           fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) token->data));
           fprintf(out, "mov [%s], eax\n", name);
         } else {

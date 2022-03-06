@@ -7,12 +7,12 @@ typedef struct CompileVariable
 {
   Type type;
   void *initialValue;
-  bool assignType;
+  size_t usageCount;
 } CompileVariable;
 
 char *getInitializedType(Type type);
 char *getUninitializedType(Type type);
-CompileVariable *createVariable(Type type, bool assignType, void *initialValue);
+CompileVariable *createVariable(Type type, void *initialValue);
 
 void addPrintFunction(FILE *out);
 void prepareFileForCompile(FILE *out);
