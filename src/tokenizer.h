@@ -130,13 +130,14 @@ Token *checkProgram(Program *program);
 
 size_t isStringTokenFromRight(const char *string, size_t length);
 
-typedef struct VariableTypeResponse {
+typedef struct NameMapValue {
+  Program *program;
+  const char *name;
   Type *type;
-  bool directType;
-} VariableTypeResponse;
-void getVariableType(Program *program, const char* name, VariableTypeResponse *response);
+} NameMapValue;
 int typesetProgram(Program *program);
 int crossrefrenceBlocks(Program *program);
+int crossrefrenceVariables(Program *program, HashTable *parentNameMap);
 int crossrefrenceOperations(Program *program);
 
 Program *createProgramFromFile(const char *filePath, char *error);

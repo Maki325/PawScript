@@ -247,17 +247,6 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
   return 0;
 }
 
-void getVariableType(Program *program, const char* name, VariableTypeResponse *response) {
-  if(existsElementInHashTable(program->variableTypes, name)) {
-    response->type = getElementFromHashTable(program->variableTypes, name);
-    return;
-  } else {
-    response->directType = false;
-    if(program->parent == NULL) return;
-    getVariableType(program->parent, name, response);
-  }
-}
-
 int typesetProgram(Program *program) {
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i], *next;
@@ -269,15 +258,13 @@ int typesetProgram(Program *program) {
     if(token->type != TOKEN_NAME) {
       continue;
     }
-    VariableTypeResponse vtResponse = {.type = NULL, .directType = true};
     NameValue *value = token->data;
-    getVariableType(program, value->name, &vtResponse);
 
     if(value->assignType && i == program->count - 1) {
       // Error: Variable without a type
       return -1;
     }
-    if(i == program->count - 1 && !vtResponse.type) {
+    if(i == program->count - 1 && value->type == TYPE_NONE) {
       // Error: Variable without a type
       return -1;
     }
@@ -287,14 +274,11 @@ int typesetProgram(Program *program) {
         if(!value->assignType) {
           // Error: Wrong syntax (No `:`)! Expected `var: type` got `var type`
           return -4;
-        } else if(vtResponse.directType) {
+        } else if(*value->type == TYPE_NONE) {
+          *value->type = (Type) next->data;
+        } else if(*value->type != (Type) next->data) {
           // Error: Wrong type reasignment
           return -3;
-        } else { // No difference if there is or isn't a type, either way we create new variable
-          Type *type = malloc(sizeof(Type));
-          *type = (Type) next->data;
-          setElementInHashTable(program->variableTypes, value->name, type);
-          value->type = type;
         }
         free(getProgramInstruction(program, i + 1, true));
         break;
@@ -303,17 +287,12 @@ int typesetProgram(Program *program) {
         next = program->instructions[i + 2];
         switch (next->type) {
           case TOKEN_VALUE: {
-            if(vtResponse.directType) {
-              // Error: Wrong type reasignment
-              return -3;
-            } else if(!vtResponse.type) { // No difference if there is or isn't a type, either way we create new variable
-              Type *type = malloc(sizeof(Type));
-              *type = TYPE_INT; // TODO: Add multiple types support for value token
-              setElementInHashTable(program->variableTypes, value->name, type);
-              value->type = type;
-            } else if(*vtResponse.type == TYPE_INT) {
-              value->type = vtResponse.type;
-            } else {
+            if(*value->type == TYPE_NONE) {
+              // TODO: Add multiple types support for value token
+              *value->type = TYPE_INT;
+              break;
+            } else if(*value->type != TYPE_INT) {
+              // TODO: Add multiple types support for value token
               // Error: Wrong type reasignment
               return -3;
             }
@@ -321,20 +300,14 @@ int typesetProgram(Program *program) {
           }
           case TOKEN_NAME: {
             NameValue *nextValue = next->data;
-            VariableTypeResponse vtNext = {.type = NULL, .directType = true};
-            getVariableType(program, nextValue->name, &vtNext);
-            if(vtResponse.directType) {
+            if(*value->type == TYPE_NONE) {
+              *value->type = *nextValue->type;
+              break;
+            } else if(*value->type != *nextValue->type) {
               // Error: Wrong type reasignment
               return -3;
-            } else if(!vtResponse.type || *vtResponse.type == *vtNext.type) {
-              Type *type = malloc(sizeof(Type));
-              *type = *vtNext.type; // TODO: Add multiple types support for value token
-              setElementInHashTable(program->variableTypes, value->name, type);
-              value->type = type;
-            } else {
-              // Error: Wrong type reasignment2
-              return -3;
             }
+            break;
           }
           
           default:
@@ -343,11 +316,11 @@ int typesetProgram(Program *program) {
         break;
       }
       default: {
-        if(!vtResponse.type) {
+        if(value->type == TYPE_NONE) {
+          printf("%s, %p, %zu\n", value->name, program, i);
           // Error: Undeclared variable
           return -2;
         } else {
-          value->type = vtResponse.type;
           break;
         }
       }
@@ -464,6 +437,55 @@ int crossrefrenceBlocks(Program *program) {
     // Not all blocks are closed!
     return -1;
   }
+
+  return 0;
+}
+
+int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
+  HashTable *nameMap = parentNameMap == NULL ? createHashTable(255) : createHashTableFrom(parentNameMap);
+  for(size_t i = 0; i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+    if(instruction->type == TOKEN_SCOPE) {
+      int code = crossrefrenceVariables(instruction->data, nameMap);
+      if(code != 0) return code;
+      continue;
+    }
+    if(instruction->type != TOKEN_NAME) continue;
+    NameValue *value = instruction->data;
+    const char *name = value->name;
+    if(existsElementInHashTable(nameMap, name)) {
+      NameMapValue *element = getElementFromHashTable(nameMap, name);
+      if(value->assignType && element->program != program) {
+        // Create element
+      }
+      if(!value->assignType || element->program == program) {
+        free((void *) value->name);
+        value->name = element->name;
+        value->type = element->type;
+        continue;
+      }
+    }
+    NameMapValue *element = malloc(sizeof(NameMapValue));
+    element->program = program;
+
+    Type *type = malloc(sizeof(Type));
+    *type = TYPE_NONE;
+    element->type = type;
+
+    const size_t newNameLength = 4 +
+          (program->id == 0 ? 1 : ((int) log10(program->id) + 1)) +
+          1 + (i == 0 ? 1 : ((int) log10(i) + 1)) + 1;
+    char *newName = calloc(newNameLength, sizeof(char));
+    snprintf(newName, newNameLength, "var_%zu_%zu", program->id, i);
+    element->name = newName;
+
+    setElementInHashTable(nameMap, name, element);
+
+    value->name = newName;
+    value->type = type;
+  }
+
+  deleteHashTable(nameMap);
 
   return 0;
 }
@@ -689,7 +711,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   fclose(in);
 
   crossrefrenceBlocks(program); // Moved it before typeset because there can exist multiple scopes
-  // printProgram(program);
+  crossrefrenceVariables(program, NULL);
   int typesetError = typesetProgram(program);
   if(typesetError != 0) {
     printf("Typeset error: %d\n", typesetError);

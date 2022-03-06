@@ -176,14 +176,6 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
   return false;
 }
 
-const char *getVariableScopeName(Program *program, const char *name) {
-  size_t nameLen = strlen(name), len = nameLen + 1 + (program->id == 0 ? 1 : ((int) log10(program->id)) + 1) + 1;
-  char *newName = calloc(len, sizeof(char));
-  snprintf(newName, len, "%s_%zu", name, program->id);
-  newName[len - 1] = 0;
-  return newName;
-}
-
 void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *error) {
   const char *name = NULL;
   for(int i = 0;i < program->count;i++) {
@@ -191,7 +183,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
     switch(token->type) {
       case TOKEN_NAME: {
         NameValue *value = token->data;
-        const char *mName = getVariableScopeName(program, value->name);
+        const char *mName = value->name;
         if(!value->type) {
           snprintf(
             error, 512,
@@ -208,38 +200,36 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
           break;
         }
         switch (program->instructions[i - 1]->type) {
-        case TOKEN_SEMICOLON: {
-          name = mName;
-          if(!existsElementInHashTable(table, name))
-            setElementInHashTable(table, name, createVariable(*(value->type), value->assignType, NULL));
-          break;
-        }
-        case TOKEN_ASSIGN: {
-          if(strcmp(mName, name) == 0) {
-            snprintf(
-              error, 512,
-              "%s:%zu:%zu: Can't assign a variable `%s` to itself!",
-              token->file, token->line, token->column,
-              mName
-            );
-            return;
-          } else if(!existsElementInHashTable(table, mName)) {
-            snprintf(
-              error, 512,
-              "%s:%zu:%zu: Can't assign undeclared variable `%s`!",
-              token->file, token->line, token->column,
-              mName
-            );
-            return;
+          case TOKEN_ASSIGN: {
+            if(strcmp(mName, name) == 0) {
+              snprintf(
+                error, 512,
+                "%s:%zu:%zu: Can't assign a variable `%s` to itself!",
+                token->file, token->line, token->column,
+                mName
+              );
+              return;
+            } else if(!existsElementInHashTable(table, mName)) {
+              snprintf(
+                error, 512,
+                "%s:%zu:%zu: Can't assign undeclared variable `%s`!",
+                token->file, token->line, token->column,
+                mName
+              );
+              return;
+            }
+            fprintf(out, "; -- NAME ASSIGN \n");
+            fprintf(out, "mov eax, [%s]\n", mName);
+            fprintf(out, "mov [%s], eax\n", name);
+            name = NULL;
+            break;
           }
-          fprintf(out, "; -- NAME ASSIGN \n");
-          fprintf(out, "mov eax, [%s]\n", mName);
-          fprintf(out, "mov [%s], eax\n", name);
-          name = NULL;
-          break;
-        }
-        default:
-          break;
+          default: {
+            name = mName;
+            if(!existsElementInHashTable(table, name))
+              setElementInHashTable(table, name, createVariable(*(value->type), value->assignType, NULL));
+            break;
+          }
         }
         break;
       }
@@ -259,7 +249,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
         break;
       }
       case TOKEN_PRINT: {
-        const char *mName = getVariableScopeName(program, token->data);
+        const char *mName = token->data;
         CompileVariable *variable = getElementFromHashTable(table, mName);
         ASSERT(TYPES_COUNT == 2, "Not all types are implemented in compile print!");
         

@@ -114,33 +114,33 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
         break;
       }
       switch (program->instructions[i - 1]->type) {
-      case TOKEN_ASSIGN:
-        if(strcmp(mName, name) == 0) {
-          snprintf(
-            error, 512,
-            "%s:%zu:%zu: Can't assign a variable `%s` to itself!",
-            token->file, token->line, token->column,
-            mName
-          );
-          return false;
-        } else if(!existsElementInHashTable(table, mName)) {
-          snprintf(
-            error, 512,
-            "%s:%zu:%zu: Can't assign undeclared variable `%s`!",
-            token->file, token->line, token->column,
-            mName
-          );
-          return false;
+        case TOKEN_ASSIGN: {
+          if(strcmp(mName, name) == 0) {
+            snprintf(
+              error, 512,
+              "%s:%zu:%zu: Can't assign a variable `%s` to itself!",
+              token->file, token->line, token->column,
+              mName
+            );
+            return false;
+          } else if(!existsElementInHashTable(table, mName)) {
+            snprintf(
+              error, 512,
+              "%s:%zu:%zu: Can't assign undeclared variable `%s`!",
+              token->file, token->line, token->column,
+              mName
+            );
+            return false;
+          }
+          void *value = getElementFromHashTable(table, mName);
+          setElementInHashTable(table, name, value);
+          break;
         }
-        void *value = getElementFromHashTable(table, mName);
-        setElementInHashTable(table, name, value);
-        break;
-      case TOKEN_SEMICOLON:
-        (*namePtr) = mName;
-        setElementInHashTable(table, mName, NULL);
-        break;
-      default:
-        break;
+        default: {
+          (*namePtr) = mName;
+          setElementInHashTable(table, mName, NULL);
+          break;
+        }
       }
       break;
     }
@@ -148,9 +148,9 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
       if(name == NULL) {
         snprintf(
           error, 512,
-          "%s:%zu:%zu: Trying to assign to no variable! %zu",
+          "%s:%zu:%zu: Trying to assign to no variable! (Program: %p, Instruction: %zu)",
           token->file, token->line, token->column,
-          i
+          program, i
         );
         return false;
       }
@@ -196,10 +196,9 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
   return true;
 }
 
-void interpretScope(Program *program, char *error, HashTable *parent) {
+void interpretScope(Program *program, char *error, HashTable *table) {
   ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in interpret!");
   const char *name = NULL;
-  HashTable *table = parent == NULL ? createHashTable(255) : createHashTableFrom(parent);
   for(size_t i = 0;i < program->count;i++) {
     if(!interpretToken(program, i, table, name, &name, error)) {
       return;
@@ -208,5 +207,7 @@ void interpretScope(Program *program, char *error, HashTable *parent) {
 }
 
 void interpret(Program *program, char *error) {
-  interpretScope(program, error, NULL);
+  HashTable *table = createHashTable(255);
+  interpretScope(program, error, table);
+  deleteHashTable(table);
 }

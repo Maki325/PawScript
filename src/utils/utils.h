@@ -14,7 +14,7 @@ char *getBasenameWithDirectory(char *path);
 bool isDigit(char c);
 int strnint(const char *str, size_t n);
 void printProgram(Program *program);
-void printToken(Token *token, size_t depth);
+void printToken(Token *token, size_t depth, size_t index);
 void printn(const char* string, size_t length);
 
 int trimLeft(char **text, size_t *length);

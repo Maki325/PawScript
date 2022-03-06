@@ -58,13 +58,14 @@ void printProgram(Program *program) {
   for(size_t i = 0; i < program->count;i++) {
     Token *token = program->instructions[i];
     printf("  - ");
-    printToken(token, 0);
+    printToken(token, 0, i);
   }
 }
-void printToken(Token *token, size_t depth) {
+void printToken(Token *token, size_t depth, size_t index) {
   bool isAdd = false;
   ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in createTokenFromString!");
   
+  printf("[%zu]: ", index);
   switch(token->type) {
     case TOKEN_TYPE: {
       printf("TYPE: %zu\n", (size_t) token->data);
@@ -128,7 +129,7 @@ void printToken(Token *token, size_t depth) {
       TokenPriorityValue *value = token->data;
       for(size_t i = 0; i < value->count;i++) {
         printf("\t- ");
-        printToken(value->instructions[i], depth + 1);
+        printToken(value->instructions[i], depth + 1, i);
       }
       break;
     }
@@ -140,7 +141,7 @@ void printToken(Token *token, size_t depth) {
         printf("%p\n", value);
         for(size_t i = 0; i < value->count;i++) {
           printf("\t- ");
-          printToken(value->instructions[i], depth + 1);
+          printToken(value->instructions[i], depth + 1, i);
         }
       }
       break;
@@ -157,13 +158,13 @@ void printToken(Token *token, size_t depth) {
 
       printf("  - Left: ");
       if(leftToken)
-        printToken(leftToken, depth + 1);
+        printToken(leftToken, depth + 1, index);
       else
         printf("(NULL)\n");
 
       printf("  - Right: ");
       if(rightToken)
-        printToken(rightToken, depth + 1);
+        printToken(rightToken, depth + 1, index);
       else
         printf("(NULL)\n");
       break;
@@ -179,13 +180,13 @@ void printToken(Token *token, size_t depth) {
 
       printf("  - Left: ");
       if(leftToken)
-        printToken(leftToken, depth + 1);
+        printToken(leftToken, depth + 1, index);
       else
         printf("(NULL)\n");
 
       printf("  - Right: ");
       if(rightToken)
-        printToken(rightToken, depth + 1);
+        printToken(rightToken, depth + 1, index);
       else
         printf("(NULL)\n");
       break;
