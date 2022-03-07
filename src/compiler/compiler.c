@@ -75,7 +75,7 @@ void postCompile(FILE *out) {
 }
 
 bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
-  ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in compile!");
+  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in compile!");
   BinaryOperationValue *value = (BinaryOperationValue*) token->data;
   Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
   if(!leftToken || !rightToken) {
@@ -253,13 +253,17 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
       case TOKEN_PRINT: {
         const char *mName = token->data;
         CompileVariable *variable = getElementFromHashTable(table, mName);
-        ASSERT(TYPES_COUNT == 2, "Not all types are implemented in compile print!");
+        ASSERT(TYPES_COUNT == 3, "Not all types are implemented in compile print!");
         
         if(variable->type == TYPE_INT) {
           fprintf(out, "mov eax, [%s]\n", mName);
           fprintf(out, "mov rdi, rax\n");
           fprintf(out, "call print64\n");
-        }
+        } else if(variable->type == TYPE_BOOL) {
+          fprintf(out, "mov eax, [%s]\n", mName);
+          fprintf(out, "mov rdi, rax\n");
+          fprintf(out, "call print64\n");
+        } 
         break;
       }
       case TOKEN_SEMICOLON: {
@@ -279,7 +283,9 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
           return;
         }
         
-        fprintf(out, "mov [%s], eax\n", name);
+        if(i != 0 && program->instructions[i - 1]->type == TOKEN_ASSIGN) {
+          fprintf(out, "mov [%s], eax\n", name);
+        }
         break;
       }
       case TOKEN_PRIORITY: {
@@ -296,6 +302,30 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
         generateProgramAsm(prog, table, out, error);
         break;
       }
+      case TOKEN_IF: {
+        ControlFlowBlock *block = token->data;
+        
+        {
+          Token *condition = block->condition;
+          Program prog = {.instructions = &condition, .count = 1};
+          generateProgramAsm(&prog, table, out, error);
+        }
+
+        Program *prog = block->program;
+
+        fprintf(out, "cmp eax, 1\n");
+        fprintf(out, "je block_%zu_%zu\n", program->id, prog->id);
+        fprintf(out, "jmp block_next_%zu_%zu\n", program->id, block->nextInstruction);
+
+        fprintf(out, "block_%zu_%zu:\n", program->id, prog->id);
+        generateProgramAsm(prog, table, out, error);
+        fprintf(out, "jmp block_end_%zu_%zu\n", program->id, block->endInstruction);
+        fprintf(out, "block_next_%zu_%zu:\n", program->id, i + 1);
+
+        // TODO: Remove unnecessary `block_end` labels, by checking if it's an end block
+        fprintf(out, "block_end_%zu_%zu:\n", program->id, i + 1);
+        break;
+      }
       default: {
         fprintf(stderr, "Error: Token(%s) not implemented in compilation!", getTokenTypeName(token->type));
         exit(1);
@@ -306,7 +336,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
 }
 
 void generateAsm(Program *program, FILE *out, char *error) {
-  ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in compile!");
+  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in compile!");
   prepareFileForCompile(out);
   HashTable *table = createHashTable(255);
   generateProgramAsm(program, table, out, error);

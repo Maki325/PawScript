@@ -173,8 +173,13 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
     case TOKEN_SUBTRACT:
     case TOKEN_GREATER_THAN:
     case TOKEN_LESS_THAN: {
-      setElementInHashTable(table, name, interpretBinaryOperation(token, table, name, namePtr, error));
-      (*namePtr) = NULL;
+      void *value = interpretBinaryOperation(token, table, name, namePtr, error);
+      if(name) {
+        setElementInHashTable(table, name, value);
+        (*namePtr) = NULL;
+      } else {
+        free((void*) name);
+      }
       break;
     }
     case TOKEN_PRIORITY: {
@@ -189,8 +194,19 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
       interpretScope((Program*) token->data, error, table);
       break;
     }
+    case TOKEN_IF: {
+      ControlFlowBlock *block = token->data;
+      int *condition = interpretBinaryOperation(block->condition, table, name, namePtr, error);
+      if(*condition) {
+        interpretScope(block->program, error, table);
+        i = block->endInstruction;
+      } else {
+        i = block->nextInstruction;
+      }
+      break;
+    }
     default: {
-      printf("Token: %d\n", token->type);
+      printf("Token: (%s, %d)\n", getTokenTypeName(token->type), token->type);
       ASSERT(false, "Not all operations are implemented in interpret!");
     }
   }
@@ -198,7 +214,7 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
 }
 
 void interpretScope(Program *program, char *error, HashTable *table) {
-  ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in interpret!");
+  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in interpret!");
   const char *name = NULL;
   for(size_t i = 0;i < program->count;i++) {
     if(!interpretToken(program, i, table, name, &name, error)) {

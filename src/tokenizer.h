@@ -20,11 +20,12 @@ typedef enum TokenType {
   TOKEN_BRACES_OPEN,        // {
   TOKEN_BRACES_CLOSE,       // }
   TOKEN_SCOPE,
+  TOKEN_IF,
   TOKEN_COUNT
 } TokenType;
 
 static inline const char *getTokenTypeName(TokenType type) {
-  ASSERT(TOKEN_COUNT == 16, "Not all tokens are implemented in getTokenTypeName!");
+  ASSERT(TOKEN_COUNT == 17, "Not all tokens are implemented in getTokenTypeName!");
   switch (type) {
     case TOKEN_TYPE:              return "TOKEN_TYPE";
     case TOKEN_NAME:              return "TOKEN_NAME";
@@ -43,6 +44,7 @@ static inline const char *getTokenTypeName(TokenType type) {
     case TOKEN_BRACES_CLOSE:      return "TOKEN_BRACES_CLOSE";
     case TOKEN_SCOPE:             return "TOKEN_SCOPE";
     case TOKEN_COUNT:             return "TOKEN_COUNT";
+    case TOKEN_IF:                return "TOKEN_IF";
     default:                      return "Unknown Token!!!";
   }
 }
@@ -50,13 +52,15 @@ static inline const char *getTokenTypeName(TokenType type) {
 typedef enum Type {
   TYPE_NONE = 0,
   TYPE_INT,
+  TYPE_BOOL,
   TYPES_COUNT
 } Type;
 
 static inline const char *getTypeName(Type type) {
-  ASSERT(TYPES_COUNT == 2, "Not all types are implemented in getTypeName!");
+  ASSERT(TYPES_COUNT == 3, "Not all types are implemented in getTypeName!");
   switch (type) {
     case TYPE_INT:  return "int";
+    case TYPE_BOOL: return "bool";
     case TYPE_NONE: return "NONE!!!";
     default:        return "Unknown Token!!!";
   }
@@ -135,6 +139,14 @@ typedef struct NameMapValue {
   const char *name;
   Type *type;
 } NameMapValue;
+
+typedef struct ControlFlowBlock {
+  Program *program;
+  Token *condition;
+  size_t nextInstruction;
+  size_t endInstruction;
+} ControlFlowBlock;
+
 int typesetProgram(Program *program);
 int crossrefrenceBlocks(Program *program);
 int crossrefrenceVariables(Program *program, HashTable *parentNameMap);

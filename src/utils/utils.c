@@ -61,7 +61,7 @@ void printProgram(Program *program) {
   }
 }
 void printToken(Token *token, size_t depth, size_t index) {
-  ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in createTokenFromString!");
   
   printf("[%zu]: ", index);
   switch(token->type) {
@@ -185,6 +185,27 @@ void printToken(Token *token, size_t depth, size_t index) {
         printToken(rightToken, depth + 1, index);
       else
         printf("(NULL)\n");
+      break;
+    }
+    case TOKEN_IF: {
+      printf("IF");
+      ControlFlowBlock *value = token->data;
+      if(!value) {
+        printf("\n");
+        break;
+      }
+      printf(" {next: %zu, end: %zu}\n", value->nextInstruction, value->endInstruction);
+      Token *condition = value->condition;
+      printf("Condition: ");
+      printToken(condition, depth+1, 0);
+
+      Program *p = value->program;
+      printf("%p\n", p);
+      for(size_t i = 0; i < p->count;i++) {
+        printf("\t- ");
+        printToken(p->instructions[i], depth + 1, i);
+      }
+
       break;
     }
     default: {
