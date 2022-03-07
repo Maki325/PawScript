@@ -25,7 +25,7 @@ HashTable *createHashTableFrom(HashTable *origin) {
 }
 
 void deleteHashTable(HashTable* hashTable) {
-  for(int i = 0; i < hashTable->size;i++) {
+  for(size_t i = 0; i < hashTable->size;i++) {
     free(hashTable->elements[i].value);
   }
   free(hashTable->elements);
@@ -86,7 +86,7 @@ void expandHashTable(HashTable *hashTable) {
   hashTable->elements = calloc(hashTable->capacity, sizeof(HashTableElement));
 
   hashTable->size = 0;
-  for(int i = 0; i < oldCapacity;i++) {
+  for(size_t i = 0; i < oldCapacity;i++) {
     if(elements[i].key == NULL) continue;
     setElementInHashTable(hashTable, elements[i].key, elements[i].value);
   }

@@ -18,7 +18,7 @@ char *getBasename(char *path) {
   }
   len = (dot == 0 ? len : dot) - slash + 1;
   char *basename = calloc(len, sizeof(char));
-  for(int i = 0;i < len - 1;i++) {
+  for(size_t i = 0;i < len - 1;i++) {
     basename[i] = path[i + slash];
   }
   return basename;
@@ -34,7 +34,7 @@ char *getBasenameWithDirectory(char *path) {
   }
   len = (dot == 0 ? len : dot) + 1;
   char *basename = calloc(len, sizeof(char));
-  for(int i = 0;i < len - 1;i++) {
+  for(size_t i = 0;i < len - 1;i++) {
     basename[i] = path[i];
   }
   return basename;
@@ -61,7 +61,6 @@ void printProgram(Program *program) {
   }
 }
 void printToken(Token *token, size_t depth, size_t index) {
-  bool isAdd = false;
   ASSERT(TOKEN_COUNT == 16, "Not all operations are implemented in createTokenFromString!");
   
   printf("[%zu]: ", index);
@@ -146,9 +145,8 @@ void printToken(Token *token, size_t depth, size_t index) {
       break;
     }
     case TOKEN_ADD:
-      isAdd = true;
     case TOKEN_SUBTRACT: {
-      if(isAdd) printf("ADD\n");
+      if(token->type == TOKEN_ADD) printf("ADD\n");
       else printf("SUBTRACT\n");
   
       BinaryOperationValue *value = (BinaryOperationValue*) token->data;
@@ -169,9 +167,8 @@ void printToken(Token *token, size_t depth, size_t index) {
       break;
     }
     case TOKEN_GREATER_THAN:
-      isAdd = true;
     case TOKEN_LESS_THAN: {
-      if(isAdd) printf("GREATER\n");
+      if(token->type == TOKEN_GREATER_THAN) printf("GREATER\n");
       else printf("LESS\n");
       BinaryOperationValue *value = (BinaryOperationValue*) token->data;
       if(!value) break;

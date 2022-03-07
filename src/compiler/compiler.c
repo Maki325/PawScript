@@ -178,7 +178,7 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
 
 void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *error) {
   const char *name = NULL;
-  for(int i = 0;i < program->count;i++) {
+  for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     switch(token->type) {
       case TOKEN_NAME: {
@@ -289,10 +289,12 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
           // TODO EMERGENCY: REWORK THIS
           generateAsm(&prog, out, error);
         }
+        break;
       }
       case TOKEN_SCOPE: {
         Program *prog = (Program *) token->data;
         generateProgramAsm(prog, table, out, error);
+        break;
       }
       default: {
         fprintf(stderr, "Error: Token(%s) not implemented in compilation!", getTokenTypeName(token->type));
@@ -311,7 +313,7 @@ void generateAsm(Program *program, FILE *out, char *error) {
   postCompile(out);
   
   bool data = false, bss = false;
-  for(int i = 0;i < table->capacity;i++) {
+  for(size_t i = 0;i < table->capacity;i++) {
     if(table->elements[i].key == NULL) continue;
     const char* name = table->elements[i].key;
     CompileVariable *variable = table->elements[i].value;
@@ -328,7 +330,7 @@ void generateAsm(Program *program, FILE *out, char *error) {
       *((int*)variable->initialValue)
     );
   }
-  for(int i = 0;i < table->capacity;i++) {
+  for(size_t i = 0;i < table->capacity;i++) {
     if(table->elements[i].key == NULL) continue;
     const char* name = table->elements[i].key;
     CompileVariable *variable = table->elements[i].value;

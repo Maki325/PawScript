@@ -58,6 +58,7 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *name,
       for(size_t j = 0; j < value->count;j++) {
         interpretToken(&prog, j, table, name, namePtr, error);
       }
+      break;
     }
     default: {
       ASSERT(false, "Operand type not expected in interpretBinaryOperation!");
@@ -182,6 +183,7 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
       for(size_t j = 0; j < value->count;j++) {
         interpretToken(&prog, j, table, name, namePtr, error);
       }
+      break;
     }
     case TOKEN_SCOPE: {
       interpretScope((Program*) token->data, error, table);

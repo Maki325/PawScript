@@ -644,6 +644,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   FILE *in = fopen(filePath, "r");
 
   char *lineStart = NULL;
+  ssize_t lineLength = 0;
   size_t length = 0;
   size_t row = 0;
   CreateTokenFromString createOptions;
@@ -651,7 +652,8 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   createOptions.program = program;
   createOptions.file = filePath;
   createOptions.error = error;
-  while((length = getline(&lineStart, &length, in)) != -1) {
+  while((lineLength = getline(&lineStart, &length, in)) != -1) {
+    length = (size_t) lineLength;
     char *line = lineStart;
     trimRight(line, &length);
     if(length == 0) continue;
