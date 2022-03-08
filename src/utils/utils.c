@@ -201,6 +201,7 @@ void printToken(Token *token, size_t depth, size_t index) {
 
       Program *p = value->program;
       printf("%p\n", p);
+      if(!p) break;
       for(size_t i = 0; i < p->count;i++) {
         printf("\t- ");
         printToken(p->instructions[i], depth + 1, i);

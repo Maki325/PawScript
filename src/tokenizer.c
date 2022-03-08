@@ -66,6 +66,11 @@ Token *getProgramInstruction(Program *program, size_t pos, bool remove) {
     } else {
       for(size_t i = pos;i < program->count;i++) {
         program->instructions[i] = program->instructions[i + 1];
+        if(program->instructions[i]->type != TOKEN_IF) continue;
+        ControlFlowBlock *block = program->instructions[i]->data;
+        if(!block) continue;
+        block->endInstruction--;
+        block->nextInstruction--;
       }
     }
   }
@@ -348,7 +353,7 @@ int crossrefrenceBlocks(Program *program) {
     Token *instruction = program->instructions[i];
     switch (instruction->type) {
       case TOKEN_PARENTHESES_OPEN: {
-        refrences[count++] = ++i;
+        refrences[count++] = i + 1;
         break;
       }
       case TOKEN_PARENTHESES_CLOSE: {
@@ -397,14 +402,14 @@ int crossrefrenceBlocks(Program *program) {
       }
 
       case TOKEN_BRACES_OPEN: {
-        refrences[count++] = ++i;
+        refrences[count++] = i + 1;
         Program *inside = createProgramWithParent(program);
         instruction->data = inside;
         break;
       }
       case TOKEN_BRACES_CLOSE: {
         size_t start = refrences[--count],
-          length = i - start, pos = 0;
+          length = i - start;
         Token *openInstruction = getProgramInstruction(program, start - 1, false);
         if(openInstruction->type != TOKEN_BRACES_OPEN) {
           fprintf(stderr, "ERROR: Blocks are not balanced at: %s:%zu%zu",
@@ -417,7 +422,12 @@ int crossrefrenceBlocks(Program *program) {
         inside->capacity = length;
         Token **tokens = inside->instructions = calloc(length, sizeof(Token*));
         for(size_t j = 0;j < length;j++) {
-          tokens[pos++] = getProgramInstruction(program, start, true);
+          tokens[j] = getProgramInstruction(program, start, true);
+          if(tokens[j]->type != TOKEN_IF) continue;
+          ControlFlowBlock *block = tokens[j]->data;
+          if(!block) continue;
+          block->endInstruction -= start;
+          block->nextInstruction -= start;
         }
         // Get `{` token for location
         Token *startToken = getProgramInstruction(program, start - 1, true);
@@ -456,8 +466,16 @@ int crossrefrenceBlocks(Program *program) {
             exit(1);
             return -1;
           }
+          if(block->program) break;
           Token *scope = getProgramInstruction(program, start - 1, true);
           block->program = scope->data;
+          for(size_t j = 0;j < block->program->count;j++) {
+            if(block->program->instructions[j]->type != TOKEN_IF) continue;
+            ControlFlowBlock *innerBlock = block->program->instructions[j]->data;
+            if(!innerBlock) continue;
+            innerBlock->endInstruction += 3;
+            innerBlock->nextInstruction += 3;
+          }
           free(scope);
           i = start - 2;
 

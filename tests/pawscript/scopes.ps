@@ -19,11 +19,25 @@
 
 value1 = 5;
 value2 = 8;
+value3 = 10;
 if(value1 < value2) {
   print value1;
 }
-if(value2 > value1) {
-  print value2;
+{
+  if(value2 > value1) {
+    print value2;
+    {
+      if(value3 > value2) {
+        print(value3);
+        if(value2 > value1) {
+          print value2;
+          if(value3 > value2) {
+            print(value3);
+          }
+        }
+      }
+    }
+  }
 }
 
 // if(value1) {
