@@ -197,6 +197,10 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
           name = mName;
           if(!existsElementInHashTable(table, name))
             setElementInHashTable(table, name, createVariable(*(value->type), NULL));
+
+          if(i == program->count - 1 || program->instructions[i + 1]->type != TOKEN_ASSIGN) {
+            fprintf(out, "mov eax, [%s]\n", name);
+          }
           break;
         }
         switch (program->instructions[i - 1]->type) {
@@ -228,6 +232,10 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
             name = mName;
             if(!existsElementInHashTable(table, name))
               setElementInHashTable(table, name, createVariable(*(value->type), NULL));
+
+            if(i == program->count - 1 || program->instructions[i + 1]->type != TOKEN_ASSIGN) {
+              fprintf(out, "mov eax, [%s]\n", name);
+            }
             break;
           }
         }
@@ -291,10 +299,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
       case TOKEN_PRIORITY: {
         TokenPriorityValue *value = (TokenPriorityValue*) token->data;
         Program prog = {.instructions = value->instructions, .count = value->count};
-        for(size_t j = 0; j < value->count;j++) {
-          // TODO EMERGENCY: REWORK THIS
-          generateAsm(&prog, out, error);
-        }
+        generateProgramAsm(&prog, table, out, error);
         break;
       }
       case TOKEN_SCOPE: {
@@ -313,8 +318,8 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
 
         Program *prog = block->program;
 
-        fprintf(out, "cmp eax, 1\n");
-        fprintf(out, "je block_%zu_%zu\n", program->id, prog->id);
+        fprintf(out, "cmp eax, 0\n");
+        fprintf(out, "jne block_%zu_%zu\n", program->id, prog->id);
         fprintf(out, "jmp block_next_%zu_%zu\n", program->id, block->nextInstruction);
 
         fprintf(out, "block_%zu_%zu:\n", program->id, prog->id);
@@ -377,22 +382,22 @@ void generateAsm(Program *program, FILE *out, char *error) {
     );
   }
 }
-void compile(const char *basename) {
+void compile(const char *basename, bool silent) {
   // TODO: Check if folder exists for output
   // TODO: And create if it doesn't exist
 
   char call[128];
   snprintf(call, 128, "nasm -felf64 %s.asm", basename);
-  printf("[CMD]: %s\n", call);
+  if(!silent) printf("[CMD]: %s\n", call);
   system(call);
 
   snprintf(call, 128, "ld -o %s %s.o", basename, basename);
-  printf("[CMD]: %s\n", call);
+  if(!silent) printf("[CMD]: %s\n", call);
   system(call);
 }
-void runProgram(const char *basename) {
+void runProgram(const char *basename, bool silent) {
   char call[128];
   snprintf(call, 128, "./%s", basename);
-  printf("[CMD]: %s\n", call);
+  if(!silent) printf("[CMD]: %s\n", call);
   system(call);
 }

@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
     char *fileName = popArgument(&args);
     bool run = false;
 
-    bool outputFileExists = false;
+    bool outputFileExists = false, silent = false;
     char *outputFile = NULL;
     while(args.count != 0) {
       if(outputFileExists) {
@@ -53,6 +53,8 @@ int main(int argc, char *argv[]) {
         run = true;
       } else if(strncmp(flag, "o", 1) == 0) {
         outputFileExists = true;
+      } else if(strncmp(flag, "s", 1) == 0) {
+        silent = true;
       } else {
         printf("Unknown flag \"-%s\"\n", flag);
         usage(programName);
@@ -76,14 +78,14 @@ int main(int argc, char *argv[]) {
     }
 
     FILE *out = fopen(asmName, "w");
-    printf("[INFO]: Generating %s\n", asmName);
+    if(!silent) printf("[INFO]: Generating %s\n", asmName);
     generateAsm(program, out, error);
     fclose(out);
 
-    compile(basename);
+    compile(basename, silent);
 
     if(run) {
-      runProgram(basename);
+      runProgram(basename, silent);
     }
   } else {
     usage(programName);

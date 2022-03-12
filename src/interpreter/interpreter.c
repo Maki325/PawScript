@@ -1,6 +1,6 @@
 #include "interpreter.h"
 
-void *interpretBinaryOperation(Token *token, HashTable *table, const char *name, const char **namePtr, char *error) {
+void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const char *name, const char **namePtr, char *error) {
   BinaryOperationValue *value = (BinaryOperationValue*) token->data;
   Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
   if(!leftToken || !rightToken) {
@@ -25,7 +25,7 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *name,
     case TOKEN_SUBTRACT:
     case TOKEN_GREATER_THAN:
     case TOKEN_LESS_THAN: {
-      uint32_t *result = interpretBinaryOperation(leftToken, table, name, namePtr, error);
+      uint32_t *result = interpretBinaryOperation(leftToken, eax, table, name, namePtr, error);
       left = *(result);
       free(result);
       break;
@@ -47,7 +47,7 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *name,
     case TOKEN_SUBTRACT:
     case TOKEN_GREATER_THAN:
     case TOKEN_LESS_THAN: {
-      uint32_t *result = interpretBinaryOperation(rightToken, table, name, namePtr, error);
+      uint32_t *result = interpretBinaryOperation(rightToken, eax, table, name, namePtr, error);
       right = *(result);
       free(result);
       break;
@@ -56,7 +56,7 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *name,
       TokenPriorityValue *value = (TokenPriorityValue*) token->data;
       Program prog = {.instructions = value->instructions, .count = value->count};
       for(size_t j = 0; j < value->count;j++) {
-        interpretToken(&prog, j, table, name, namePtr, error);
+        interpretToken(&prog, eax, j, table, name, namePtr, error);
       }
       break;
     }
@@ -93,7 +93,7 @@ void *interpretBinaryOperation(Token *token, HashTable *table, const char *name,
   return sum;
 }
 
-bool interpretToken(Program *program, size_t i, HashTable *table, const char *name, const char **namePtr, char *error) {
+bool interpretToken(Program *program, void **eax, size_t i, HashTable *table, const char *name, const char **namePtr, char *error) {
   Token *token = program->instructions[i];
   switch(token->type) {
     case TOKEN_NAME: {
@@ -110,7 +110,15 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
       }
       if(i == 0) {
         (*namePtr) = mName;
-        setElementInHashTable(table, mName, NULL);
+        if(!existsElementInHashTable(table, mName))
+          setElementInHashTable(table, mName, NULL);
+
+        if(i == program->count - 1 || program->instructions[i + 1]->type != TOKEN_ASSIGN) {
+          *eax = malloc(sizeof(uint32_t));
+          void *value = getElementFromHashTable(table, mName);
+          if(value)
+            (*((uint32_t*) *eax)) = *((uint32_t*) value);
+        }
         break;
       }
       switch (program->instructions[i - 1]->type) {
@@ -138,7 +146,15 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
         }
         default: {
           (*namePtr) = mName;
-          setElementInHashTable(table, mName, NULL);
+          if(!existsElementInHashTable(table, mName))
+            setElementInHashTable(table, mName, NULL);
+
+          if(i == program->count - 1 || program->instructions[i + 1]->type != TOKEN_ASSIGN) {
+            *eax = malloc(sizeof(uint32_t));
+            void *value = getElementFromHashTable(table, mName);
+            if(value)
+              (*((uint32_t*) *eax)) = *((uint32_t*) value);
+          }
           break;
         }
       }
@@ -173,32 +189,30 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
     case TOKEN_SUBTRACT:
     case TOKEN_GREATER_THAN:
     case TOKEN_LESS_THAN: {
-      void *value = interpretBinaryOperation(token, table, name, namePtr, error);
+      void *value = (*eax) = interpretBinaryOperation(token, eax, table, name, namePtr, error);
       if(name) {
         setElementInHashTable(table, name, value);
         (*namePtr) = NULL;
-      } else {
-        free((void*) name);
       }
       break;
     }
     case TOKEN_PRIORITY: {
       TokenPriorityValue *value = (TokenPriorityValue*) token->data;
       Program prog = {.instructions = value->instructions, .count = value->count};
-      for(size_t j = 0; j < value->count;j++) {
-        interpretToken(&prog, j, table, name, namePtr, error);
-      }
+      interpretScope(&prog, eax, error, table);
       break;
     }
     case TOKEN_SCOPE: {
-      interpretScope((Program*) token->data, error, table);
+      interpretScope((Program*) token->data, eax, error, table);
       break;
     }
     case TOKEN_IF: {
       ControlFlowBlock *block = token->data;
-      int *condition = interpretBinaryOperation(block->condition, table, name, namePtr, error);
-      if(*condition) {
-        interpretScope(block->program, error, table);
+      Program prog = {.instructions = &block->condition, .count = 1};
+      interpretScope(&prog, eax, error, table);
+
+      if(eax && *eax && *((int*) *eax)) {
+        interpretScope(block->program, eax, error, table);
         i = block->endInstruction;
       } else {
         i = block->nextInstruction;
@@ -213,11 +227,12 @@ bool interpretToken(Program *program, size_t i, HashTable *table, const char *na
   return true;
 }
 
-void interpretScope(Program *program, char *error, HashTable *table) {
+void interpretScope(Program *program, void** eax, char *error, HashTable *table) {
   ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in interpret!");
   const char *name = NULL;
   for(size_t i = 0;i < program->count;i++) {
-    if(!interpretToken(program, i, table, name, &name, error)) {
+    interpretToken(program, eax, i, table, name, &name, error);
+    if(error[0] != '\0') {
       return;
     }
   }
@@ -225,6 +240,7 @@ void interpretScope(Program *program, char *error, HashTable *table) {
 
 void interpret(Program *program, char *error) {
   HashTable *table = createHashTable(255);
-  interpretScope(program, error, table);
+  void *eax = NULL;
+  interpretScope(program, &eax, error, table);
   deleteHashTable(table);
 }
