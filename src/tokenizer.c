@@ -87,6 +87,7 @@ void createVariableToken(CreateTokenFromString *createOptions, Token *token) {
 
   const char *name = strndup(createOptions->string, length);
   NameValue *value = malloc(sizeof(NameValue));
+  value->variableName = name;
   value->name = name;
   value->assignType = assignType;
 
@@ -107,11 +108,14 @@ Token *createToken(Token *createToken) {
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
   ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in createTokenFromString!");
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
   token->line = createOptions->line;
   token->column = createOptions->column;
   token->data = NULL;
+
+  size_t actualLength = strlen(createOptions->string);
 
   if(strncmp("(", createOptions->string, 1) == 0) {
     createOptions->length -= 1;
@@ -142,7 +146,33 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     token->type = TOKEN_TYPE;
     token->data = (void*) TYPE_INT;
     return token;
-  } else if(strncmp("print", createOptions->string, 5) == 0) {
+  } else if(strncmp("bool", createOptions->string, 4) == 0) {
+    createOptions->length -= 4;
+    token->type = TOKEN_TYPE;
+    token->data = (void*) TYPE_BOOL;
+    return token;
+  } else if(strncmp("true", createOptions->string, 4) == 0) {
+    createOptions->length -= 4;
+    token->type = TOKEN_VALUE;
+    ValueData *value = malloc(sizeof(ValueData));
+    value->type = TYPE_BOOL;
+    value->data = malloc(sizeof(uint8_t));
+    *((uint8_t*) value->data) = 1;
+    token->data = value;
+    return token;
+  } else if(strncmp("false", createOptions->string, 5) == 0) {
+    createOptions->length -= 5;
+    token->type = TOKEN_VALUE;
+    ValueData *value = malloc(sizeof(ValueData));
+    value->type = TYPE_BOOL;
+    value->data = malloc(sizeof(uint8_t));
+    *((uint8_t*) value->data) = 0;
+    token->data = value;
+    return token;
+  } else if(
+    strncmp("print", createOptions->string, 5) == 0 &&
+    (actualLength <= 5 || (isspace(createOptions->string[5]) || createOptions->string[5] == '\0'))
+  ) {
     createOptions->length -= 5;
     token->type = TOKEN_PRINT;
     return token;
@@ -158,8 +188,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     createOptions->length -= 1;
     token->type = TOKEN_GREATER_THAN;
     return token;
-  }
-  else if(strncmp("+", createOptions->string, 1) == 0) {
+  } else if(strncmp("+", createOptions->string, 1) == 0) {
     createOptions->length -= 1;
     token->type = TOKEN_ADD;
     return token;
@@ -189,8 +218,10 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     if(isDigit(createOptions->string[0])) {
       // TODO: Add multiple types support for value token
       token->type = TOKEN_VALUE;
-      int *value = malloc(sizeof(int));
-      (*value) = strnint(createOptions->string, createOptions->length);
+      ValueData *value = malloc(sizeof(ValueData));
+      value->type = TYPE_INT;
+      value->data = malloc(sizeof(uint32_t));
+      *((uint32_t*) value->data) = strnuint32(createOptions->string, createOptions->length);
       token->data = value;
     } else {
       createVariableToken(createOptions, token);
@@ -202,6 +233,22 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
   createOptions->length = 0;
   free(token);
   return NULL;
+}
+
+void checkInstruction(Program *program, Token *instruction) {
+  if(program->count == 0) return;
+  Token *last = program->instructions[program->count - 1];
+  if(last->type == TOKEN_NAME) {
+    NameValue *value = instruction->data;
+    NameValue *lastValue = last->data;
+    if(lastValue->assignType && instruction->type != TOKEN_TYPE) {
+      fprintf(stderr, "ERROR: ");
+      printTokenLocation(instruction, stderr);
+      fprintf(stderr, ": Token `%s` is not a type!\n", value->variableName);
+      exit(1);
+      return;
+    }
+  }
 }
 
 Token *checkProgram(Program *program) {
@@ -220,7 +267,8 @@ Token *checkProgram(Program *program) {
 }
 
 size_t isStringTokenFromRight(const char *string, size_t length) {
-  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in isStringTokenFromRight!");
+  ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in isStringTokenFromRight!");
   if(rstrncmp("if", 2, string, length, 2) == 0) {
     return 2;
   } else if(rstrncmp("(", 1, string, length, 1) == 0) {
@@ -237,11 +285,17 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
     return 1;
   } else if(rstrncmp("int", 3, string, length, 3) == 0) {
     return 3;
-  } else if(rstrncmp("print", 5, string, length, 5) == 0) {
+  } else if(rstrncmp("bool", 4, string, length, 4) == 0) {
+    return 4;
+  } else if(rstrncmp("true", 4, string, length, 4) == 0) {
+    return 4;
+  } else if(rstrncmp("false", 5, string, length, 5) == 0) {
+    return 5;
+  } /*else if(rstrncmp("print", 5, string, length, 5) == 0) {
     return 5;
   } else if(rstrncmp("meow", 4, string, length, 4) == 0) {
     return 4;
-  } else if(rstrncmp("<", 1, string, length, 1) == 0) {
+  } */else if(rstrncmp("<", 1, string, length, 1) == 0) {
     return 1;
   } else if(rstrncmp(">", 1, string, length, 1) == 0) {
     return 1;
@@ -281,6 +335,10 @@ int typesetProgram(Program *program) {
     }
     if(i == program->count - 1 && value->type == TYPE_NONE) {
       // Error: Variable without a type
+      fprintf(stderr, "ERROR: ");
+      printTokenLocation(token, stderr);
+      fprintf(stderr, ": Variable `%s` without a type!\n", value->variableName);
+      exit(-1);
       return -1;
     }
     next = program->instructions[i + 1];
@@ -288,11 +346,19 @@ int typesetProgram(Program *program) {
       case TOKEN_TYPE: {
         if(!value->assignType) {
           // Error: Wrong syntax (No `:`)! Expected `var: type` got `var type`
+          fprintf(stderr, "ERROR: ");
+          printTokenLocation(token, stderr);
+          fprintf(stderr, ": Wrong syntax (No `:`)! Expected `%s: type` got `%s type`!\n", value->variableName, value->variableName);
+          exit(-4);
           return -4;
         } else if(*value->type == TYPE_NONE) {
           *value->type = (Type) next->data;
         } else if(*value->type != (Type) next->data) {
           // Error: Wrong type reasignment
+          fprintf(stderr, "ERROR: ");
+          printTokenLocation(token, stderr);
+          fprintf(stderr, ": Wrong type reasignment for variable `%s`!\n", value->variableName);
+          exit(-3);
           return -3;
         }
         free(getProgramInstruction(program, i + 1, true));
@@ -302,13 +368,22 @@ int typesetProgram(Program *program) {
         next = program->instructions[i + 2];
         switch (next->type) {
           case TOKEN_VALUE: {
+            ValueData *data = next->data;
             if(*value->type == TYPE_NONE) {
               // TODO: Add multiple types support for value token
-              *value->type = TYPE_INT;
+              *value->type = data->type;
               break;
-            } else if(*value->type != TYPE_INT) {
+            } else if(*value->type != data->type) {
               // TODO: Add multiple types support for value token
               // Error: Wrong type reasignment
+              fprintf(stderr, "ERROR: ");
+              printTokenLocation(token, stderr);
+              fprintf(stderr,
+                      ": Wrong type reasignment for variable `%s`! Expected `%s` got `%s`!\n",
+                      value->variableName,
+                      getTypeName(*value->type),
+                      getTypeName(data->type));
+              exit(-3);
               return -3;
             }
             break;
@@ -320,6 +395,10 @@ int typesetProgram(Program *program) {
               break;
             } else if(*value->type != *nextValue->type) {
               // Error: Wrong type reasignment
+              fprintf(stderr, "ERROR: ");
+              printTokenLocation(token, stderr);
+              fprintf(stderr, ": Wrong type reasignment for variable `%s`!\n", value->variableName);
+              exit(-3);
               return -3;
             }
             break;
@@ -332,7 +411,10 @@ int typesetProgram(Program *program) {
       }
       default: {
         if(value->type == TYPE_NONE) {
-          fprintf(stderr, "ERROR: Undeclared variable at %s:%zu:%zu\n", token->file, token->line, token->column);
+          fprintf(stderr, "ERROR: ");
+          printTokenLocation(token, stderr);
+          fprintf(stderr, ": Undeclared variable `%s`!\n", value->variableName);
+          exit(-2);
           // Error: Undeclared variable
           return -2;
         } else {
@@ -508,7 +590,7 @@ int crossrefrenceBlocks(Program *program) {
 }
 
 int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
-  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in crossrefrenceProgram!");
+  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in crossrefrenceVariables!");
   HashTable *nameMap = parentNameMap == NULL ? createHashTable(255) : createHashTableFrom(parentNameMap);
   for(size_t i = 0; i < program->count;i++) {
     Token *instruction = program->instructions[i];
@@ -538,11 +620,7 @@ int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
     const char *name = value->name;
     if(existsElementInHashTable(nameMap, name)) {
       NameMapValue *element = getElementFromHashTable(nameMap, name);
-      if(value->assignType && element->program != program) {
-        // Create element
-      }
       if(!value->assignType || element->program == program) {
-        free((void *) value->name);
         value->name = element->name;
         value->type = element->type;
         continue;
@@ -609,7 +687,8 @@ int crossrefrencePriority(Token **holder, size_t *iPtr) {
 }
 
 int crossrefrenceOperations(Program *program) {
-  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in crossrefrenceProgram!");
+  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in crossrefrenceOperations!");
+  ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in crossrefrenceOperations!");
   for(size_t i = 0;i < program->count;i++) {
     Token *instruction = program->instructions[i];
     switch (instruction->type) {
@@ -746,6 +825,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   createOptions.file = filePath;
   createOptions.error = error;
   while((lineLength = getline(&lineStart, &length, in)) != -1) {
+    row++;
     length = (size_t) lineLength;
     char *line = lineStart;
     trimRight(line, &length);
@@ -768,7 +848,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
           break;
         }
         size_t s = isStringTokenFromRight(line, end);
-        if(s == 0) {
+        if(s == 0 || (end < length - 1 && !(isspace(line[end]) && line[end] != '\0'))) {
           end++;
         } else if(s == end) {
           break;
@@ -779,13 +859,15 @@ Program *createProgramFromFile(const char *filePath, char *error) {
       }
       end = min(end, length);
 
-      createOptions.line = row + 1;
+      createOptions.line = row;
       createOptions.column = start + 1;
       createOptions.last = last;
       createOptions.length = end;
       createOptions.string = line;
 
       last = createTokenFromString(&createOptions);
+      checkInstruction(program, last);
+
       if(last == NULL) {
         deleteProgram(program);
         return NULL;
@@ -805,7 +887,6 @@ Program *createProgramFromFile(const char *filePath, char *error) {
         start += end + tl;
       }
     }
-    row++;
   }
 
   fclose(in);
@@ -825,7 +906,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
       error, 512,
       "%s:%zu:%zu: Variable `%s` doesn't have a type!",
       token->file, token->line, token->column,
-      ((NameValue*)token->data)->name
+      ((NameValue*)token->data)->variableName
     );
     return NULL;
   }

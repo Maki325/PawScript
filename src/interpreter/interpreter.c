@@ -14,9 +14,11 @@ void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const
   NameValue *nameValue = NULL;
   uint32_t left, right;
   switch (leftToken->type) {
-    case TOKEN_VALUE:
-      left = *((uint32_t*) leftToken->data);
+    case TOKEN_VALUE: {
+      ValueData *value = leftToken->data;
+      left = *((uint32_t*) value->data);
       break;
+    }
     case TOKEN_NAME:
       nameValue = leftToken->data;
       left = *((uint32_t*) getElementFromHashTable(table, nameValue->name));
@@ -36,9 +38,11 @@ void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const
   }
 
   switch (rightToken->type) {
-    case TOKEN_VALUE:
-      right = *((uint32_t*) rightToken->data);
+    case TOKEN_VALUE: {
+      ValueData *value = rightToken->data;
+      right = *((uint32_t*) value->data);
       break;
+    }
     case TOKEN_NAME:
       nameValue = rightToken->data;
       right = *((uint32_t*) getElementFromHashTable(table, nameValue->name));
@@ -104,7 +108,7 @@ bool interpretToken(Program *program, void **eax, size_t i, HashTable *table, co
           error, 512,
           "%s:%zu:%zu: No type for variable `%s`!",
           token->file, token->line, token->column,
-          mName
+          value->variableName
         );
         return false;
       }
@@ -128,7 +132,7 @@ bool interpretToken(Program *program, void **eax, size_t i, HashTable *table, co
               error, 512,
               "%s:%zu:%zu: Can't assign a variable `%s` to itself!",
               token->file, token->line, token->column,
-              mName
+              value->variableName
             );
             return false;
           } else if(!existsElementInHashTable(table, mName)) {
@@ -136,7 +140,7 @@ bool interpretToken(Program *program, void **eax, size_t i, HashTable *table, co
               error, 512,
               "%s:%zu:%zu: Can't assign undeclared variable `%s`!",
               token->file, token->line, token->column,
-              mName
+              value->variableName
             );
             return false;
           }
@@ -173,7 +177,8 @@ bool interpretToken(Program *program, void **eax, size_t i, HashTable *table, co
       break;
     }
     case TOKEN_VALUE: {
-      setElementInHashTable(table, name, token->data);
+      ValueData *value = token->data;
+      setElementInHashTable(table, name, value->data);
       (*namePtr) = NULL;
       break;
     }

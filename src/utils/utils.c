@@ -42,13 +42,6 @@ char *getBasenameWithDirectory(char *path) {
 bool isDigit(char c) {
   return c >= '0' && c <= '9';
 }
-int strnint(const char *str, size_t n) {
-  int out = 0;
-  for(size_t i = 0;i < n;i++) {
-    out = out * 10 + str[i] - '0';
-  }
-  return out;
-}
 void printProgram(Program *program) {
   printf("Program: %p\n", program);
   printf(" - count: %zu\n", program->count);
@@ -72,21 +65,9 @@ void printToken(Token *token, size_t depth, size_t index) {
     case TOKEN_NAME: {
       NameValue *value = token->data;
       if(!value->type) {
-        printf("NAME: %s, TYPE: (NULL)\n", value->name);
+        printf("NAME: %s, TYPE: (NULL)\n", value->variableName);
       } else {
-        printf("NAME: %s, TYPE: (%p, ", value->name, value->type);
-        Type *type = value->type;
-        switch(*type) {
-          case TYPE_INT: {
-            printf("INT");
-            break;
-          }
-          default: {
-            printf("UNKNOWN");
-            break;
-          }
-        }
-        printf(")\n");
+        printf("NAME: %s, TYPE: (%p, %s)\n", value->variableName, value->type, getTypeName(*((Type *) value->type)));
       }
       break;
     }
@@ -99,7 +80,23 @@ void printToken(Token *token, size_t depth, size_t index) {
       break;
     }
     case TOKEN_VALUE: {
-      printf("VALUE: %d\n", *((int*)token->data));
+      ValueData *value = token->data;
+      printf("VALUE: (type: %s, value: ", getTypeName(value->type));
+      switch (value->type) {
+        case TYPE_INT:
+          printf("%" PRIu32, *((uint32_t*)value->data));
+          break;
+        case TYPE_BOOL:
+          printf("%d", *((uint8_t*)value->data));
+          break;
+        case TYPE_NONE:
+        case TYPES_COUNT:
+          ASSERT(false, "Unreachable!");
+          break;
+        default:
+          break;
+      }
+      printf(")\n");
       break;
     }
     case TOKEN_PRINT: {
@@ -248,4 +245,23 @@ int rstrncmp(const char *a, size_t aLength, const char *b, size_t bLength, size_
   }
   if(length == 0) return 0;
   return a - b;
+}
+
+void printTokenLocation(Token *token, FILE *out) {
+  fprintf(out, "%s:%zu:%zu", token->file, token->line, token->column);
+}
+
+int strnint(const char *str, size_t n) {
+  int out = 0;
+  for(size_t i = 0;i < n;i++) {
+    out = out * 10 + str[i] - '0';
+  }
+  return out;
+}
+uint32_t strnuint32(const char *str, size_t n) {
+  uint32_t out = 0;
+  for(size_t i = 0;i < n;i++) {
+    out = out * 10 + str[i] - '0';
+  }
+  return out;
 }

@@ -2,17 +2,21 @@
 #include "../utils/utils.h"
 
 char *getInitializedType(Type type) {
+  ASSERT(TYPES_COUNT == 3, "Not all types are implemented in getInitializedType!");
   static char* bytes[TYPES_COUNT] = {
     /* NONE */ "ERROR NONE!!!",
-    /* INT */  "dd"
+    /* INT  */ "dd",
+    /* BOOL */ "dd"
   };
   if(type >= TYPES_COUNT) return "UI";
   return bytes[type];
 }
 char *getUninitializedType(Type type) {
+  ASSERT(TYPES_COUNT == 3, "Not all types are implemented in getUninitializedType!");
   static char* bytes[TYPES_COUNT] = {
     /* NONE */ "ERROR NONE!!!",
-    /* INT */  "resd"
+    /* INT  */ "resd",
+    /* BOOL */ "resd"
   };
   if(type >= TYPES_COUNT) return "UU";
   return bytes[type];
@@ -89,13 +93,26 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
 
   NameValue *nameValue = NULL;
 
+  fprintf(out, "xor rax, rax\n");
   switch (leftToken->type) {
-    case TOKEN_VALUE:
-      fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) leftToken->data));
+    case TOKEN_VALUE: {
+      ValueData *value = leftToken->data;
+      switch (value->type) {
+        case TYPE_INT:  fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) value->data)); break;
+        case TYPE_BOOL: fprintf(out, "mov eax, %" PRIu8 "\n", *((uint8_t*) value->data));   break;
+        case TYPE_NONE:
+        case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
+      }
       break;
+    }
     case TOKEN_NAME:
       nameValue = leftToken->data;
-      fprintf(out, "mov eax, [%s]\n", nameValue->name);
+      switch (*nameValue->type) {
+        case TYPE_INT:  fprintf(out, "mov eax, [%s]\n", nameValue->name); break;
+        case TYPE_BOOL: fprintf(out, "mov ax, [%s]\n", nameValue->name);  break;
+        case TYPE_NONE:
+        case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
+      }
       break;
     case TOKEN_ADD:
     case TOKEN_SUBTRACT:
@@ -113,13 +130,26 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
     }
   }
 
+  fprintf(out, "xor rbx, rbx\n");
   switch (rightToken->type) {
-    case TOKEN_VALUE:
-      fprintf(out, "mov ebx, %" PRIu32 "\n", *((uint32_t*) rightToken->data));
+    case TOKEN_VALUE: {
+      ValueData *value = rightToken->data;
+      switch (value->type) {
+        case TYPE_INT:  fprintf(out, "mov ebx, %" PRIu32 "\n", *((uint32_t*) value->data)); break;
+        case TYPE_BOOL: fprintf(out, "mov ebx, %" PRIu8 "\n", *((uint8_t*) value->data));   break;
+        case TYPE_NONE:
+        case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
+      }
       break;
+    }
     case TOKEN_NAME:
       nameValue = rightToken->data;
-      fprintf(out, "mov ebx, [%s]\n", nameValue->name);
+      switch (*nameValue->type) {
+        case TYPE_INT:  fprintf(out, "mov ebx, [%s]\n", nameValue->name); break;
+        case TYPE_BOOL: fprintf(out, "mov bx, [%s]\n", nameValue->name);  break;
+        case TYPE_NONE:
+        case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
+      }
       break;
     case TOKEN_ADD:
     case TOKEN_SUBTRACT:
@@ -138,6 +168,7 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
     }
   }
 
+  // TODO: [IMPORTANT]: Do operations based on byte size (i.e. only ax, or eax, or rax)
   switch (token->type) {
   case TOKEN_ADD: {
     fprintf(out, "add eax, ebx\n");
@@ -189,7 +220,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
             error, 512,
             "%s:%zu:%zu: No type for variable `%s`!",
             token->file, token->line, token->column,
-            mName
+            value->variableName
           );
           return;
         }
@@ -199,7 +230,14 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
             setElementInHashTable(table, name, createVariable(*(value->type), NULL));
 
           if(i == program->count - 1 || program->instructions[i + 1]->type != TOKEN_ASSIGN) {
-            fprintf(out, "mov eax, [%s]\n", name);
+            fprintf(out, "xor rax, rax\n");
+            CompileVariable *variable = getElementFromHashTable(table, name);
+            switch (variable->type) {
+              case TYPE_INT:  fprintf(out, "mov eax, [%s]\n", name); break;
+              case TYPE_BOOL: fprintf(out, "mov ax, [%s]\n", name);  break;
+              case TYPE_NONE:
+              case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
+            }
           }
           break;
         }
@@ -210,7 +248,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
                 error, 512,
                 "%s:%zu:%zu: Can't assign a variable `%s` to itself!",
                 token->file, token->line, token->column,
-                mName
+                value->variableName
               );
               return;
             } else if(!existsElementInHashTable(table, mName)) {
@@ -218,13 +256,27 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
                 error, 512,
                 "%s:%zu:%zu: Can't assign undeclared variable `%s`!",
                 token->file, token->line, token->column,
-                mName
+                value->variableName
               );
               return;
             }
             fprintf(out, "; -- NAME ASSIGN \n");
-            fprintf(out, "mov eax, [%s]\n", mName);
-            fprintf(out, "mov [%s], eax\n", name);
+
+            fprintf(out, "xor rax, rax\n");
+            CompileVariable *variable = getElementFromHashTable(table, mName);
+            switch (variable->type) {
+              case TYPE_INT:  fprintf(out, "mov eax, [%s]\n", mName); break;
+              case TYPE_BOOL: fprintf(out, "mov ax, [%s]\n", mName);  break;
+              case TYPE_NONE:
+              case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
+            }
+            variable = getElementFromHashTable(table, name);
+            switch (variable->type) {
+              case TYPE_INT:  fprintf(out, "mov [%s], eax\n", name); break;
+              case TYPE_BOOL: fprintf(out, "mov [%s], ax\n", name);  break;
+              case TYPE_NONE:
+              case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
+            }
             name = NULL;
             break;
           }
@@ -234,7 +286,14 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
               setElementInHashTable(table, name, createVariable(*(value->type), NULL));
 
             if(i == program->count - 1 || program->instructions[i + 1]->type != TOKEN_ASSIGN) {
-              fprintf(out, "mov eax, [%s]\n", name);
+              fprintf(out, "xor rax, rax\n");
+              CompileVariable *variable = getElementFromHashTable(table, name);
+              switch (variable->type) {
+                case TYPE_INT:  fprintf(out, "mov eax, [%s]\n", name); break;
+                case TYPE_BOOL: fprintf(out, "mov ax, [%s]\n", name);  break;
+                case TYPE_NONE:
+                case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
+              }
             }
             break;
           }
@@ -250,10 +309,18 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
       case TOKEN_VALUE: {
         CompileVariable *value = getElementFromHashTable(table, name);
         if(value->initialValue || value->usageCount > 1) {
-          fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) token->data));
+          fprintf(out, "xor rax, rax\n");
+          ValueData *valueData = token->data;
+          switch (valueData->type) {
+            case TYPE_INT: fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) valueData->data)); break;
+            case TYPE_BOOL: fprintf(out, "mov ax, %" PRIu8 "\n", *((uint8_t*) valueData->data)); break;
+            case TYPE_NONE:
+            case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
+          }
           fprintf(out, "mov [%s], eax\n", name);
         } else {
-          value->initialValue = token->data;
+          ValueData *valueData = token->data;
+          value->initialValue = valueData->data;
         }
         name = NULL;
         break;
@@ -262,13 +329,14 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
         const char *mName = token->data;
         CompileVariable *variable = getElementFromHashTable(table, mName);
         ASSERT(TYPES_COUNT == 3, "Not all types are implemented in compile print!");
-        
+
+        fprintf(out, "xor rax, rax\n");
         if(variable->type == TYPE_INT) {
           fprintf(out, "mov eax, [%s]\n", mName);
           fprintf(out, "mov rdi, rax\n");
           fprintf(out, "call print64\n");
         } else if(variable->type == TYPE_BOOL) {
-          fprintf(out, "mov eax, [%s]\n", mName);
+          fprintf(out, "mov ax, [%s]\n", mName);
           fprintf(out, "mov rdi, rax\n");
           fprintf(out, "call print64\n");
         } 
@@ -387,7 +455,7 @@ void compile(const char *basename, bool silent) {
   // TODO: And create if it doesn't exist
 
   char call[128];
-  snprintf(call, 128, "nasm -felf64 %s.asm", basename);
+  snprintf(call, 128, "nasm -g -felf64 %s.asm", basename);
   if(!silent) printf("[CMD]: %s\n", call);
   system(call);
 

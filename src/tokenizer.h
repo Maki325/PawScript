@@ -78,7 +78,13 @@ typedef struct Token
   size_t column;
 } Token;
 
+typedef struct ValueData {
+  Type type;
+  void *data;
+} ValueData;
+
 typedef struct NameValue {
+  const char *variableName;
   const char *name;
   Type *type;
   bool assignType;
@@ -147,6 +153,7 @@ typedef struct ControlFlowBlock {
   size_t endInstruction;
 } ControlFlowBlock;
 
+void checkInstruction(Program *program, Token *instruction);
 int typesetProgram(Program *program);
 int crossrefrenceBlocks(Program *program);
 int crossrefrenceVariables(Program *program, HashTable *parentNameMap);
