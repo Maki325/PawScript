@@ -65,17 +65,11 @@ Token *getProgramInstruction(Program *program, size_t pos, bool remove) {
     if(pos == program->count) {
       program->instructions[pos] = NULL;
     } else {
-      // printf("HERE! [%p] Pos: %zu\n", program, pos);
       for(size_t i = pos;i < program->count;i++) {
-        if(pos == 8) {
-          printf("Smth! [%p] Pos: %zu I: %zu\n", program, pos, i);
-          printToken(program->instructions[i + 1], 0, 0);
-        }
         program->instructions[i] = program->instructions[i + 1];
         if(!isControlFlowBlock(program->instructions[i]->type)) continue;
         ControlFlowBlock *block = program->instructions[i]->data;
         if(!block) continue;
-        printf("THIS! [%p] Pos: %zu I: %zu\n", program, pos, i);
         block->endInstruction--;
         block->nextInstruction--;
       }
@@ -546,26 +540,6 @@ int crossrefrenceBlocks(Program *program) {
           if(inside->parent == NULL) inside->parent = program;
         }
 
-        size_t depth = 0, tmpCount = count;
-        while(tmpCount > 0) {
-          Token *reference = program->instructions[refrences[tmpCount--]];
-          printf("tmpCount: %zu, type: %s, depth: %zu\n", tmpCount, getTokenTypeName(reference->type), depth);
-          switch (reference->type) {
-            case TOKEN_IF:
-            case TOKEN_ELSE:
-              if(depth == 0) break;
-              depth--;
-              break;
-            case TOKEN_BRACES_OPEN:
-              depth++;
-              break;
-            
-            default:
-              break;
-          }
-        }
-
-        printf("depth: %zu\n", depth);
         for(size_t j = 0;j < length;j++) {
           tokens[j] = getProgramInstruction(program, start, true);
           if(!isControlFlowBlock(tokens[j]->type)) continue;
@@ -625,25 +599,8 @@ int crossrefrenceBlocks(Program *program) {
               block->nextInstruction = i + 1;
               break;
             }
-            // default: {
-            //   for(size_t j = 0;j < length;j++) {
-            //     if(!isControlFlowBlock(tokens[j]->type)) continue;
-            //     ControlFlowBlock *block = tokens[j]->data;
-            //     if(!block) continue;
-            //     block->endInstruction += 1;
-            //     block->nextInstruction += 1;
-            //   }
-            //   break;
-            // }
+            default: break;
           }
-        } else {
-          // for(size_t j = 0;j < length;j++) {
-          //   if(!isControlFlowBlock(tokens[j]->type)) continue;
-          //   ControlFlowBlock *block = tokens[j]->data;
-          //   if(!block) continue;
-          //   block->endInstruction += 1;
-          //   block->nextInstruction += 1;
-          // }
         }
 
         break;
@@ -662,7 +619,6 @@ int crossrefrenceBlocks(Program *program) {
           return 1;
         }
         ControlFlowBlock *block = program->instructions[i - 1]->data;
-        printf("Else i: %zu\n", i);
         block->nextInstruction = i;
         block->endInstruction = i + 1;
         refrences[count++] = i;
@@ -999,7 +955,6 @@ Program *createProgramFromFile(const char *filePath, char *error) {
 
   fclose(in);
 
-  printProgram(program);
   crossrefrenceBlocks(program); // Moved it before typeset because there can exist multiple scopes
   crossrefrenceVariables(program, NULL);
   int typesetError = typesetProgram(program);

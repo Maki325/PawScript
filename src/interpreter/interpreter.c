@@ -97,17 +97,8 @@ void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const
   return sum;
 }
 
-void printTable(HashTable *table) {
-  for(size_t i = 0;i < table->capacity;i++) {
-    if(!table->elements[i].key) continue;
-    printf("Variable: {name: %s, value: %p}\n", table->elements[i].key, table->elements[i].value);
-  }
-}
-
 bool interpretToken(Program *program, void **eax, size_t i, size_t *iPtr, HashTable *table, const char *name, const char **namePtr, char *error) {
-  // printf("[%p] I: %02zu\n", program, i);
   Token *token = program->instructions[i];
-  // if(i == 7) printToken(token, 0, 0);
   switch(token->type) {
     case TOKEN_NAME: {
       NameValue *value = token->data;
@@ -275,7 +266,6 @@ void interpretScope(Program *program, void** eax, char *error, HashTable *table)
 void interpret(Program *program, char *error) {
   HashTable *table = createHashTable(255);
   void *eax = NULL;
-  printProgram(program);
   interpretScope(program, &eax, error, table);
   deleteHashTable(table);
 }
