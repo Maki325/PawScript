@@ -1,15 +1,15 @@
-// check = false;
-check = true;
+check = false;
+// check = true;
 value: int;
 
-{
-  if(check) {
-    value = 11111;
-  } else {
+// {
+//   if(check) {
+//     value = 11111;
+//   } else {
     value = 22222;
-  }
-  print value;
-}
+//   }
+//   print value;
+// }
 
 // if(check) {
 //   check = false;
@@ -21,15 +21,28 @@ value: int;
 //   print value;
 // 
 //   value = 12345;
-// } else {
-//   check = true;
-//   if(check) {
-//     value = 11111;
-//   } else {
-//     value = 22222;
-//   }
-//   print value;
-// 
-//   value = 54321;
 // }
 // print value;
+
+if(check) {
+  check = false;
+  if(check) {
+    value = 11111;
+  } else {
+    value = 22222;
+  }
+  print value;
+
+  value = 12345;
+} else {
+  check = true;
+  if(check) {
+    value = 11111;
+  } else {
+    value = 22222;
+  }
+  print value;
+
+  value = 54321;
+}
+print value;

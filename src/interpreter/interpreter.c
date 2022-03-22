@@ -97,6 +97,13 @@ void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const
   return sum;
 }
 
+void printTable(HashTable *table) {
+  for(size_t i = 0;i < table->capacity;i++) {
+    if(!table->elements[i].key) continue;
+    printf("Variable: {name: %s, value: %p}\n", table->elements[i].key, table->elements[i].value);
+  }
+}
+
 bool interpretToken(Program *program, void **eax, size_t i, size_t *iPtr, HashTable *table, const char *name, const char **namePtr, char *error) {
   // printf("[%p] I: %02zu\n", program, i);
   Token *token = program->instructions[i];
@@ -232,28 +239,18 @@ bool interpretToken(Program *program, void **eax, size_t i, size_t *iPtr, HashTa
       Program prog = {.instructions = &block->condition, .count = 1};
       interpretScope(&prog, eax, error, table);
 
-      // printf("eax: %p\n", eax);
-      // printf("eax: %p\n", *eax);
-      // printf("eax: %d\n", *((int*)*eax));
       if(eax && *eax && *((int*) *eax)) {
-        // printProgram(block->program);
         interpretScope(block->program, eax, error, table);
-        // printf("i: %zu, end: %zu\n", i, block->endInstruction - 1);
         *iPtr = block->endInstruction - 1;
       } else {
-        // printf("i: %zu, next: %zu\n", i, block->nextInstruction - 1);
         *iPtr = block->nextInstruction - 1;
       }
       break;
     }
     case TOKEN_ELSE: {
       ControlFlowBlock *block = token->data;
-      // printf("AFTEEER 1!!!\n");
       interpretScope(block->program, eax, error, table);
-      // printf("AFTEEER 2!!!\n");
-      // printf("[END] i: %zu, next: %zu\n", i, block->endInstruction - 1);
       *iPtr = block->endInstruction - 1;
-      // printf("AFTEEER 3!!!\n");
       break;
     }
     default: {
