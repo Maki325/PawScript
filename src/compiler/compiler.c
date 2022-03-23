@@ -389,6 +389,12 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
         fprintf(out, "cmp eax, 0\n");
         fprintf(out, "jne block_%zu_%zu\n", program->id, prog->id);
         fprintf(out, "jmp block_next_%zu_%zu\n", program->id, block->nextInstruction);
+        goto compile_else_token;
+      }
+      case TOKEN_ELSE: compile_else_token: {
+        ControlFlowBlock *block = token->data;
+
+        Program *prog = block->program;
 
         fprintf(out, "block_%zu_%zu:\n", program->id, prog->id);
         generateProgramAsm(prog, table, out, error);
@@ -409,7 +415,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
 }
 
 void generateAsm(Program *program, FILE *out, char *error) {
-  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in compile!");
+  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in compile!");
   prepareFileForCompile(out);
   HashTable *table = createHashTable(255);
   generateProgramAsm(program, table, out, error);
