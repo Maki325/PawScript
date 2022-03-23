@@ -68,20 +68,14 @@ int main(int argc, char *argv[]) {
     }
     
     char *basename = getBasenameWithDirectory(outputFile ? outputFile : fileName);
-    char *asmName = calloc(strlen(basename) + 4 + 1, sizeof(char));
-    sprintf(asmName, "%s.asm", basename);
 
     Program *program = createProgramFromFile(fileName, error);
     if(error[0] != 0) {
-      printf("Error: %s\n", error);
+      fprintf(stderr, "ERROR: Program creation failed: %s\n", error);
       return 0;
     }
 
-    FILE *out = fopen(asmName, "w");
-    if(!silent) printf("[INFO]: Generating %s\n", asmName);
-    generateAsm(program, out, error);
-    fclose(out);
-
+    generateAsm(program, basename, silent, error);
     compile(basename, silent);
 
     if(run) {

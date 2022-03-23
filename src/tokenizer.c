@@ -877,7 +877,7 @@ int crossrefrenceOperations(Program *program) {
 
 Program *createProgramFromFile(const char *filePath, char *error) {
   Program *program = createProgram();
-  FILE *in = fopen(filePath, "r");
+  FILE *in = openFile(filePath, "r");
 
   char *lineStart = NULL;
   ssize_t lineLength = 0;

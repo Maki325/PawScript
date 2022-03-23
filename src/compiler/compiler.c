@@ -414,8 +414,14 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
   }
 }
 
-void generateAsm(Program *program, FILE *out, char *error) {
+void generateAsm(Program *program, const char *basename, bool silent, char *error) {
   ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in compile!");
+
+  char *asmName = calloc(strlen(basename) + 4 + 1, sizeof(char));
+  sprintf(asmName, "%s.asm", basename);
+  FILE *out = openFile(asmName, "w");
+  if(!silent) printf("[INFO]: Generating %s\n", asmName);
+
   prepareFileForCompile(out);
   HashTable *table = createHashTable(255);
   generateProgramAsm(program, table, out, error);
@@ -455,6 +461,8 @@ void generateAsm(Program *program, FILE *out, char *error) {
       getUninitializedType(variable->type)
     );
   }
+
+  fclose(out);
 }
 void compile(const char *basename, bool silent) {
   // TODO: Check if folder exists for output

@@ -16,6 +16,7 @@
 #include <inttypes.h>
 #include <ctype.h>
 #include <math.h>
+#include <errno.h>
 #include "utils/math.h"
 #include "utils/bool.h"
 

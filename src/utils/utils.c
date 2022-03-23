@@ -284,3 +284,12 @@ uint32_t strnuint32(const char *str, size_t n) {
   }
   return out;
 }
+
+FILE *openFile(const char *filePath, const char *modes) {
+  FILE *file = fopen(filePath, modes);
+  if(!file) {
+    fprintf(stderr, "Couldn't open file \"%s\": %s", filePath, strerror(errno));
+    exit(1);
+  }
+  return file;
+}
