@@ -58,6 +58,7 @@ Token *popProgramInstruction(Program *program) {
   return instruction;
 }
 Token *getProgramInstruction(Program *program, size_t pos, bool remove) {
+  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in getProgramInstruction!");
   Token *instruction = program->instructions[pos];
   if(remove) {
     program->count--;
@@ -66,7 +67,7 @@ Token *getProgramInstruction(Program *program, size_t pos, bool remove) {
     } else {
       for(size_t i = pos;i < program->count;i++) {
         program->instructions[i] = program->instructions[i + 1];
-        if(program->instructions[i]->type != TOKEN_IF) continue;
+        if(!isControlFlowBlock(program->instructions[i]->type)) continue;
         ControlFlowBlock *block = program->instructions[i]->data;
         if(!block) continue;
         block->endInstruction--;
@@ -107,7 +108,7 @@ Token *createToken(Token *createToken) {
 }
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
-  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in createTokenFromString!");
   ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in createTokenFromString!");
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
@@ -200,6 +201,10 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     createOptions->length -= 2;
     token->type = TOKEN_IF;
     return token;
+  } else if(strncmp("else", createOptions->string, 4) == 0) {
+    createOptions->length -= 4;
+    token->type = TOKEN_ELSE;
+    return token;
   } else if(createOptions->last == NULL) {
     // TODO: Add warnings!
     if(isDigit(createOptions->string[0])) {
@@ -267,11 +272,9 @@ Token *checkProgram(Program *program) {
 }
 
 size_t isStringTokenFromRight(const char *string, size_t length) {
-  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in isStringTokenFromRight!");
+  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in isStringTokenFromRight!");
   ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in isStringTokenFromRight!");
-  if(rstrncmp("if", 2, string, length, 2) == 0) {
-    return 2;
-  } else if(rstrncmp("(", 1, string, length, 1) == 0) {
+  if(rstrncmp("(", 1, string, length, 1) == 0) {
     return 1;
   } else if(rstrncmp(")", 1, string, length, 1) == 0) {
     return 1;
@@ -303,6 +306,10 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
     return 1;
   } else if(rstrncmp("-", 1, string, length, 1) == 0) {
     return 1;
+  } else if(rstrncmp("if", 2, string, length, 2) == 0) {
+    return 2;
+  } else if(rstrncmp("else", 4, string, length, 4) == 0) {
+    return 4;
   }
   return 0;
 }
@@ -331,6 +338,10 @@ int typesetProgram(Program *program) {
 
     if(value->assignType && i == program->count - 1) {
       // Error: Variable without a type
+      fprintf(stderr, "ERROR: ");
+      printTokenLocation(token, stderr);
+      fprintf(stderr, ": Variable `%s` without a type!\n", value->variableName);
+      exit(-1);
       return -1;
     }
     if(i == program->count - 1 && value->type == TYPE_NONE) {
@@ -427,8 +438,19 @@ int typesetProgram(Program *program) {
   return 0;
 }
 
+bool isControlFlowBlock(TokenType type) {
+  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in isControlFlowBlock!");
+  switch (type) {
+    case TOKEN_IF:
+    case TOKEN_ELSE:
+      return true;
+    default:
+      return false;
+  }
+}
+
 int crossrefrenceBlocks(Program *program) {
-  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in crossrefrenceProgram!");
+  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in crossrefrenceProgram!");
   size_t refrences[program->count], count = 0;
   Token token;
   for(size_t i = 0;i < program->count;i++) {
@@ -442,7 +464,7 @@ int crossrefrenceBlocks(Program *program) {
         size_t start = refrences[--count],
           length = i - start, pos = 0;
         if(getProgramInstruction(program, start - 1, false)->type != TOKEN_PARENTHESES_OPEN) {
-          fprintf(stderr, "ERROR: Blocks are not balanced at: %s:%zu%zu",
+          fprintf(stderr, "ERROR: Parentheses blocks are not balanced at: %s:%zu:%zu\n",
                     instruction->file, instruction->line, instruction->column);
           exit(1);
           return -1;
@@ -494,7 +516,7 @@ int crossrefrenceBlocks(Program *program) {
           length = i - start;
         Token *openInstruction = getProgramInstruction(program, start - 1, false);
         if(openInstruction->type != TOKEN_BRACES_OPEN) {
-          fprintf(stderr, "ERROR: Blocks are not balanced at: %s:%zu%zu",
+          fprintf(stderr, "ERROR: Braces blocks are not balanced at: %s:%zu:%zu\n",
                     instruction->file, instruction->line, instruction->column);
           exit(1);
           return -1;
@@ -503,23 +525,7 @@ int crossrefrenceBlocks(Program *program) {
         inside->count = length;
         inside->capacity = length;
         Token **tokens = inside->instructions = calloc(length, sizeof(Token*));
-        for(size_t j = 0;j < length;j++) {
-          tokens[j] = getProgramInstruction(program, start, true);
-          if(tokens[j]->type != TOKEN_IF) continue;
-          ControlFlowBlock *block = tokens[j]->data;
-          if(!block) continue;
-          block->endInstruction -= start;
-          block->nextInstruction -= start;
-        }
-        // Get `{` token for location
-        Token *startToken = getProgramInstruction(program, start - 1, true);
-        token.file = startToken->file;
-        token.line = startToken->line;
-        token.column = startToken->column;
-        token.type = TOKEN_SCOPE;
-        token.data = inside;
-        free(startToken);
-
+        
         //Getting the parent
         if(count == 0) {
           inside->parent = program;
@@ -534,41 +540,87 @@ int crossrefrenceBlocks(Program *program) {
           if(inside->parent == NULL) inside->parent = program;
         }
 
+        for(size_t j = 0;j < length;j++) {
+          tokens[j] = getProgramInstruction(program, start, true);
+          if(!isControlFlowBlock(tokens[j]->type)) continue;
+          ControlFlowBlock *block = tokens[j]->data;
+          if(!block) continue;
+          block->endInstruction -= start - j;
+          block->nextInstruction -= start - j;
+        }
+        // Get `{` token for location
+        Token *startToken = getProgramInstruction(program, start - 1, true);
+        token.file = startToken->file;
+        token.line = startToken->line;
+        token.column = startToken->column;
+        token.type = TOKEN_SCOPE;
+        token.data = inside;
+        free(startToken);
+
         // Replace `}` token with actual priority token
         free(getProgramInstruction(program, start - 1, false));
         program->instructions[start - 1] = createToken(&token);
         i = start - 1;
 
-        if(count != 0 && program->instructions[refrences[count-1]]->type == TOKEN_IF) {
-          Token *ifToken = program->instructions[refrences[--count]];
-          ControlFlowBlock *block = ifToken->data;
-          if(!block) {
-            fprintf(stderr, "ERROR: No condition for if statement at %s:%zu:%zu!\n",
-                            ifToken->file, ifToken->line, ifToken->column);
-            exit(1);
-            return -1;
-          }
-          if(block->program) break;
-          Token *scope = getProgramInstruction(program, start - 1, true);
-          block->program = scope->data;
-          for(size_t j = 0;j < block->program->count;j++) {
-            if(block->program->instructions[j]->type != TOKEN_IF) continue;
-            ControlFlowBlock *innerBlock = block->program->instructions[j]->data;
-            if(!innerBlock) continue;
-            innerBlock->endInstruction += 3;
-            innerBlock->nextInstruction += 3;
-          }
-          free(scope);
-          i = start - 2;
+        if(count != 0) {
+          switch(program->instructions[refrences[count-1]]->type) {
+            case TOKEN_IF: {
+              size_t newStart = refrences[--count];
+              Token *ifToken = program->instructions[newStart];
+              ControlFlowBlock *block = ifToken->data;
+              if(!block) {
+                fprintf(stderr, "ERROR: No condition for if statement at %s:%zu:%zu!\n",
+                                ifToken->file, ifToken->line, ifToken->column);
+                exit(1);
+                return -1;
+              }
+              if(block->program) break;
+              Token *scope = getProgramInstruction(program, start - 1, true);
+              block->program = scope->data;
+              free(scope);
+              i = newStart;
 
-          block->endInstruction = i + 1;
-          block->nextInstruction = i + 1;
+              block->endInstruction = i + 1;
+              block->nextInstruction = i + 1;
+              break;
+            }
+            case TOKEN_ELSE: {
+              size_t newStart = refrences[--count];
+              Token *elseToken = program->instructions[newStart];
+              ControlFlowBlock *block = elseToken->data;
+              if(block && block->program) break;
+              block = elseToken->data = malloc(sizeof(ControlFlowBlock));
+              Token *scope = getProgramInstruction(program, start - 1, true);
+              block->program = scope->data;
+              free(scope);
+              i = newStart;
+
+              block->endInstruction = i + 1;
+              block->nextInstruction = i + 1;
+              break;
+            }
+            default: break;
+          }
         }
 
         break;
       }
-      
+
       case TOKEN_IF: {
+        refrences[count++] = i;
+        break;
+      }
+      case TOKEN_ELSE: {
+        if(i == 0 || program->instructions[i - 1]->type != TOKEN_IF) {
+          fprintf(stderr, "ERROR: ");
+          printTokenLocation(program->instructions[i], stderr);
+          fprintf(stderr, ": Token `else` must follow an `if` token!\n");
+          exit(1);
+          return 1;
+        }
+        ControlFlowBlock *block = program->instructions[i - 1]->data;
+        block->nextInstruction = i;
+        block->endInstruction = i + 1;
         refrences[count++] = i;
         break;
       }
@@ -590,7 +642,7 @@ int crossrefrenceBlocks(Program *program) {
 }
 
 int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
-  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in crossrefrenceVariables!");
+  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in crossrefrenceVariables!");
   HashTable *nameMap = parentNameMap == NULL ? createHashTable(255) : createHashTableFrom(parentNameMap);
   for(size_t i = 0; i < program->count;i++) {
     Token *instruction = program->instructions[i];
@@ -611,6 +663,13 @@ int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
       if(code != 0) return code;
       Program prog = {.instructions = &block->condition, .count = 1};
       code = crossrefrenceVariables(&prog, nameMap);
+      if(code != 0) return code;
+
+      continue;
+    } else if(instruction->type == TOKEN_ELSE) {
+      ControlFlowBlock *block = instruction->data;
+
+      int code = crossrefrenceVariables(block->program, nameMap);
       if(code != 0) return code;
 
       continue;
@@ -687,7 +746,7 @@ int crossrefrencePriority(Token **holder, size_t *iPtr) {
 }
 
 int crossrefrenceOperations(Program *program) {
-  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in crossrefrenceOperations!");
+  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in crossrefrenceOperations!");
   ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in crossrefrenceOperations!");
   for(size_t i = 0;i < program->count;i++) {
     Token *instruction = program->instructions[i];
@@ -696,6 +755,11 @@ int crossrefrenceOperations(Program *program) {
         ControlFlowBlock *block = instruction->data;
         Program prog = {.instructions = &block->condition, .count = 1};
         crossrefrenceOperations(&prog);
+        crossrefrenceOperations((Program*) block->program);
+        break;
+      }
+      case TOKEN_ELSE: {
+        ControlFlowBlock *block = instruction->data;
         crossrefrenceOperations((Program*) block->program);
         break;
       }

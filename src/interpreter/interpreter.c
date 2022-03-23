@@ -60,7 +60,7 @@ void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const
       TokenPriorityValue *value = (TokenPriorityValue*) token->data;
       Program prog = {.instructions = value->instructions, .count = value->count};
       for(size_t j = 0; j < value->count;j++) {
-        interpretToken(&prog, eax, j, table, name, namePtr, error);
+        interpretToken(&prog, eax, j, &j, table, name, namePtr, error);
       }
       break;
     }
@@ -97,7 +97,7 @@ void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const
   return sum;
 }
 
-bool interpretToken(Program *program, void **eax, size_t i, HashTable *table, const char *name, const char **namePtr, char *error) {
+bool interpretToken(Program *program, void **eax, size_t i, size_t *iPtr, HashTable *table, const char *name, const char **namePtr, char *error) {
   Token *token = program->instructions[i];
   switch(token->type) {
     case TOKEN_NAME: {
@@ -178,7 +178,21 @@ bool interpretToken(Program *program, void **eax, size_t i, HashTable *table, co
     }
     case TOKEN_VALUE: {
       ValueData *value = token->data;
-      setElementInHashTable(table, name, value->data);
+      switch (value->type) {
+        case TYPE_INT: {
+          setElementInHashTable(table, name, value->data);
+          break;
+        }
+        case TYPE_BOOL: {
+          uint32_t *v = malloc(sizeof(uint32_t));
+          *v = (uint32_t) *((uint8_t*)value->data);
+          setElementInHashTable(table, name, v);
+          break;
+        }
+        
+        default:
+          break;
+      }
       (*namePtr) = NULL;
       break;
     }
@@ -218,10 +232,16 @@ bool interpretToken(Program *program, void **eax, size_t i, HashTable *table, co
 
       if(eax && *eax && *((int*) *eax)) {
         interpretScope(block->program, eax, error, table);
-        i = block->endInstruction;
+        *iPtr = block->endInstruction - 1;
       } else {
-        i = block->nextInstruction;
+        *iPtr = block->nextInstruction - 1;
       }
+      break;
+    }
+    case TOKEN_ELSE: {
+      ControlFlowBlock *block = token->data;
+      interpretScope(block->program, eax, error, table);
+      *iPtr = block->endInstruction - 1;
       break;
     }
     default: {
@@ -233,10 +253,10 @@ bool interpretToken(Program *program, void **eax, size_t i, HashTable *table, co
 }
 
 void interpretScope(Program *program, void** eax, char *error, HashTable *table) {
-  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in interpret!");
+  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in interpret!");
   const char *name = NULL;
   for(size_t i = 0;i < program->count;i++) {
-    interpretToken(program, eax, i, table, name, &name, error);
+    interpretToken(program, eax, i, &i, table, name, &name, error);
     if(error[0] != '\0') {
       return;
     }

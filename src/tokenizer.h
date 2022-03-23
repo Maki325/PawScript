@@ -21,11 +21,12 @@ typedef enum TokenType {
   TOKEN_BRACES_CLOSE,       // }
   TOKEN_SCOPE,
   TOKEN_IF,
+  TOKEN_ELSE,
   TOKEN_COUNT
 } TokenType;
 
 static inline const char *getTokenTypeName(TokenType type) {
-  ASSERT(TOKEN_COUNT == 17, "Not all tokens are implemented in getTokenTypeName!");
+  ASSERT(TOKEN_COUNT == 18, "Not all tokens are implemented in getTokenTypeName!");
   switch (type) {
     case TOKEN_TYPE:              return "TOKEN_TYPE";
     case TOKEN_NAME:              return "TOKEN_NAME";
@@ -45,6 +46,7 @@ static inline const char *getTokenTypeName(TokenType type) {
     case TOKEN_SCOPE:             return "TOKEN_SCOPE";
     case TOKEN_COUNT:             return "TOKEN_COUNT";
     case TOKEN_IF:                return "TOKEN_IF";
+    case TOKEN_ELSE:              return "TOKEN_ELSE";
     default:                      return "Unknown Token!!!";
   }
 }
@@ -152,6 +154,8 @@ typedef struct ControlFlowBlock {
   size_t nextInstruction;
   size_t endInstruction;
 } ControlFlowBlock;
+
+bool isControlFlowBlock(TokenType type);
 
 void checkInstruction(Program *program, Token *instruction);
 int typesetProgram(Program *program);
