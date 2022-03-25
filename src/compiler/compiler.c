@@ -79,7 +79,7 @@ void postCompile(FILE *out) {
 }
 
 bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
-  ASSERT(TOKEN_COUNT == 17, "Not all operations are implemented in compile!");
+  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in compile!");
   BinaryOperationValue *value = (BinaryOperationValue*) token->data;
   Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
   if(!leftToken || !rightToken) {

@@ -159,6 +159,7 @@ bool isControlFlowBlock(TokenType type);
 
 void checkInstruction(Program *program, Token *instruction);
 int typesetProgram(Program *program);
+void cleanupElseIfs(Program *program);
 int crossrefrenceBlocks(Program *program);
 int crossrefrenceVariables(Program *program, HashTable *parentNameMap);
 int crossrefrenceOperations(Program *program);

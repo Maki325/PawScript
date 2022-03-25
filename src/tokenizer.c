@@ -449,6 +449,46 @@ bool isControlFlowBlock(TokenType type) {
   }
 }
 
+void cleanupElseIfs(Program *program) {
+  for(size_t i = 0;i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+    switch (instruction->type) {
+      case TOKEN_ELSE: {
+        ControlFlowBlock *block = instruction->data;
+        if(!block || !block->program) {
+          getProgramInstruction(program, i, true);
+          i--;
+          break;
+        }
+        cleanupElseIfs(block->program);
+        break;
+      }
+      case TOKEN_IF: {
+        ControlFlowBlock *block = instruction->data;
+        Program p = {.instructions = &block->condition, .count = 1};
+        cleanupElseIfs(&p);
+        cleanupElseIfs(block->program);
+        
+        break;
+      }
+      case TOKEN_PRIORITY: {
+        TokenPriorityValue *value = instruction->data;
+        Program p = {.instructions = value->instructions, .count = value->count};
+        cleanupElseIfs(&p);
+        break;
+      }
+      case TOKEN_SCOPE: {
+        cleanupElseIfs((Program*) instruction->data);
+        break;
+      }
+      
+      default:
+        break;
+    }
+
+  }
+}
+
 int crossrefrenceBlocks(Program *program) {
   ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in crossrefrenceProgram!");
   size_t refrences[program->count], count = 0;
@@ -582,6 +622,10 @@ int crossrefrenceBlocks(Program *program) {
 
               block->endInstruction = i + 1;
               block->nextInstruction = i + 1;
+
+              if(count != 0 && program->instructions[refrences[count-1]]->type == TOKEN_ELSE) {
+                count--;
+              }
               break;
             }
             case TOKEN_ELSE: {
@@ -618,10 +662,28 @@ int crossrefrenceBlocks(Program *program) {
           exit(1);
           return 1;
         }
+        refrences[count++] = i;
+
         ControlFlowBlock *block = program->instructions[i - 1]->data;
         block->nextInstruction = i;
-        block->endInstruction = i + 1;
-        refrences[count++] = i;
+        size_t end = i + 1;
+        block->endInstruction = end;
+        for(size_t j = i - 1;j >= 1;j--) {
+          printf("J: %zu\n", j);
+          Token *ifTok = program->instructions[j];
+          printf("ifTok type: %s\n", getTokenTypeName(ifTok->type));
+          if(ifTok->type != TOKEN_IF || j == 0) break;
+          Token *beforeTok = program->instructions[j - 1];
+          if(beforeTok->type == TOKEN_IF) break;
+          if(beforeTok->type == TOKEN_ELSE) {
+            ControlFlowBlock *block = beforeTok->data;
+            if(block && block->program) break;
+          }
+          printf("J OK: %zu, END: %zu\n", j, end);
+          ControlFlowBlock *ifBlock = ifTok->data;
+          ifBlock->endInstruction = end;
+          j--; 
+        }
         break;
       }
       default:
@@ -637,6 +699,8 @@ int crossrefrenceBlocks(Program *program) {
     // Not all blocks are closed!
     return -1;
   }
+
+  cleanupElseIfs(program);
 
   return 0;
 }
@@ -964,6 +1028,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   }
   crossrefrenceOperations(program);
 
+  printProgram(program);
   Token *token = checkProgram(program);
   if(token) {
     snprintf(
