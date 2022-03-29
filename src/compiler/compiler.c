@@ -388,7 +388,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
 
         fprintf(out, "cmp eax, 0\n");
         fprintf(out, "jne block_%zu_%zu\n", program->id, prog->id);
-        fprintf(out, "jmp block_next_%zu_%zu\n", program->id, block->nextInstruction);
+        fprintf(out, "jmp block_next_%zu_%zu\n", program->id, i + block->nextInstruction);
         goto compile_else_token;
       }
       case TOKEN_ELSE: compile_else_token: {
@@ -398,7 +398,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
 
         fprintf(out, "block_%zu_%zu:\n", program->id, prog->id);
         generateProgramAsm(prog, table, out, error);
-        fprintf(out, "jmp block_end_%zu_%zu\n", program->id, block->endInstruction);
+        fprintf(out, "jmp block_end_%zu_%zu\n", program->id, i + block->endInstruction);
         fprintf(out, "block_next_%zu_%zu:\n", program->id, i + 1);
 
         // TODO: Remove unnecessary `block_end` labels, by checking if it's an end block

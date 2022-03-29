@@ -67,11 +67,6 @@ Token *getProgramInstruction(Program *program, size_t pos, bool remove) {
     } else {
       for(size_t i = pos;i < program->count;i++) {
         program->instructions[i] = program->instructions[i + 1];
-        if(!isControlFlowBlock(program->instructions[i]->type)) continue;
-        ControlFlowBlock *block = program->instructions[i]->data;
-        if(!block) continue;
-        block->endInstruction--;
-        block->nextInstruction--;
       }
     }
   }
@@ -457,6 +452,13 @@ void cleanupElseIfs(Program *program) {
         ControlFlowBlock *block = instruction->data;
         if(!block || !block->program) {
           getProgramInstruction(program, i, true);
+          for(long int j = i - 1;j >= 0;j--) {
+            Token *prev = program->instructions[j];
+            if(prev->type != TOKEN_IF) break;
+            ControlFlowBlock *prevBlock = prev->data;
+            if(!prevBlock || prevBlock->endInstruction <= 1) break;
+            prevBlock->endInstruction--;
+          }
           i--;
           break;
         }
@@ -582,11 +584,6 @@ int crossrefrenceBlocks(Program *program) {
 
         for(size_t j = 0;j < length;j++) {
           tokens[j] = getProgramInstruction(program, start, true);
-          if(!isControlFlowBlock(tokens[j]->type)) continue;
-          ControlFlowBlock *block = tokens[j]->data;
-          if(!block) continue;
-          block->endInstruction -= start - j;
-          block->nextInstruction -= start - j;
         }
         // Get `{` token for location
         Token *startToken = getProgramInstruction(program, start - 1, true);
@@ -620,8 +617,8 @@ int crossrefrenceBlocks(Program *program) {
               free(scope);
               i = newStart;
 
-              block->endInstruction = i + 1;
-              block->nextInstruction = i + 1;
+              block->endInstruction = 1;
+              block->nextInstruction = 1;
 
               if(count != 0 && program->instructions[refrences[count-1]]->type == TOKEN_ELSE) {
                 count--;
@@ -639,8 +636,8 @@ int crossrefrenceBlocks(Program *program) {
               free(scope);
               i = newStart;
 
-              block->endInstruction = i + 1;
-              block->nextInstruction = i + 1;
+              block->endInstruction = 1;
+              block->nextInstruction = 1;
               break;
             }
             default: break;
@@ -665,24 +662,21 @@ int crossrefrenceBlocks(Program *program) {
         refrences[count++] = i;
 
         ControlFlowBlock *block = program->instructions[i - 1]->data;
-        block->nextInstruction = i;
-        size_t end = i + 1;
+        block->nextInstruction = (i) - (i - 1);
+        size_t end = (i + 1) - (i - 1);
         block->endInstruction = end;
         for(size_t j = i - 1;j >= 1;j--) {
-          printf("J: %zu\n", j);
           Token *ifTok = program->instructions[j];
-          printf("ifTok type: %s\n", getTokenTypeName(ifTok->type));
           if(ifTok->type != TOKEN_IF || j == 0) break;
           Token *beforeTok = program->instructions[j - 1];
           if(beforeTok->type == TOKEN_IF) break;
+          ControlFlowBlock *ifBlock = ifTok->data;
+          ifBlock->endInstruction = (i + 1) - j;
+          j--;
           if(beforeTok->type == TOKEN_ELSE) {
             ControlFlowBlock *block = beforeTok->data;
             if(block && block->program) break;
           }
-          printf("J OK: %zu, END: %zu\n", j, end);
-          ControlFlowBlock *ifBlock = ifTok->data;
-          ifBlock->endInstruction = end;
-          j--; 
         }
         break;
       }
@@ -1028,7 +1022,6 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   }
   crossrefrenceOperations(program);
 
-  printProgram(program);
   Token *token = checkProgram(program);
   if(token) {
     snprintf(
