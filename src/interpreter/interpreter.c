@@ -232,16 +232,16 @@ bool interpretToken(Program *program, void **eax, size_t i, size_t *iPtr, HashTa
 
       if(eax && *eax && *((int*) *eax)) {
         interpretScope(block->program, eax, error, table);
-        *iPtr = block->endInstruction - 1;
+        *iPtr = i + block->endInstruction - 1;
       } else {
-        *iPtr = block->nextInstruction - 1;
+        *iPtr = i + block->nextInstruction - 1;
       }
       break;
     }
     case TOKEN_ELSE: {
       ControlFlowBlock *block = token->data;
       interpretScope(block->program, eax, error, table);
-      *iPtr = block->endInstruction - 1;
+      *iPtr = i + block->endInstruction - 1;
       break;
     }
     default: {
