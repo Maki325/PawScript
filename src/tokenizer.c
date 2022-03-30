@@ -58,7 +58,6 @@ Token *popProgramInstruction(Program *program) {
   return instruction;
 }
 Token *getProgramInstruction(Program *program, size_t pos, bool remove) {
-  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in getProgramInstruction!");
   Token *instruction = program->instructions[pos];
   if(remove) {
     program->count--;
@@ -103,7 +102,7 @@ Token *createToken(Token *createToken) {
 }
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
-  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in createTokenFromString!");
   ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in createTokenFromString!");
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
@@ -132,6 +131,14 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
   } else if(strncmp(";", createOptions->string, 1) == 0) {
     createOptions->length -= 1;
     token->type = TOKEN_SEMICOLON;
+    return token;
+  } else if(strncmp("==", createOptions->string, 2) == 0) {
+    createOptions->length -= 2;
+    token->type = TOKEN_EQUALS;
+    return token;
+  } else if(strncmp("!=", createOptions->string, 2) == 0) {
+    createOptions->length -= 2;
+    token->type = TOKEN_NOT_EQUALS;
     return token;
   } else if(strncmp("=", createOptions->string, 1) == 0) {
     createOptions->length -= 1;
@@ -267,7 +274,7 @@ Token *checkProgram(Program *program) {
 }
 
 size_t isStringTokenFromRight(const char *string, size_t length) {
-  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in isStringTokenFromRight!");
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in isStringTokenFromRight!");
   ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in isStringTokenFromRight!");
   if(rstrncmp("(", 1, string, length, 1) == 0) {
     return 1;
@@ -279,6 +286,10 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
     return 1;
   } else if(rstrncmp(";", 1, string, length, 1) == 0) {
     return 1;
+  } else if(rstrncmp("==", 2, string, length, 2) == 0) {
+    return 2;
+  } else if(rstrncmp("!=", 2, string, length, 2) == 0) {
+    return 2;
   } else if(rstrncmp("=", 1, string, length, 1) == 0) {
     return 1;
   } else if(rstrncmp("int", 3, string, length, 3) == 0) {
@@ -434,7 +445,7 @@ int typesetProgram(Program *program) {
 }
 
 bool isControlFlowBlock(TokenType type) {
-  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in isControlFlowBlock!");
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in isControlFlowBlock!");
   switch (type) {
     case TOKEN_IF:
     case TOKEN_ELSE:
@@ -492,7 +503,7 @@ void cleanupElseIfs(Program *program) {
 }
 
 int crossrefrenceBlocks(Program *program) {
-  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in crossrefrenceProgram!");
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in crossrefrenceProgram!");
   size_t refrences[program->count], count = 0;
   Token token;
   for(size_t i = 0;i < program->count;i++) {
@@ -700,7 +711,8 @@ int crossrefrenceBlocks(Program *program) {
 }
 
 int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
-  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in crossrefrenceVariables!");
+  //TODO: Maybe check for binary operations here too?
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in crossrefrenceVariables!");
   HashTable *nameMap = parentNameMap == NULL ? createHashTable(255) : createHashTableFrom(parentNameMap);
   for(size_t i = 0; i < program->count;i++) {
     Token *instruction = program->instructions[i];
@@ -804,7 +816,7 @@ int crossrefrencePriority(Token **holder, size_t *iPtr) {
 }
 
 int crossrefrenceOperations(Program *program) {
-  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in crossrefrenceOperations!");
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in crossrefrenceOperations!");
   ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in crossrefrenceOperations!");
   for(size_t i = 0;i < program->count;i++) {
     Token *instruction = program->instructions[i];
@@ -925,6 +937,33 @@ int crossrefrenceOperations(Program *program) {
 
         break;
       }
+      case TOKEN_NOT_EQUALS:
+      case TOKEN_EQUALS: {
+        if(i == 0 || i == program->count - 1) {
+          // Not enought operands for token!
+          return -1;
+        }
+
+        Token *left  = getProgramInstruction(program, i - 1, false),
+              *right = getProgramInstruction(program, i + 1, false);
+        if(!canBeUsedInComparisonOperations(left->type)) {
+          printf("Op 1 cant be used! I: %zu, type[i-1]: %d\n", i, getProgramInstruction(program, i - 1, false)->type);
+          return i;
+        }
+        if(!canBeUsedInComparisonOperations(right->type)) {
+          printf("Op 2 cant be used! I: %zu\n", i);
+          return i;
+        }
+        
+        // NOTE: Since the crossrefrences are done above
+        // No need to redo them?
+        BinaryOperationValue *value = instruction->data = malloc(sizeof(BinaryOperationValue));
+        value->operandTwo = getProgramInstruction(program, i + 1, true);
+        value->operandOne = getProgramInstruction(program, i - 1, true);
+        i -= 1;
+
+        break;
+      }
       default:
         break;
     }
@@ -1022,7 +1061,6 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   }
   crossrefrenceOperations(program);
 
-  printProgram(program);
   Token *token = checkProgram(program);
   if(token) {
     snprintf(

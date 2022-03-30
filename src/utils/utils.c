@@ -54,7 +54,7 @@ void printProgram(Program *program) {
   }
 }
 void printToken(Token *token, size_t depth, size_t index) {
-  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in createTokenFromString!");
   
   printf("[%02zu]: ", index);
   switch(token->type) {
@@ -223,6 +223,28 @@ void printToken(Token *token, size_t depth, size_t index) {
         printToken(p->instructions[i], depth + 1, i);
       }
 
+      break;
+    }
+    case TOKEN_EQUALS:
+    case TOKEN_NOT_EQUALS: {
+      if(token->type == TOKEN_NOT_EQUALS) printf("NOT EQUALS\n");
+      else printf("EQUALS\n");
+  
+      BinaryOperationValue *value = (BinaryOperationValue*) token->data;
+      if(!value) break;
+      Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
+
+      printf("  - Left: ");
+      if(leftToken)
+        printToken(leftToken, depth + 1, index);
+      else
+        printf("(NULL)\n");
+
+      printf("  - Right: ");
+      if(rightToken)
+        printToken(rightToken, depth + 1, index);
+      else
+        printf("(NULL)\n");
       break;
     }
     default: {

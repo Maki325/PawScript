@@ -79,7 +79,7 @@ void postCompile(FILE *out) {
 }
 
 bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
-  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in compile!");
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in compile!");
   BinaryOperationValue *value = (BinaryOperationValue*) token->data;
   Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
   if(!leftToken || !rightToken) {
@@ -117,7 +117,9 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
     case TOKEN_ADD:
     case TOKEN_SUBTRACT:
     case TOKEN_GREATER_THAN:
-    case TOKEN_LESS_THAN: {
+    case TOKEN_LESS_THAN:
+    case TOKEN_EQUALS:
+    case TOKEN_NOT_EQUALS: {
       fprintf(out, "push rbx\n");
       generateBinaryOperationAsm(leftToken, out, error);
       fprintf(out, "pop rbx\n");
@@ -154,7 +156,9 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
     case TOKEN_ADD:
     case TOKEN_SUBTRACT:
     case TOKEN_GREATER_THAN:
-    case TOKEN_LESS_THAN: {
+    case TOKEN_LESS_THAN:
+    case TOKEN_EQUALS:
+    case TOKEN_NOT_EQUALS: {
       fprintf(out, "push rax\n");
       generateBinaryOperationAsm(rightToken, out, error);
       fprintf(out, "mov ebx, eax\n");
@@ -179,7 +183,9 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
     return true;
   }
   case TOKEN_GREATER_THAN:
-  case TOKEN_LESS_THAN: {
+  case TOKEN_LESS_THAN:
+  case TOKEN_EQUALS:
+  case TOKEN_NOT_EQUALS: {
     fprintf(out, "; LG\n");
     fprintf(out, "push rcx\n");
     fprintf(out, "push rdx\n");
@@ -188,12 +194,17 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
     fprintf(out, "mov ecx, 0\n");
     fprintf(out, "mov edx, 1\n");
 
-    if(token->type == TOKEN_GREATER_THAN)
-      fprintf(out, "cmp eax, ebx\n");
-    else
-      fprintf(out, "cmp ebx, eax\n");
+    fprintf(out, "cmp eax, ebx\n");
 
-    fprintf(out, "cmovg ecx, edx\n");
+    if(token->type == TOKEN_GREATER_THAN)
+      fprintf(out, "cmovg ecx, edx\n");
+    else if(token->type == TOKEN_LESS_THAN)
+      fprintf(out, "cmovl ecx, edx\n");
+    else if(token->type == TOKEN_EQUALS)
+      fprintf(out, "cmove ecx, edx\n");
+    else if(token->type == TOKEN_NOT_EQUALS)
+      fprintf(out, "cmovne ecx, edx\n");
+
     fprintf(out, "mov eax, ecx\n");
 
     fprintf(out, "pop rdx\n");
@@ -349,7 +360,9 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
       case TOKEN_ADD:
       case TOKEN_SUBTRACT:
       case TOKEN_GREATER_THAN:
-      case TOKEN_LESS_THAN: {
+      case TOKEN_LESS_THAN:
+      case TOKEN_EQUALS:
+      case TOKEN_NOT_EQUALS: {
         if(!generateBinaryOperationAsm(token, out, error)) {
           snprintf(
             error, 512,
@@ -406,7 +419,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
         break;
       }
       default: {
-        fprintf(stderr, "Error: Token(%s) not implemented in compilation!", getTokenTypeName(token->type));
+        fprintf(stderr, "Error: Token(%s) not implemented in compilation!\n", getTokenTypeName(token->type));
         exit(1);
         break;
       }
@@ -415,7 +428,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
 }
 
 void generateAsm(Program *program, const char *basename, bool silent, char *error) {
-  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in compile!");
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in compile!");
 
   char *asmName = calloc(strlen(basename) + 4 + 1, sizeof(char));
   sprintf(asmName, "%s.asm", basename);

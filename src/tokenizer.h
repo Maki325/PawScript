@@ -22,11 +22,13 @@ typedef enum TokenType {
   TOKEN_SCOPE,
   TOKEN_IF,
   TOKEN_ELSE,
+  TOKEN_EQUALS,
+  TOKEN_NOT_EQUALS,
   TOKEN_COUNT
 } TokenType;
 
 static inline const char *getTokenTypeName(TokenType type) {
-  ASSERT(TOKEN_COUNT == 18, "Not all tokens are implemented in getTokenTypeName!");
+  ASSERT(TOKEN_COUNT == 20, "Not all tokens are implemented in getTokenTypeName!");
   switch (type) {
     case TOKEN_TYPE:              return "TOKEN_TYPE";
     case TOKEN_NAME:              return "TOKEN_NAME";
@@ -47,6 +49,8 @@ static inline const char *getTokenTypeName(TokenType type) {
     case TOKEN_COUNT:             return "TOKEN_COUNT";
     case TOKEN_IF:                return "TOKEN_IF";
     case TOKEN_ELSE:              return "TOKEN_ELSE";
+    case TOKEN_EQUALS:            return "TOKEN_EQUALS";
+    case TOKEN_NOT_EQUALS:        return "TOKEN_NOT_EQUALS";
     default:                      return "Unknown Token!!!";
   }
 }

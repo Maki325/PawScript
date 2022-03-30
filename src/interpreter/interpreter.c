@@ -1,6 +1,7 @@
 #include "interpreter.h"
 
 void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const char *name, const char **namePtr, char *error) {
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in interpret!");
   BinaryOperationValue *value = (BinaryOperationValue*) token->data;
   Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
   if(!leftToken || !rightToken) {
@@ -26,7 +27,9 @@ void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const
     case TOKEN_ADD:
     case TOKEN_SUBTRACT:
     case TOKEN_GREATER_THAN:
-    case TOKEN_LESS_THAN: {
+    case TOKEN_LESS_THAN:
+    case TOKEN_EQUALS:
+    case TOKEN_NOT_EQUALS: {
       uint32_t *result = interpretBinaryOperation(leftToken, eax, table, name, namePtr, error);
       left = *(result);
       free(result);
@@ -50,7 +53,9 @@ void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const
     case TOKEN_ADD:
     case TOKEN_SUBTRACT:
     case TOKEN_GREATER_THAN:
-    case TOKEN_LESS_THAN: {
+    case TOKEN_LESS_THAN:
+    case TOKEN_EQUALS:
+    case TOKEN_NOT_EQUALS: {
       uint32_t *result = interpretBinaryOperation(rightToken, eax, table, name, namePtr, error);
       right = *(result);
       free(result);
@@ -86,6 +91,14 @@ void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const
   }
   case TOKEN_LESS_THAN: {
     (*sum) = left < right;
+    break;
+  }
+  case TOKEN_EQUALS: {
+    (*sum) = left == right;
+    break;
+  }
+  case TOKEN_NOT_EQUALS: {
+    (*sum) = left != right;
     break;
   }
   default:
@@ -207,7 +220,9 @@ bool interpretToken(Program *program, void **eax, size_t i, size_t *iPtr, HashTa
     case TOKEN_ADD:
     case TOKEN_SUBTRACT:
     case TOKEN_GREATER_THAN:
-    case TOKEN_LESS_THAN: {
+    case TOKEN_LESS_THAN:
+    case TOKEN_EQUALS:
+    case TOKEN_NOT_EQUALS: {
       void *value = (*eax) = interpretBinaryOperation(token, eax, table, name, namePtr, error);
       if(name) {
         setElementInHashTable(table, name, value);
@@ -253,7 +268,7 @@ bool interpretToken(Program *program, void **eax, size_t i, size_t *iPtr, HashTa
 }
 
 void interpretScope(Program *program, void** eax, char *error, HashTable *table) {
-  ASSERT(TOKEN_COUNT == 18, "Not all operations are implemented in interpret!");
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in interpret!");
   const char *name = NULL;
   for(size_t i = 0;i < program->count;i++) {
     interpretToken(program, eax, i, &i, table, name, &name, error);
