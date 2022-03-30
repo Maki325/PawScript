@@ -669,10 +669,10 @@ int crossrefrenceBlocks(Program *program) {
           Token *ifTok = program->instructions[j];
           if(ifTok->type != TOKEN_IF || j == 0) break;
           Token *beforeTok = program->instructions[j - 1];
-          if(beforeTok->type == TOKEN_IF) break;
           ControlFlowBlock *ifBlock = ifTok->data;
           ifBlock->endInstruction = (i + 1) - j;
           j--;
+          if(beforeTok->type == TOKEN_IF) break;
           if(beforeTok->type == TOKEN_ELSE) {
             ControlFlowBlock *block = beforeTok->data;
             if(block && block->program) break;
@@ -1022,6 +1022,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   }
   crossrefrenceOperations(program);
 
+  printProgram(program);
   Token *token = checkProgram(program);
   if(token) {
     snprintf(
