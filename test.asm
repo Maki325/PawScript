@@ -1,4 +1,5 @@
 print64:
+  push rax
   mov   r9, -3689348814741910323
   sub   rsp, 40
   mov   BYTE [rsp+31], 10
@@ -30,28 +31,46 @@ print64:
   mov   rax, 1
   syscall
   add   rsp, 40
+pop rax
 ret
 
 add64:
   push rbp
-  push rax
   mov rbp, rsp
   sub rsp, 8 ; 8 bytes is our int, because we aint bitches
   ; So we use `rsp + <variable offset>` for local variables
   ; Or we use `rbp - <variable offset>` for local variables
+
   mov rax, [rbp + 16]
   mov [rbp - 8], rax
+
   mov rax, [rbp + 24]
   add [rbp - 8], rax
-  ; Return pointer?
-  ; mov eax, [rbp + 24]
-  ; mov [eax], [rbp - 8]
   
   mov rax, [rbp - 8]
-  mov [rbp + 32], rax
+  mov rdi, [rbp + 32]
+  mov [rdi], rax
 
   mov rsp, rbp
-  pop rax
+  pop rbp
+ret
+
+add64Rax:
+  push rbp
+  mov rbp, rsp
+  sub rsp, 8 ; 8 bytes is our int, because we aint bitches
+  ; So we use `rsp + <variable offset>` for local variables
+  ; Or we use `rbp - <variable offset>` for local variables
+
+  mov rax, [rbp + 16]
+  mov [rbp - 8], rax
+
+  mov rax, [rbp + 24]
+  add [rbp - 8], rax
+  
+  mov rax, [rbp - 8]
+
+  mov rsp, rbp
   pop rbp
 ret
 
@@ -62,22 +81,45 @@ _start:
   mov rbp, rsp
   sub rsp, 8 ; Variable `c`
   lea rax, [rbp - 8] ; pointer to `c` variable, even though we use []
-  
+  mov [rax], DWORD 4
+
   push rbp
-  push rax
   mov rbp, rsp
   sub rsp, 24 ; 16 for input and 8 for output pointer
   mov [rbp - 8], rax
-  mov rax, 2
+  mov rax, 89
   mov [rbp - 16], rax
-  mov rax, 1
+  mov rax, 45
   mov [rbp - 24], rax
 
   call add64
 
   mov rsp, rbp
-  pop rax
   pop rbp
 
-  mov rdi, [rax]
+  mov rdi, [rbp - 8]
   call print64
+
+
+  push rbp
+  mov rbp, rsp
+  ; sub rsp, 16 ; 16 for input and 8 for output pointer
+  ; mov rax, 45
+  ; mov [rbp - 8], rax
+  ; mov rax, 45
+  ; mov [rbp - 16], rax
+
+  push 45
+  push 46
+
+  call add64Rax
+
+  mov rsp, rbp
+  pop rbp
+
+  mov rdi, rax
+  call print64
+  
+  mov rax, 60
+  mov rdi, 0
+  syscall
