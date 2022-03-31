@@ -1,0 +1,57 @@
+void main() {
+  int c = add(1, 2);
+}
+
+function add(a: int, b: int): int {
+  int c = a + b;
+  return c;
+}
+
+main:
+  push ebp
+  mov ebp, esp
+  sub esp, 8 ; Variable `c`
+  lea eax, [ebp - 8 * 1] ; pointer to `c` variable, even though we use []
+  
+  push ebp
+  mov ebp, esp
+  sub esp, 24 ; 16 for input and 8 for output pointer
+  lea [ebp - 8 * 1], [ebp - 8 * 1]
+  mov [ebp - 8 * 2], 2
+  mov [ebp - 8 * 3], 1
+
+  call add
+
+  mov esp, ebp
+  pop ebp
+
+  mov
+  call print
+
+add:
+  push ebp
+  mov ebp, esp
+  sub esp, 8 ; 8 bytes is our int, because we aint bitches
+  ; So we use `esp + <variable offset>` for local variables
+  ; Or we use `ebp - <variable offset>` for local variables
+  mov [ebp - 8 * 1], [ebp + 8 * 1]
+  add [ebp - 8 * 1], [ebp + 8 * 2]
+  ; Return pointer?
+  mov eax, [ebp + 8 * 3]
+  mov [eax], [ebp - 8 * 1]
+
+  mov esp, ebp
+  pop ebp
+ret
+
+// EBP
+// ESP
+
+push ebp
+mov ebp, esp
+sub esp, <Num of local bytes>
+; So we use `esp + <variable offset>` for local variables
+...
+
+mov esp, ebp ; return esp to old value
+pop ebp
