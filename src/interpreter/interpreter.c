@@ -35,6 +35,13 @@ void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const
       free(result);
       break;
     }
+    case TOKEN_PRIORITY: {
+      TokenPriorityValue *value = leftToken->data;
+      Program p = {.instructions = value->instructions, .count = value->count};
+      interpretScope(&p, eax, error, table);
+      left = *((uint16_t*)*(eax));
+      break;
+    }
     default: {
       ASSERT(false, "Operand type not expected in interpretBinaryOperation!");
     }
@@ -62,11 +69,10 @@ void *interpretBinaryOperation(Token *token, void **eax, HashTable *table, const
       break;
     }
     case TOKEN_PRIORITY: {
-      TokenPriorityValue *value = (TokenPriorityValue*) token->data;
-      Program prog = {.instructions = value->instructions, .count = value->count};
-      for(size_t j = 0; j < value->count;j++) {
-        interpretToken(&prog, eax, j, &j, table, name, namePtr, error);
-      }
+      TokenPriorityValue *value = rightToken->data;
+      Program p = {.instructions = value->instructions, .count = value->count};
+      interpretScope(&p, eax, error, table);
+      right = *((uint16_t*)*(eax));
       break;
     }
     default: {

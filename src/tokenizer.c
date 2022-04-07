@@ -327,7 +327,8 @@ int typesetProgram(Program *program) {
       int code;
       if((code = typesetProgram((Program*)token->data)))
         return code;
-    } else if(token->type == TOKEN_SCOPE) {
+      continue;
+    } else if(isControlFlowBlock(token->type)) {
       ControlFlowBlock *block = token->data;
       int code;
       Program prog = {.instructions=&block->condition, .count = 1};
@@ -336,6 +337,16 @@ int typesetProgram(Program *program) {
       }
       if((code = typesetProgram((Program*)block->program)))
         return code;
+      continue;
+    } else if(token->type == TOKEN_PRIORITY) {
+      TokenPriorityValue *value = token->data;
+      int code;
+      Program prog = {.instructions=value->instructions, .count = value->count};
+      if((code = typesetProgram(&prog))) {
+        return code;
+      }
+      value->count = prog.count;
+      continue;
     }
     if(token->type != TOKEN_NAME) {
       continue;
@@ -449,6 +460,21 @@ bool isControlFlowBlock(TokenType type) {
   switch (type) {
     case TOKEN_IF:
     case TOKEN_ELSE:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool isBinaryOperation(TokenType type) {
+  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in isControlFlowBlock!");
+  switch (type) {
+    case TOKEN_ADD:
+    case TOKEN_SUBTRACT:
+    case TOKEN_GREATER_THAN:
+    case TOKEN_LESS_THAN:
+    case TOKEN_EQUALS:
+    case TOKEN_NOT_EQUALS:
       return true;
     default:
       return false;
@@ -743,6 +769,23 @@ int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
       if(code != 0) return code;
 
       continue;
+    } else if(isBinaryOperation(instruction->type)) {
+      BinaryOperationValue *value = instruction->data;
+      if(!value) continue;
+
+      Program p = {.count = 1};
+      if(value->operandOne) {
+        p.instructions = &value->operandOne;
+        int code = crossrefrenceVariables(&p, nameMap);
+        if(code != 0) return code;
+      }
+      if(value->operandTwo) {
+        p.instructions = &value->operandTwo;
+        int code = crossrefrenceVariables(&p, nameMap);
+        if(code != 0) return code;
+      }
+
+      continue;
     }
     if(instruction->type != TOKEN_NAME) continue;
     NameValue *value = instruction->data;
@@ -790,26 +833,17 @@ bool canBeUsedInComparisonOperations(TokenType type) {
           || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN;
 }
 
-int crossrefrencePriority(Token **holder, size_t *iPtr) {
+int crossrefrencePriority(Token **holder) {
   Token *instruction = *holder;
 
   TokenPriorityValue *value = instruction->data;
   
-  int errorCode = 8888;
-  if(value->count > 1) {
+  int errorCode = 0;
+  if(value->count > 0) {
     Program prog = {.instructions = value->instructions, .count = value->count};
     errorCode = crossrefrenceOperations(&prog);
     value->count = prog.count;
-  }
-  
-  if(value->count == 1) {
-    (*holder) = value->instructions[0];
-    if(iPtr != NULL && errorCode == 8888) {
-      (*iPtr) = (*iPtr) - 1;
-    }
-    free(value->instructions);
-    free(value);
-    free(instruction);
+    if(errorCode != 0) return errorCode;
   }
 
   return 0;
@@ -834,7 +868,7 @@ int crossrefrenceOperations(Program *program) {
         break;
       }
       case TOKEN_PRIORITY: {
-        crossrefrencePriority(&program->instructions[i], &i);
+        crossrefrencePriority(&program->instructions[i]);
         break;
       }
       case TOKEN_SCOPE: {
@@ -867,10 +901,10 @@ int crossrefrenceOperations(Program *program) {
           return i;
         }
         if(left->type == TOKEN_PRIORITY) {
-          crossrefrencePriority(&program->instructions[i - 1], NULL);
+          crossrefrencePriority(&program->instructions[i - 1]);
         }
         if(right->type == TOKEN_PRIORITY) {
-          crossrefrencePriority(&program->instructions[i + 1], NULL);
+          crossrefrencePriority(&program->instructions[i + 1]);
         }
         BinaryOperationValue *value = instruction->data = malloc(sizeof(BinaryOperationValue));
 
@@ -972,6 +1006,32 @@ int crossrefrenceOperations(Program *program) {
   return 0;
 }
 
+void crossrefrenceFunctions(Program *program) {
+  for(size_t i = 0;i < program->count;i++) {
+    Token *instructionType = program->instructions[i];
+    if(instructionType->type != TOKEN_TYPE) continue;
+    if(i != 0) {
+      Token *lastInstruction = program->instructions[i - 1];
+      if(lastInstruction->type == TOKEN_NAME) {
+        NameValue *value = lastInstruction->data;
+        if(value->assignType) continue;
+      }
+    }
+    if(i == program->count - 1) continue;
+    Token *instructionName = program->instructions[++i];
+    if(instructionName->type != TOKEN_NAME) continue;
+    Token *instructionFields = program->instructions[++i];
+    if(instructionFields->type != TOKEN_PRIORITY) continue;
+    Token *instructionBody = program->instructions[++i];
+    if(instructionBody->type != TOKEN_SCOPE) continue;
+
+    NameValue *nameValue = instructionName->data;
+    printf("Hereee!!! %s (%s)\n", nameValue->variableName, nameValue->name);
+    exit(1);
+
+  }
+}
+
 Program *createProgramFromFile(const char *filePath, char *error) {
   Program *program = createProgram();
   FILE *in = openFile(filePath, "r");
@@ -992,7 +1052,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
     trimRight(line, &length);
     if(length == 0) continue;
     trimLeft(&line, &length);
-    for(size_t st = 0; st < length;st++) {
+    for(size_t st = 1; st < length;st++) {
       if(line[st] == '/' && line[st - 1] == '/') {
         length = st - 1;
         break;
@@ -1009,7 +1069,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
           break;
         }
         size_t s = isStringTokenFromRight(line, end);
-        if(s == 0 || (end < length - 1 && !(isspace(line[end]) && line[end] != '\0'))) {
+        if(s == 0 && (end < length - 1 && !(isspace(line[end]) && line[end] != '\0'))) {
           end++;
         } else if(s == end) {
           break;
@@ -1052,14 +1112,19 @@ Program *createProgramFromFile(const char *filePath, char *error) {
 
   fclose(in);
 
+  printProgram(program);
+
   crossrefrenceBlocks(program); // Moved it before typeset because there can exist multiple scopes
   crossrefrenceVariables(program, NULL);
+  crossrefrenceFunctions(program);
   int typesetError = typesetProgram(program);
   if(typesetError != 0) {
     fprintf(stderr, "ERROR: Typeset error: %d\n", typesetError);
     exit(typesetError);
   }
   crossrefrenceOperations(program);
+
+  printProgram(program);
 
   Token *token = checkProgram(program);
   if(token) {

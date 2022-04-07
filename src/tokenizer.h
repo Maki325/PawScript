@@ -24,6 +24,8 @@ typedef enum TokenType {
   TOKEN_ELSE,
   TOKEN_EQUALS,
   TOKEN_NOT_EQUALS,
+  TOKEN_FUNCTION,
+  TOKEN_FUNCTION_CALL,
   TOKEN_COUNT
 } TokenType;
 
@@ -51,6 +53,8 @@ static inline const char *getTokenTypeName(TokenType type) {
     case TOKEN_ELSE:              return "TOKEN_ELSE";
     case TOKEN_EQUALS:            return "TOKEN_EQUALS";
     case TOKEN_NOT_EQUALS:        return "TOKEN_NOT_EQUALS";
+    case TOKEN_FUNCTION:          return "TOKEN_FUNCTION";
+    case TOKEN_FUNCTION_CALL:     return "TOKEN_FUNCTION_CALL";
     default:                      return "Unknown Token!!!";
   }
 }
@@ -158,6 +162,11 @@ typedef struct ControlFlowBlock {
   size_t nextInstruction;
   size_t endInstruction;
 } ControlFlowBlock;
+
+typedef struct FunctionData {
+  TokenPriorityValue *inputs;
+  Program *body;
+} FunctionData;
 
 bool isControlFlowBlock(TokenType type);
 

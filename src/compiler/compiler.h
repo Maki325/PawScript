@@ -17,7 +17,7 @@ CompileVariable *createVariable(Type type, void *initialValue);
 void addPrintFunction(FILE *out);
 void prepareFileForCompile(FILE *out);
 void postCompile(FILE *out);
-bool generateBinaryOperationAsm(Token *token, FILE *out, char *error);
+bool generateBinaryOperationAsm(Token *token, HashTable *table, FILE *out, char *error);
 void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *error);
 void generateAsm(Program *program, const char *basename, bool silent, char *error);
 void compile(const char *basename, bool silent);

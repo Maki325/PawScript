@@ -65,9 +65,9 @@ void printToken(Token *token, size_t depth, size_t index) {
     case TOKEN_NAME: {
       NameValue *value = token->data;
       if(!value->type) {
-        printf("NAME: %s, TYPE: (NULL)\n", value->variableName);
+        printf("NAME: %s (%s), TYPE: (NULL)\n", value->variableName, value->name);
       } else {
-        printf("NAME: %s, TYPE: (%p, %s)\n", value->variableName, value->type, getTypeName(*((Type *) value->type)));
+        printf("NAME: %s (%s), TYPE: (%p, %s)\n", value->variableName, value->name, value->type, getTypeName(*((Type *) value->type)));
       }
       break;
     }
@@ -257,7 +257,6 @@ void printn(const char* string, size_t length) {
   for(size_t i = 0;i < length;i++) {
     printf("%c", string[i]);
   }
-  printf("\n");
 }
 
 int trimLeft(char **text, size_t *length) {

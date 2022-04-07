@@ -78,7 +78,7 @@ void postCompile(FILE *out) {
   fputs("syscall\n", out);
 }
 
-bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
+bool generateBinaryOperationAsm(Token *token, HashTable *table, FILE *out, char *error) {
   ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in compile!");
   BinaryOperationValue *value = (BinaryOperationValue*) token->data;
   Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
@@ -121,7 +121,15 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
     case TOKEN_EQUALS:
     case TOKEN_NOT_EQUALS: {
       fprintf(out, "push rbx\n");
-      generateBinaryOperationAsm(leftToken, out, error);
+      generateBinaryOperationAsm(leftToken, table, out, error);
+      fprintf(out, "pop rbx\n");
+      break;
+    }
+    case TOKEN_PRIORITY: {
+      fprintf(out, "push rbx\n");
+      TokenPriorityValue *value = leftToken->data;
+      Program p = {.instructions = value->instructions, .count = value->count};
+      generateProgramAsm(&p, table, out, error);
       fprintf(out, "pop rbx\n");
       break;
     }
@@ -160,7 +168,16 @@ bool generateBinaryOperationAsm(Token *token, FILE *out, char *error) {
     case TOKEN_EQUALS:
     case TOKEN_NOT_EQUALS: {
       fprintf(out, "push rax\n");
-      generateBinaryOperationAsm(rightToken, out, error);
+      generateBinaryOperationAsm(rightToken, table, out, error);
+      fprintf(out, "mov ebx, eax\n");
+      fprintf(out, "pop rax\n");
+      break;
+    }
+    case TOKEN_PRIORITY: {
+      fprintf(out, "push rax\n");
+      TokenPriorityValue *value = rightToken->data;
+      Program p = {.instructions = value->instructions, .count = value->count};
+      generateProgramAsm(&p, table, out, error);
       fprintf(out, "mov ebx, eax\n");
       fprintf(out, "pop rax\n");
       break;
@@ -363,7 +380,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
       case TOKEN_LESS_THAN:
       case TOKEN_EQUALS:
       case TOKEN_NOT_EQUALS: {
-        if(!generateBinaryOperationAsm(token, out, error)) {
+        if(!generateBinaryOperationAsm(token, table, out, error)) {
           snprintf(
             error, 512,
             "%s:%zu:%zu: There's an error with ADD or SUBTRACT operation!",
