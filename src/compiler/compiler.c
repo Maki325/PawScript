@@ -100,6 +100,7 @@ bool generateBinaryOperationAsm(Token *token, HashTable *table, FILE *out, char 
       switch (value->type) {
         case TYPE_INT:  fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) value->data)); break;
         case TYPE_BOOL: fprintf(out, "mov eax, %" PRIu8 "\n", *((uint8_t*) value->data));   break;
+        case TYPE_FUNCTION:
         case TYPE_NONE:
         case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
       }
@@ -110,6 +111,7 @@ bool generateBinaryOperationAsm(Token *token, HashTable *table, FILE *out, char 
       switch (*nameValue->type) {
         case TYPE_INT:  fprintf(out, "mov eax, [%s]\n", nameValue->name); break;
         case TYPE_BOOL: fprintf(out, "mov ax, [%s]\n", nameValue->name);  break;
+        case TYPE_FUNCTION:
         case TYPE_NONE:
         case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
       }
@@ -147,6 +149,7 @@ bool generateBinaryOperationAsm(Token *token, HashTable *table, FILE *out, char 
       switch (value->type) {
         case TYPE_INT:  fprintf(out, "mov ebx, %" PRIu32 "\n", *((uint32_t*) value->data)); break;
         case TYPE_BOOL: fprintf(out, "mov ebx, %" PRIu8 "\n", *((uint8_t*) value->data));   break;
+        case TYPE_FUNCTION:
         case TYPE_NONE:
         case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
       }
@@ -157,6 +160,7 @@ bool generateBinaryOperationAsm(Token *token, HashTable *table, FILE *out, char 
       switch (*nameValue->type) {
         case TYPE_INT:  fprintf(out, "mov ebx, [%s]\n", nameValue->name); break;
         case TYPE_BOOL: fprintf(out, "mov bx, [%s]\n", nameValue->name);  break;
+        case TYPE_FUNCTION:
         case TYPE_NONE:
         case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
       }
@@ -263,6 +267,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
             switch (variable->type) {
               case TYPE_INT:  fprintf(out, "mov eax, [%s]\n", name); break;
               case TYPE_BOOL: fprintf(out, "mov ax, [%s]\n", name);  break;
+              case TYPE_FUNCTION:
               case TYPE_NONE:
               case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
             }
@@ -295,6 +300,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
             switch (variable->type) {
               case TYPE_INT:  fprintf(out, "mov eax, [%s]\n", mName); break;
               case TYPE_BOOL: fprintf(out, "mov ax, [%s]\n", mName);  break;
+              case TYPE_FUNCTION:
               case TYPE_NONE:
               case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
             }
@@ -302,6 +308,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
             switch (variable->type) {
               case TYPE_INT:  fprintf(out, "mov [%s], eax\n", name); break;
               case TYPE_BOOL: fprintf(out, "mov [%s], ax\n", name);  break;
+              case TYPE_FUNCTION:
               case TYPE_NONE:
               case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
             }
@@ -319,6 +326,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
               switch (variable->type) {
                 case TYPE_INT:  fprintf(out, "mov eax, [%s]\n", name); break;
                 case TYPE_BOOL: fprintf(out, "mov ax, [%s]\n", name);  break;
+                case TYPE_FUNCTION:
                 case TYPE_NONE:
                 case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
               }
@@ -342,6 +350,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
           switch (valueData->type) {
             case TYPE_INT: fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) valueData->data)); break;
             case TYPE_BOOL: fprintf(out, "mov ax, %" PRIu8 "\n", *((uint8_t*) valueData->data)); break;
+            case TYPE_FUNCTION:
             case TYPE_NONE:
             case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
           }

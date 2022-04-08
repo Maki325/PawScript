@@ -30,7 +30,7 @@ typedef enum TokenType {
 } TokenType;
 
 static inline const char *getTokenTypeName(TokenType type) {
-  ASSERT(TOKEN_COUNT == 20, "Not all tokens are implemented in getTokenTypeName!");
+  ASSERT(TOKEN_COUNT == 22, "Not all tokens are implemented in getTokenTypeName!");
   switch (type) {
     case TOKEN_TYPE:              return "TOKEN_TYPE";
     case TOKEN_NAME:              return "TOKEN_NAME";
@@ -63,16 +63,18 @@ typedef enum Type {
   TYPE_NONE = 0,
   TYPE_INT,
   TYPE_BOOL,
+  TYPE_FUNCTION,
   TYPES_COUNT
 } Type;
 
 static inline const char *getTypeName(Type type) {
-  ASSERT(TYPES_COUNT == 3, "Not all types are implemented in getTypeName!");
+  ASSERT(TYPES_COUNT == 4, "Not all types are implemented in getTypeName!");
   switch (type) {
-    case TYPE_INT:  return "int";
-    case TYPE_BOOL: return "bool";
-    case TYPE_NONE: return "NONE!!!";
-    default:        return "Unknown Token!!!";
+    case TYPE_INT:      return "int";
+    case TYPE_BOOL:     return "bool";
+    case TYPE_FUNCTION: return "function";
+    case TYPE_NONE:     return "NONE!!!";
+    default:            return "Unknown Token!!!";
   }
 }
 
@@ -118,7 +120,7 @@ typedef struct Program {
   size_t count;
   size_t capacity;
 
-  HashTable *variableTypes;
+  HashTable *functions;
 } Program;
 
 typedef struct CreateTokenFromString {
@@ -164,6 +166,7 @@ typedef struct ControlFlowBlock {
 } ControlFlowBlock;
 
 typedef struct FunctionData {
+  Type returnType;
   TokenPriorityValue *inputs;
   Program *body;
 } FunctionData;

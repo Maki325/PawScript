@@ -54,12 +54,12 @@ void printProgram(Program *program) {
   }
 }
 void printToken(Token *token, size_t depth, size_t index) {
-  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 22, "Not all operations are implemented in createTokenFromString!");
   
   printf("[%02zu]: ", index);
   switch(token->type) {
     case TOKEN_TYPE: {
-      printf("TYPE: %zu\n", (size_t) token->data);
+      printf("TYPE: %s (%zu)\n", getTypeName((TokenType) token->data), (size_t) token->data);
       break;
     }
     case TOKEN_NAME: {
@@ -245,6 +245,14 @@ void printToken(Token *token, size_t depth, size_t index) {
         printToken(rightToken, depth + 1, index);
       else
         printf("(NULL)\n");
+      break;
+    }
+    case TOKEN_FUNCTION: {
+      printf("FUNCTION\n");
+      break;
+    }
+    case TOKEN_FUNCTION_CALL: {
+      printf("FUNCTION CALL\n");
       break;
     }
     default: {

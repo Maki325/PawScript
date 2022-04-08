@@ -10,7 +10,7 @@ Program *createProgram() {
   program->capacity = 20;
   program->count = 0;
   program->instructions = calloc(program->capacity, sizeof(Token*));
-  program->variableTypes = createHashTable(255);
+  program->functions = createHashTable(255);
 
   return program;
 }
@@ -21,7 +21,7 @@ Program *createProgramWithParent(Program *parent) {
   program->parent = parent;
   program->capacity = 20;
   program->count = 0;
-  program->variableTypes = createHashTable(255);
+  program->functions = createHashTable(255);
 
   return program;
 }
@@ -32,7 +32,7 @@ void deleteProgram(Program *program) {
     free(program->instructions[i]);
   }
   free(program->instructions);
-  deleteHashTable(program->variableTypes);
+  deleteHashTable(program->functions);
   free(program);
 }
 
@@ -102,8 +102,8 @@ Token *createToken(Token *createToken) {
 }
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
-  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in createTokenFromString!");
-  ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 22, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TYPES_COUNT ==  4, "Not all types are implemented in createTokenFromString!");
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
   token->line = createOptions->line;
@@ -274,8 +274,8 @@ Token *checkProgram(Program *program) {
 }
 
 size_t isStringTokenFromRight(const char *string, size_t length) {
-  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in isStringTokenFromRight!");
-  ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in isStringTokenFromRight!");
+  ASSERT(TOKEN_COUNT == 22, "Not all operations are implemented in isStringTokenFromRight!");
+  ASSERT(TYPES_COUNT ==  4, "Not all types are implemented in isStringTokenFromRight!");
   if(rstrncmp("(", 1, string, length, 1) == 0) {
     return 1;
   } else if(rstrncmp(")", 1, string, length, 1) == 0) {
@@ -456,7 +456,7 @@ int typesetProgram(Program *program) {
 }
 
 bool isControlFlowBlock(TokenType type) {
-  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in isControlFlowBlock!");
+  ASSERT(TOKEN_COUNT == 22, "Not all operations are implemented in isControlFlowBlock!");
   switch (type) {
     case TOKEN_IF:
     case TOKEN_ELSE:
@@ -467,7 +467,7 @@ bool isControlFlowBlock(TokenType type) {
 }
 
 bool isBinaryOperation(TokenType type) {
-  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in isControlFlowBlock!");
+  ASSERT(TOKEN_COUNT == 22, "Not all operations are implemented in isControlFlowBlock!");
   switch (type) {
     case TOKEN_ADD:
     case TOKEN_SUBTRACT:
@@ -529,7 +529,7 @@ void cleanupElseIfs(Program *program) {
 }
 
 int crossrefrenceBlocks(Program *program) {
-  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in crossrefrenceProgram!");
+  ASSERT(TOKEN_COUNT == 22, "Not all operations are implemented in crossrefrenceProgram!");
   size_t refrences[program->count], count = 0;
   Token token;
   for(size_t i = 0;i < program->count;i++) {
@@ -738,7 +738,7 @@ int crossrefrenceBlocks(Program *program) {
 
 int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
   //TODO: Maybe check for binary operations here too?
-  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in crossrefrenceVariables!");
+  ASSERT(TOKEN_COUNT == 22, "Not all operations are implemented in crossrefrenceVariables!");
   HashTable *nameMap = parentNameMap == NULL ? createHashTable(255) : createHashTableFrom(parentNameMap);
   for(size_t i = 0; i < program->count;i++) {
     Token *instruction = program->instructions[i];
@@ -850,8 +850,8 @@ int crossrefrencePriority(Token **holder) {
 }
 
 int crossrefrenceOperations(Program *program) {
-  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in crossrefrenceOperations!");
-  ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in crossrefrenceOperations!");
+  ASSERT(TOKEN_COUNT == 22, "Not all operations are implemented in crossrefrenceOperations!");
+  ASSERT(TYPES_COUNT ==  4, "Not all types are implemented in crossrefrenceOperations!");
   for(size_t i = 0;i < program->count;i++) {
     Token *instruction = program->instructions[i];
     switch (instruction->type) {
@@ -1007,28 +1007,75 @@ int crossrefrenceOperations(Program *program) {
 }
 
 void crossrefrenceFunctions(Program *program) {
+  bool belowZero = false;
   for(size_t i = 0;i < program->count;i++) {
+    if(belowZero) {
+      i = 0;
+      belowZero = false;
+    }
     Token *instructionType = program->instructions[i];
+    if(instructionType->type == TOKEN_SCOPE) {
+      crossrefrenceFunctions(instructionType->data);
+      continue;
+    }
     if(instructionType->type != TOKEN_TYPE) continue;
     if(i != 0) {
       Token *lastInstruction = program->instructions[i - 1];
       if(lastInstruction->type == TOKEN_NAME) {
         NameValue *value = lastInstruction->data;
-        if(value->assignType) continue;
+        if(value->assignType && !value->type) continue;
       }
     }
     if(i == program->count - 1) continue;
     Token *instructionName = program->instructions[++i];
     if(instructionName->type != TOKEN_NAME) continue;
     Token *instructionFields = program->instructions[++i];
-    if(instructionFields->type != TOKEN_PRIORITY) continue;
+    if(instructionFields->type != TOKEN_PRIORITY) {
+      printf("Hereee 11111!!!\n");
+      NameMapValue *value = instructionName->data;
+      if(*value->type != TYPE_FUNCTION) {
+        fprintf(stderr, "Variable \"%s\" isn't a function!\n", value->name);
+        exit(1);
+      }
+      // TODO: createFunctionCall(instructionName, instructionFields);
+      continue;
+    }
     Token *instructionBody = program->instructions[++i];
     if(instructionBody->type != TOKEN_SCOPE) continue;
 
     NameValue *nameValue = instructionName->data;
-    printf("Hereee!!! %s (%s)\n", nameValue->variableName, nameValue->name);
-    exit(1);
+    if(*nameValue->type != TYPE_NONE) {
+      fprintf(stderr, "ERROR: ");
+      printTokenLocation(instructionName, stderr);
+      fprintf(stderr, ": Can't re-assign function to variable \"%s\"!\n", nameValue->name);
+      exit(1);
+    }
+    *nameValue->type = TYPE_FUNCTION;
+    printProgram(program);
+    printf("i: %zu\n", i);
 
+    instructionBody = getProgramInstruction(program, i--, true);
+    instructionFields = getProgramInstruction(program, i--, true);
+    instructionName = getProgramInstruction(program, i--, true);
+    instructionType = getProgramInstruction(program, i, true);
+    if(i > 0) i--;
+    else belowZero = true;
+
+    FunctionData *value = malloc(sizeof(FunctionData));
+
+    value->returnType = (TokenType) instructionType->data;
+    free(instructionType);
+
+    value->inputs = (TokenPriorityValue*) instructionFields->data;
+    free(instructionFields);
+
+    value->body = (Program*) instructionBody->data;
+    free(instructionBody);
+
+    printf("Hereee!!! %s (%s) i: %zu\n", nameValue->variableName, nameValue->name, i);
+    printProgram(program);
+
+    exit(1);
   }
 }
 
