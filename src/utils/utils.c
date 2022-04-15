@@ -46,7 +46,23 @@ void printProgram(Program *program) {
   printf("Program: %p\n", program);
   printf(" - count: %zu\n", program->count);
   printf(" - capacity: %zu\n", program->capacity);
-  printf(" - instructions:\n");
+  HashTable *functions = program->functions;
+  if(functions) {
+    printf(" - functions(%zu):\n", functions->size);
+    for(size_t i = 0, j = 0; i < functions->capacity;i++) {
+      if(!functions->elements[i].key) continue;
+      printf("  - [%zu]: %s\n", j++, functions->elements[i].key);
+      FunctionData *data = functions->elements[i].value;
+      Program p = {.count = data->inputs->count, .instructions = data->inputs->instructions};
+      for(size_t q = 0; q < p.count;q++) {
+        Token *token = p.instructions[q];
+        printf("  - ");
+        printToken(token, 0, q);
+      }
+      if(data->body) printProgram(data->body);
+    }
+  }
+  printf(" - instructions(%zu):\n", program->count);
   for(size_t i = 0; i < program->count;i++) {
     Token *token = program->instructions[i];
     printf("  - ");

@@ -169,7 +169,14 @@ typedef struct FunctionData {
   Type returnType;
   TokenPriorityValue *inputs;
   Program *body;
+  Token *location;
 } FunctionData;
+
+typedef struct FunctionCallData {
+  Type returnType;
+  TokenPriorityValue *inputs;
+  const char *name;
+} FunctionCallData;
 
 bool isControlFlowBlock(TokenType type);
 
@@ -177,6 +184,7 @@ void checkInstruction(Program *program, Token *instruction);
 int typesetProgram(Program *program);
 void cleanupElseIfs(Program *program);
 int crossrefrenceBlocks(Program *program);
+NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, Program *program, size_t i);
 int crossrefrenceVariables(Program *program, HashTable *parentNameMap);
 int crossrefrenceOperations(Program *program);
 

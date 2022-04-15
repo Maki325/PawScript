@@ -320,6 +320,13 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
   return 0;
 }
 
+FunctionData *getFunctionFromProgram(Program *program, const char *name) {
+  FunctionData *data = getElementFromHashTable(program->functions, name);
+  if(data) return data;
+  if(!program->parent) return NULL;
+  return getFunctionFromProgram(program->parent, name);
+}
+
 int typesetProgram(Program *program) {
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i], *next;
@@ -346,6 +353,21 @@ int typesetProgram(Program *program) {
         return code;
       }
       value->count = prog.count;
+      continue;
+    } else if(token->type == TOKEN_FUNCTION) {
+      FunctionData *data = getFunctionFromProgram(program, (const char*) token->data);
+      ASSERT(data, "Unreachable!");
+      TokenPriorityValue *value = data->inputs;
+      int code;
+      Program prog = {.instructions=value->instructions, .count = value->count};
+      if((code = typesetProgram(&prog))) {
+        return code;
+      }
+      value->count = prog.count;
+
+      if((code = typesetProgram(data->body))) {
+        return code;
+      }
       continue;
     }
     if(token->type != TOKEN_NAME) {
@@ -422,6 +444,21 @@ int typesetProgram(Program *program) {
               *value->type = *nextValue->type;
               break;
             } else if(*value->type != *nextValue->type) {
+              // Error: Wrong type reasignment
+              fprintf(stderr, "ERROR: ");
+              printTokenLocation(token, stderr);
+              fprintf(stderr, ": Wrong type reasignment for variable `%s`!\n", value->variableName);
+              exit(-3);
+              return -3;
+            }
+            break;
+          }
+          case TOKEN_FUNCTION_CALL: {
+            FunctionCallData *nextValue = next->data;
+            if(*value->type == TYPE_NONE) {
+              *value->type = nextValue->returnType;
+              break;
+            } else if(*value->type != nextValue->returnType) {
               // Error: Wrong type reasignment
               fprintf(stderr, "ERROR: ");
               printTokenLocation(token, stderr);
@@ -736,8 +773,27 @@ int crossrefrenceBlocks(Program *program) {
   return 0;
 }
 
+NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, Program *program, size_t i) {
+  NameMapValue *element = malloc(sizeof(NameMapValue));
+  element->program = program;
+
+  Type *type = malloc(sizeof(Type));
+  *type = TYPE_NONE;
+  element->type = type;
+
+  const size_t newNameLength = 4 +
+        (program->id == 0 ? 1 : ((int) log10(program->id) + 1)) +
+        1 + (i == 0 ? 1 : ((int) log10(i) + 1)) + 1;
+  char *newName = calloc(newNameLength, sizeof(char));
+  snprintf(newName, newNameLength, "var_%zu_%zu", program->id, i);
+  element->name = newName;
+
+  setElementInHashTable(nameMap, name, element);
+
+  return element;
+}
+
 int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
-  //TODO: Maybe check for binary operations here too?
   ASSERT(TOKEN_COUNT == 22, "Not all operations are implemented in crossrefrenceVariables!");
   HashTable *nameMap = parentNameMap == NULL ? createHashTable(255) : createHashTableFrom(parentNameMap);
   for(size_t i = 0; i < program->count;i++) {
@@ -786,6 +842,23 @@ int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
       }
 
       continue;
+    } else if(instruction->type == TOKEN_FUNCTION) {
+      FunctionData *data = getFunctionFromProgram(program, (const char*) instruction->data);
+      ASSERT(data, "Unreachable!");
+      TokenPriorityValue *inputs = data->inputs;
+      Program *body = data->body;
+      for(size_t j = 0;j < inputs->count;j++) {
+        Token *input = inputs->instructions[j];
+        if(input->type != TOKEN_NAME) continue;
+        NameValue *inputName = input->data;
+        NameMapValue *element = createAndAddNameMapVariable(nameMap, inputName->name, body, j);
+        inputName->name = element->name;
+        inputName->type = element->type;
+      }
+
+      int code = crossrefrenceVariables(body, nameMap);
+      if(code != 0) return code;
+      continue;
     }
     if(instruction->type != TOKEN_NAME) continue;
     NameValue *value = instruction->data;
@@ -798,24 +871,10 @@ int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
         continue;
       }
     }
-    NameMapValue *element = malloc(sizeof(NameMapValue));
-    element->program = program;
+    NameMapValue *element = createAndAddNameMapVariable(nameMap, name, program, i);
 
-    Type *type = malloc(sizeof(Type));
-    *type = TYPE_NONE;
-    element->type = type;
-
-    const size_t newNameLength = 4 +
-          (program->id == 0 ? 1 : ((int) log10(program->id) + 1)) +
-          1 + (i == 0 ? 1 : ((int) log10(i) + 1)) + 1;
-    char *newName = calloc(newNameLength, sizeof(char));
-    snprintf(newName, newNameLength, "var_%zu_%zu", program->id, i);
-    element->name = newName;
-
-    setElementInHashTable(nameMap, name, element);
-
-    value->name = newName;
-    value->type = type;
+    value->name = element->name;
+    value->type = element->type;
   }
 
   deleteHashTable(nameMap);
@@ -1030,41 +1089,27 @@ void crossrefrenceFunctions(Program *program) {
     Token *instructionName = program->instructions[++i];
     if(instructionName->type != TOKEN_NAME) continue;
     Token *instructionFields = program->instructions[++i];
-    if(instructionFields->type != TOKEN_PRIORITY) {
-      printf("Hereee 11111!!!\n");
-      NameMapValue *value = instructionName->data;
-      if(*value->type != TYPE_FUNCTION) {
-        fprintf(stderr, "Variable \"%s\" isn't a function!\n", value->name);
-        exit(1);
-      }
-      // TODO: createFunctionCall(instructionName, instructionFields);
-      continue;
-    }
+    if(instructionFields->type != TOKEN_PRIORITY) continue;
     Token *instructionBody = program->instructions[++i];
     if(instructionBody->type != TOKEN_SCOPE) continue;
 
     NameValue *nameValue = instructionName->data;
-    if(*nameValue->type != TYPE_NONE) {
-      fprintf(stderr, "ERROR: ");
-      printTokenLocation(instructionName, stderr);
-      fprintf(stderr, ": Can't re-assign function to variable \"%s\"!\n", nameValue->name);
-      exit(1);
-    }
-    *nameValue->type = TYPE_FUNCTION;
-    printProgram(program);
-    printf("i: %zu\n", i);
+    // if(*nameValue->type != TYPE_NONE) {
+    //   fprintf(stderr, "ERROR: ");
+    //   printTokenLocation(instructionName, stderr);
+    //   fprintf(stderr, ": Can't re-assign function to variable \"%s\"!\n", nameValue->name);
+    //   exit(1);
+    // }
+    // *nameValue->type = TYPE_FUNCTION;
 
     instructionBody = getProgramInstruction(program, i--, true);
     instructionFields = getProgramInstruction(program, i--, true);
     instructionName = getProgramInstruction(program, i--, true);
-    instructionType = getProgramInstruction(program, i, true);
-    if(i > 0) i--;
-    else belowZero = true;
+    instructionType = getProgramInstruction(program, i, false);
 
     FunctionData *value = malloc(sizeof(FunctionData));
 
     value->returnType = (TokenType) instructionType->data;
-    free(instructionType);
 
     value->inputs = (TokenPriorityValue*) instructionFields->data;
     free(instructionFields);
@@ -1072,10 +1117,79 @@ void crossrefrenceFunctions(Program *program) {
     value->body = (Program*) instructionBody->data;
     free(instructionBody);
 
-    printf("Hereee!!! %s (%s) i: %zu\n", nameValue->variableName, nameValue->name, i);
-    printProgram(program);
+    crossrefrenceFunctions(value->body);
 
-    exit(1);
+    value->location = instructionName;
+
+    const char *functionKey = nameValue->variableName;
+    if(existsElementInHashTable(program->functions, functionKey)) {
+      fprintf(stderr, "ERROR: ");
+      printTokenLocation(instructionName, stderr);
+      fprintf(stderr, ": Function \"%s\" already exists at: ", functionKey);
+
+      FunctionData *firstDeclaration = (FunctionData*) getElementFromHashTable(program->functions, functionKey);
+      printTokenLocation(firstDeclaration->location, stderr);
+      fprintf(stderr, "\n");
+      exit(1);
+    }
+    setElementInHashTable(program->functions, functionKey, value);
+
+    Token *instructionFunction = createToken(instructionType);
+    instructionFunction->type = TOKEN_FUNCTION;
+    instructionFunction->data = (char*) functionKey;
+    program->instructions[i] = instructionFunction;
+    // printf("I: %zu\n", i);
+    // printToken(program->instructions[i], 0, i);
+
+    free(instructionType);
+    if(i > 0) i--;
+    else belowZero = true;
+  }
+
+  for(size_t i = 0;i < program->count;i++) {
+    Token *instructionName = program->instructions[i];
+    if(instructionName->type == TOKEN_SCOPE) {
+      crossrefrenceFunctions(instructionName->data);
+      continue;
+    }
+    if(instructionName->type != TOKEN_NAME) continue;
+    NameValue *nameValue = instructionName->data;
+    // if(!nameValue->type || *nameValue->type != TYPE_FUNCTION) continue;
+    Token *instructionParameters = program->instructions[++i];
+    if(instructionParameters->type != TOKEN_PRIORITY) {
+      // fprintf(stderr, "ERROR: ");
+      // printTokenLocation(instructionName, stderr);
+      // fprintf(stderr, ": Variable \"%s\" isn't a function!!\n", nameValue->name);
+      // exit(1);
+      continue;
+    }
+
+    if(!existsElementInHashTable(program->functions, nameValue->variableName)) {
+      fprintf(stderr, "ERROR: ");
+      printTokenLocation(instructionName, stderr);
+      fprintf(stderr, ": Function \"%s\" doesn't exist!\n", nameValue->variableName);
+      exit(1);
+    }
+
+    instructionParameters = getProgramInstruction(program, i--, true);
+    instructionName = getProgramInstruction(program, i, false);
+
+    FunctionCallData *value = malloc(sizeof(FunctionCallData));
+
+    value->name = nameValue->variableName;
+    value->returnType =
+        ((FunctionData*) getElementFromHashTable(program->functions, nameValue->variableName))->returnType;
+
+    value->inputs = (TokenPriorityValue*) instructionParameters->data;
+    free(instructionParameters);
+
+
+    Token *instructionFunctionCall = createToken(instructionName);
+    free(instructionName);
+    instructionFunctionCall->type = TOKEN_FUNCTION_CALL;
+    instructionFunctionCall->data = value;
+
+    program->instructions[i] = instructionFunctionCall;
   }
 }
 
@@ -1159,18 +1273,17 @@ Program *createProgramFromFile(const char *filePath, char *error) {
 
   fclose(in);
 
-  printProgram(program);
-
   crossrefrenceBlocks(program); // Moved it before typeset because there can exist multiple scopes
-  crossrefrenceVariables(program, NULL);
+  // TODO: Remove all the variables in the function and rebuild with function above
+  // Or at least the variables with the same name :shruh:
   crossrefrenceFunctions(program);
+  crossrefrenceVariables(program, NULL);
   int typesetError = typesetProgram(program);
   if(typesetError != 0) {
     fprintf(stderr, "ERROR: Typeset error: %d\n", typesetError);
     exit(typesetError);
   }
   crossrefrenceOperations(program);
-
   printProgram(program);
 
   Token *token = checkProgram(program);
