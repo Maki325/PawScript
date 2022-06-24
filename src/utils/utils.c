@@ -70,7 +70,7 @@ void printProgram(Program *program) {
   }
 }
 void printToken(Token *token, size_t depth, size_t index) {
-  ASSERT(TOKEN_COUNT == 22, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 24, "Not all operations are implemented in createTokenFromString!");
   
   printf("[%02zu]: ", index);
   switch(token->type) {
@@ -268,7 +268,22 @@ void printToken(Token *token, size_t depth, size_t index) {
       break;
     }
     case TOKEN_FUNCTION_CALL: {
-      printf("FUNCTION CALL\n");
+      printf("FUNCTION CALL %p\n", token->data);
+      FunctionCallData *data = token->data;
+      TokenPriorityValue *value = data->inputs;
+      printf("Count: %zu\n", value->count);
+      for(size_t i = 0; i < value->count;i++) {
+        printf("\t- ");
+        printToken(value->instructions[i], depth + 1, i);
+      }
+      break;
+    }
+    case TOKEN_RETURN: {
+      printf("RETURN\n");
+      break;
+    }
+    case TOKEN_COMMA: {
+      printf("COMMA\n");
       break;
     }
     default: {

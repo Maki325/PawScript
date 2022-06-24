@@ -26,11 +26,13 @@ typedef enum TokenType {
   TOKEN_NOT_EQUALS,
   TOKEN_FUNCTION,
   TOKEN_FUNCTION_CALL,
+  TOKEN_COMMA,
+  TOKEN_RETURN,
   TOKEN_COUNT
 } TokenType;
 
 static inline const char *getTokenTypeName(TokenType type) {
-  ASSERT(TOKEN_COUNT == 22, "Not all tokens are implemented in getTokenTypeName!");
+  ASSERT(TOKEN_COUNT == 24, "Not all tokens are implemented in getTokenTypeName!");
   switch (type) {
     case TOKEN_TYPE:              return "TOKEN_TYPE";
     case TOKEN_NAME:              return "TOKEN_NAME";
@@ -55,6 +57,8 @@ static inline const char *getTokenTypeName(TokenType type) {
     case TOKEN_NOT_EQUALS:        return "TOKEN_NOT_EQUALS";
     case TOKEN_FUNCTION:          return "TOKEN_FUNCTION";
     case TOKEN_FUNCTION_CALL:     return "TOKEN_FUNCTION_CALL";
+    case TOKEN_COMMA:             return "TOKEN_COMMA";
+    case TOKEN_RETURN:            return "TOKEN_RETURN";
     default:                      return "Unknown Token!!!";
   }
 }
@@ -74,6 +78,17 @@ static inline const char *getTypeName(Type type) {
     case TYPE_BOOL:     return "bool";
     case TYPE_FUNCTION: return "function";
     case TYPE_NONE:     return "NONE!!!";
+    default:            return "Unknown Token!!!";
+  }
+}
+
+static inline const size_t getTypeSize(Type type) {
+  ASSERT(TYPES_COUNT == 4, "Not all types are implemented in getTypeSize!");
+  switch (type) {
+    case TYPE_INT:      return 4;
+    case TYPE_BOOL:     return 1;
+    case TYPE_FUNCTION:
+    case TYPE_NONE:     return "No size for type!!!";
     default:            return "Unknown Token!!!";
   }
 }
@@ -168,6 +183,7 @@ typedef struct ControlFlowBlock {
 typedef struct FunctionData {
   Type returnType;
   TokenPriorityValue *inputs;
+  size_t inputByteSize;
   Program *body;
   Token *location;
 } FunctionData;
@@ -181,12 +197,15 @@ typedef struct FunctionCallData {
 bool isControlFlowBlock(TokenType type);
 
 void checkInstruction(Program *program, Token *instruction);
+FunctionData *getFunctionFromProgram(Program *program, const char *name);
 int typesetProgram(Program *program);
 void cleanupElseIfs(Program *program);
 int crossrefrenceBlocks(Program *program);
 NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, Program *program, size_t i);
 int crossrefrenceVariables(Program *program, HashTable *parentNameMap);
 int crossrefrenceOperations(Program *program);
+void crossrefrenceFunctions(Program *program);
+void removeFunctionTokens(Program *program);
 
 Program *createProgramFromFile(const char *filePath, char *error);
 

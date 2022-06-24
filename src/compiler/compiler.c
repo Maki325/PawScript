@@ -1,4 +1,5 @@
 #include "compiler.h"
+#include "../tokenizer.h"
 #include "../utils/utils.h"
 
 char *getInitializedType(Type type) {
@@ -131,7 +132,7 @@ bool generateBinaryOperationAsm(Token *token, HashTable *table, FILE *out, char 
       fprintf(out, "push rbx\n");
       TokenPriorityValue *value = leftToken->data;
       Program p = {.instructions = value->instructions, .count = value->count};
-      generateProgramAsm(&p, table, out, error);
+      generateProgramAsm(&p, table, out, error, false);
       fprintf(out, "pop rbx\n");
       break;
     }
@@ -181,7 +182,7 @@ bool generateBinaryOperationAsm(Token *token, HashTable *table, FILE *out, char 
       fprintf(out, "push rax\n");
       TokenPriorityValue *value = rightToken->data;
       Program p = {.instructions = value->instructions, .count = value->count};
-      generateProgramAsm(&p, table, out, error);
+      generateProgramAsm(&p, table, out, error, false);
       fprintf(out, "mov ebx, eax\n");
       fprintf(out, "pop rax\n");
       break;
@@ -239,7 +240,21 @@ bool generateBinaryOperationAsm(Token *token, HashTable *table, FILE *out, char 
   return false;
 }
 
-void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *error) {
+void generateFunctionsAsm(Program *program, FILE *out, char *error) {
+  HashTable *functions = program->functions;
+  for(size_t i = 0;i < functions->capacity;i++) {
+    HashTable *table = createHashTable(255);
+
+    if(!functions->elements[i].key) continue;
+    FunctionData *data = functions->elements[i].value;
+    Program p = {.count = data->inputs->count, .instructions = data->inputs->instructions};
+    generateProgramAsm(&p, table, out, error, true);
+
+    deleteHashTable(table);
+  }
+}
+
+void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *error, bool function) {
   const char *name = NULL;
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
@@ -406,12 +421,12 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
       case TOKEN_PRIORITY: {
         TokenPriorityValue *value = (TokenPriorityValue*) token->data;
         Program prog = {.instructions = value->instructions, .count = value->count};
-        generateProgramAsm(&prog, table, out, error);
+        generateProgramAsm(&prog, table, out, error, function);
         break;
       }
       case TOKEN_SCOPE: {
         Program *prog = (Program *) token->data;
-        generateProgramAsm(prog, table, out, error);
+        generateProgramAsm(prog, table, out, error, function);
         break;
       }
       case TOKEN_IF: {
@@ -420,7 +435,7 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
         {
           Token *condition = block->condition;
           Program prog = {.instructions = &condition, .count = 1};
-          generateProgramAsm(&prog, table, out, error);
+          generateProgramAsm(&prog, table, out, error, function);
         }
 
         Program *prog = block->program;
@@ -436,12 +451,79 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
         Program *prog = block->program;
 
         fprintf(out, "block_%zu_%zu:\n", program->id, prog->id);
-        generateProgramAsm(prog, table, out, error);
+        generateProgramAsm(prog, table, out, error, function);
         fprintf(out, "jmp block_end_%zu_%zu\n", program->id, i + block->endInstruction);
         fprintf(out, "block_next_%zu_%zu:\n", program->id, i + 1);
 
         // TODO: Remove unnecessary `block_end` labels, by checking if it's an end block
         fprintf(out, "block_end_%zu_%zu:\n", program->id, i + 1);
+        break;
+      }
+      case TOKEN_RETURN: {
+        fprintf(out, "ret\n");
+        break;
+      }
+      case TOKEN_FUNCTION_CALL: {
+        FunctionCallData *data = token->data;
+        TokenPriorityValue *inputs = data->inputs;
+        fprintf(out, "push rbp\n");
+        fprintf(out, "mov rbp, rsp\n");
+
+        FunctionData *functionData = getFunctionFromProgram(program, data->name);
+        TokenPriorityValue *functionDataInputs = functionData->inputs;
+        if(!functionData) {
+          fprintf(stderr, "ERROR: ");
+          printTokenLocation(token, stderr);
+          fprintf(stderr, ": Function \"%s\" doesn't exist!\n", data->name);
+          exit(-1);
+          return;
+        }
+
+        fprintf(out, "sub rsp, %zu\n", functionData->inputByteSize);
+        size_t offset = 0, index = 0;
+        for(size_t j = 0;j < inputs->count;j++) {
+          Token *tok = inputs->instructions;
+          NameValue *nv = functionDataInputs->instructions[index++]->data;
+          offset += getTypeSize(*nv->type);
+          fprintf(out, "xor rax, rax\n");
+          if(tok->type == TOKEN_NAME) {
+            NameValue *nameValue = tok->data;
+            fprintf(out, "mov rax, [%.255s]\n", nameValue->name);
+            fprintf(out, "mov [rbp - %zu], rax\n", offset);
+          } else if(tok->type == TOKEN_VALUE) {
+            ValueData *valueData = tok->data;
+            switch (valueData->type) {
+              case TYPE_INT: {
+                fprintf(out, "mov eax, %" PRIu32 "\n", *((uint32_t*) valueData->data));
+                fprintf(out, "mov [rbp - %zu], eax\n", offset);
+                break;
+              }
+              case TYPE_BOOL: {
+                fprintf(out, "mov ax, %" PRIu8 "\n", *((uint8_t*) valueData->data));
+                fprintf(out, "mov [rbp - %zu], ax\n", offset);
+                break;
+              }
+              case TYPE_FUNCTION:
+              case TYPE_NONE:
+              case TYPES_COUNT: ASSERT(false, "Unreachable!"); break;
+            }
+          } else {
+            fprintf(stderr, "ERROR: ");
+            printTokenLocation(token, stderr);
+            fprintf(stderr, ": Unexpected type in function call!\n");
+            exit(-1);
+            return;
+          }
+        }
+        fprintf(out, "mov rax, 89\n");
+        fprintf(out, "mov [rbp - 8], rax\n");
+        fprintf(out, "mov rax, 45\n");
+        fprintf(out, "mov [rbp - 16], rax\n");
+
+        fprintf(out, "call %s\n", data->name);
+
+        fprintf(out, "mov rsp, rbp\n");
+        fprintf(out, "pop rbp\n");
         break;
       }
       default: {
@@ -454,7 +536,8 @@ void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *err
 }
 
 void generateAsm(Program *program, const char *basename, bool silent, char *error) {
-  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in compile!");
+  printProgram(program);
+  ASSERT(TOKEN_COUNT == 22, "Not all operations are implemented in compile!");
 
   char *asmName = calloc(strlen(basename) + 4 + 1, sizeof(char));
   sprintf(asmName, "%s.asm", basename);
@@ -463,7 +546,7 @@ void generateAsm(Program *program, const char *basename, bool silent, char *erro
 
   prepareFileForCompile(out);
   HashTable *table = createHashTable(255);
-  generateProgramAsm(program, table, out, error);
+  generateProgramAsm(program, table, out, error, false);
   postCompile(out);
   
   bool data = false, bss = false;
