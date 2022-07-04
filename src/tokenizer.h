@@ -8,6 +8,9 @@ typedef enum TokenType {
   TOKEN_NAME,
   TOKEN_SEMICOLON,
   TOKEN_ASSIGN,
+  TOKEN_ASSIGN_TYPE,
+  TOKEN_DECLARE,
+  TOKEN_DECLARE_FUNCTION,
   TOKEN_VALUE,
   TOKEN_PRINT,
   TOKEN_ADD,
@@ -19,21 +22,27 @@ typedef enum TokenType {
   TOKEN_PRIORITY,
   TOKEN_BRACES_OPEN,        // {
   TOKEN_BRACES_CLOSE,       // }
+  TOKEN_BRACKETS_OPEN,      // [
+  TOKEN_BRACKETS_CLOSE,     // ]
   TOKEN_SCOPE,
   TOKEN_IF,
   TOKEN_ELSE,
   TOKEN_EQUALS,
   TOKEN_NOT_EQUALS,
+  TOKEN_RETURN,
   TOKEN_COUNT
 } TokenType;
 
 static inline const char *getTokenTypeName(TokenType type) {
-  ASSERT(TOKEN_COUNT == 20, "Not all tokens are implemented in getTokenTypeName!");
+  ASSERT(TOKEN_COUNT == 26, "Not all tokens are implemented in getTokenTypeName!");
   switch (type) {
     case TOKEN_TYPE:              return "TOKEN_TYPE";
     case TOKEN_NAME:              return "TOKEN_NAME";
     case TOKEN_SEMICOLON:         return "TOKEN_SEMICOLON";
     case TOKEN_ASSIGN:            return "TOKEN_ASSIGN";
+    case TOKEN_ASSIGN_TYPE:       return "TOKEN_ASSIGN_TYPE";
+    case TOKEN_DECLARE:           return "TOKEN_DECLARE";
+    case TOKEN_DECLARE_FUNCTION:  return "TOKEN_DECLARE_FUNCTION";
     case TOKEN_VALUE:             return "TOKEN_VALUE";
     case TOKEN_PRINT:             return "TOKEN_PRINT";
     case TOKEN_ADD:               return "TOKEN_ADD";
@@ -45,12 +54,15 @@ static inline const char *getTokenTypeName(TokenType type) {
     case TOKEN_PRIORITY:          return "TOKEN_PRIORITY";
     case TOKEN_BRACES_OPEN:       return "TOKEN_BRACES_OPEN";
     case TOKEN_BRACES_CLOSE:      return "TOKEN_BRACES_CLOSE";
+    case TOKEN_BRACKETS_OPEN:     return "TOKEN_BRACKETS_OPEN";
+    case TOKEN_BRACKETS_CLOSE:    return "TOKEN_BRACKETS_CLOSE";
     case TOKEN_SCOPE:             return "TOKEN_SCOPE";
     case TOKEN_COUNT:             return "TOKEN_COUNT";
     case TOKEN_IF:                return "TOKEN_IF";
     case TOKEN_ELSE:              return "TOKEN_ELSE";
     case TOKEN_EQUALS:            return "TOKEN_EQUALS";
     case TOKEN_NOT_EQUALS:        return "TOKEN_NOT_EQUALS";
+    case TOKEN_RETURN:            return "TOKEN_RETURN";
     default:                      return "Unknown Token!!!";
   }
 }
@@ -72,8 +84,7 @@ static inline const char *getTypeName(Type type) {
   }
 }
 
-typedef struct Token
-{
+typedef struct Token {
   TokenType type;
   void *data;
 
@@ -83,28 +94,6 @@ typedef struct Token
   size_t line;
   size_t column;
 } Token;
-
-typedef struct ValueData {
-  Type type;
-  void *data;
-} ValueData;
-
-typedef struct NameValue {
-  const char *variableName;
-  const char *name;
-  Type *type;
-  bool assignType;
-} NameValue;
-
-typedef struct BinaryOperationValue {
-  Token *operandOne;
-  Token *operandTwo;
-} BinaryOperationValue;
-
-typedef struct TokenPriorityValue {
-  Token **instructions;
-  size_t count;
-} TokenPriorityValue;
 
 extern size_t PROGRAM_COUNT;
 typedef struct Program {
@@ -129,6 +118,25 @@ typedef struct CreateTokenFromString {
   char *error;
 } CreateTokenFromString;
 
+typedef struct ValueData {
+  Type type;
+  void *data;
+} ValueData;
+
+typedef struct NameData {
+  const char *variableName;
+  const char *name;
+  Type *type;
+  bool assignType;
+} NameData;
+
+typedef struct InstructionType {
+  const char *name;
+  size_t length;
+  TokenType tokenType;
+  bool fromRight;
+} InstructionType;
+
 Token *createToken(Token *createToken);
 Token *createTokenFromString(CreateTokenFromString *createTokenFromString);
 
@@ -140,35 +148,10 @@ void pushProgramInstruction(Program *program, Token *instruction);
 Token *popProgramInstruction(Program *program);
 Token *getProgramInstruction(Program *program, size_t i, bool remove);
 
-// Returns NULL if there are no errors
-// Otherwise returns the Token that provides the error
-Token *checkProgram(Program *program);
-
 size_t isStringTokenFromRight(const char *string, size_t length);
-
-typedef struct NameMapValue {
-  Program *program;
-  const char *name;
-  Type *type;
-} NameMapValue;
-
-typedef struct ControlFlowBlock {
-  Program *program;
-  Token *condition;
-  size_t nextInstruction;
-  size_t endInstruction;
-} ControlFlowBlock;
-
-bool isControlFlowBlock(TokenType type);
-
-void checkInstruction(Program *program, Token *instruction);
-int typesetProgram(Program *program);
-void cleanupElseIfs(Program *program);
-int crossrefrenceBlocks(Program *program);
-int crossrefrenceVariables(Program *program, HashTable *parentNameMap);
-int crossrefrenceOperations(Program *program);
 
 Program *createProgramFromFile(const char *filePath, char *error);
 
+extern InstructionType INSTRUCTION_TYPES[];
 
 #endif

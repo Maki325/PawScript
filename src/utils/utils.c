@@ -54,201 +54,27 @@ void printProgram(Program *program) {
   }
 }
 void printToken(Token *token, size_t depth, size_t index) {
-  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 26, "Not all operations are implemented in createTokenFromString!");
   
   printf("[%02zu]: ", index);
   switch(token->type) {
     case TOKEN_TYPE: {
-      printf("TYPE: %zu\n", (size_t) token->data);
+      printf("TYPE: %s\n", getTypeName((Type) token->data));
       break;
     }
     case TOKEN_NAME: {
-      NameValue *value = token->data;
+      NameData *value = token->data;
       if(!value->type) {
-        printf("NAME: %s, TYPE: (NULL)\n", value->variableName);
+        printf("NAME: %s, TYPE: (NULL, NULL), ASSIGN: %d\n", value->variableName, value->assignType);
       } else {
-        printf("NAME: %s, TYPE: (%p, %s)\n", value->variableName, value->type, getTypeName(*((Type *) value->type)));
+        printf("NAME: %s, TYPE: (%p, %s), ASSIGN: %d\n", value->variableName, value->type, getTypeName(*((Type *) value->type)), value->assignType);
       }
-      break;
-    }
-    case TOKEN_SEMICOLON: {
-      printf("SEMICOLON\n");
-      break;
-    }
-    case TOKEN_ASSIGN: {
-      printf("ASSIGN\n");
-      break;
-    }
-    case TOKEN_VALUE: {
-      ValueData *value = token->data;
-      printf("VALUE: (type: %s, value: ", getTypeName(value->type));
-      switch (value->type) {
-        case TYPE_INT:
-          printf("%" PRIu32, *((uint32_t*)value->data));
-          break;
-        case TYPE_BOOL:
-          printf("%d", *((uint8_t*)value->data));
-          break;
-        case TYPE_NONE:
-        case TYPES_COUNT:
-          ASSERT(false, "Unreachable!");
-          break;
-        default:
-          break;
-      }
-      printf(")\n");
-      break;
-    }
-    case TOKEN_PRINT: {
-      printf("PRINT: %s\n", (char*) token->data);
-      break;
-    }
-    case TOKEN_PARENTHESES_OPEN: {
-      printf("(\n");
-      break;
-    }
-    case TOKEN_PARENTHESES_CLOSE: {
-      printf(")\n");
-      break;
-    }
-    case TOKEN_BRACES_OPEN: {
-      printf("{\n");
-      break;
-    }
-    case TOKEN_BRACES_CLOSE: {
-      printf("}\n");
-      break;
-    }
-    case TOKEN_PRIORITY: {
-      printf("PRIORITY\n");
-      TokenPriorityValue *value = token->data;
-      for(size_t i = 0; i < value->count;i++) {
-        printf("\t- ");
-        printToken(value->instructions[i], depth + 1, i);
-      }
-      break;
-    }
-    case TOKEN_SCOPE: {
-      printf("SCOPE: ");
-      Program *value = token->data;
-      if(value->instructions == NULL) printf("Undefined scope!\n");
-      else {
-        printf("%p\n", value);
-        for(size_t i = 0; i < value->count;i++) {
-          printf("\t- ");
-          printToken(value->instructions[i], depth + 1, i);
-        }
-      }
-      break;
-    }
-    case TOKEN_ADD:
-    case TOKEN_SUBTRACT: {
-      if(token->type == TOKEN_ADD) printf("ADD\n");
-      else printf("SUBTRACT\n");
-  
-      BinaryOperationValue *value = (BinaryOperationValue*) token->data;
-      if(!value) break;
-      Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
-
-      printf("  - Left: ");
-      if(leftToken)
-        printToken(leftToken, depth + 1, index);
-      else
-        printf("(NULL)\n");
-
-      printf("  - Right: ");
-      if(rightToken)
-        printToken(rightToken, depth + 1, index);
-      else
-        printf("(NULL)\n");
-      break;
-    }
-    case TOKEN_GREATER_THAN:
-    case TOKEN_LESS_THAN: {
-      if(token->type == TOKEN_GREATER_THAN) printf("GREATER\n");
-      else printf("LESS\n");
-      BinaryOperationValue *value = (BinaryOperationValue*) token->data;
-      if(!value) break;
-      Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
-
-      printf("  - Left: ");
-      if(leftToken)
-        printToken(leftToken, depth + 1, index);
-      else
-        printf("(NULL)\n");
-
-      printf("  - Right: ");
-      if(rightToken)
-        printToken(rightToken, depth + 1, index);
-      else
-        printf("(NULL)\n");
-      break;
-    }
-    case TOKEN_IF: {
-      printf("IF");
-      ControlFlowBlock *value = token->data;
-      if(!value) {
-        printf("\n");
-        break;
-      }
-      printf(" {next: %zu, end: %zu}\n", value->nextInstruction, value->endInstruction);
-      Token *condition = value->condition;
-      printf("Condition: ");
-      printToken(condition, depth+1, 0);
-
-      Program *p = value->program;
-      printf("%p\n", p);
-      if(!p) break;
-      for(size_t i = 0; i < p->count;i++) {
-        printf("\t- ");
-        printToken(p->instructions[i], depth + 1, i);
-      }
-
-      break;
-    }
-    case TOKEN_ELSE: {
-      printf("ELSE");
-      ControlFlowBlock *value = token->data;
-      if(!value) {
-        printf("\n");
-        break;
-      }
-      printf(" {next: %zu, end: %zu}\n", value->nextInstruction, value->endInstruction);
-
-      Program *p = value->program;
-      printf("%p\n", p);
-      if(!p) break;
-      for(size_t i = 0; i < p->count;i++) {
-        printf("\t- ");
-        printToken(p->instructions[i], depth + 1, i);
-      }
-
-      break;
-    }
-    case TOKEN_EQUALS:
-    case TOKEN_NOT_EQUALS: {
-      if(token->type == TOKEN_NOT_EQUALS) printf("NOT EQUALS\n");
-      else printf("EQUALS\n");
-  
-      BinaryOperationValue *value = (BinaryOperationValue*) token->data;
-      if(!value) break;
-      Token *leftToken = value->operandOne, *rightToken = value->operandTwo;
-
-      printf("  - Left: ");
-      if(leftToken)
-        printToken(leftToken, depth + 1, index);
-      else
-        printf("(NULL)\n");
-
-      printf("  - Right: ");
-      if(rightToken)
-        printToken(rightToken, depth + 1, index);
-      else
-        printf("(NULL)\n");
       break;
     }
     default: {
-      printf("UNKNOWN TOKEN (Type id: %d)!!!\n", token->type);
+      printf("%s\n", getTokenTypeName(token->type));
+      // printf("UNKNOWN TOKEN (Type id: %d)!!!\n", token->type);
+      // ASSERT(false, "Not all operations are implemented in printToken!");
       break;
     }
   }
