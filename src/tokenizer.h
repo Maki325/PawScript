@@ -106,6 +106,13 @@ typedef struct Program {
   HashTable *variableTypes;
 } Program;
 
+typedef struct InstructionType {
+  const char *name;
+  size_t length;
+  TokenType tokenType;
+  bool fromRight;
+} InstructionType;
+
 typedef struct CreateTokenFromString {
   Token *last;
   char *string;
@@ -130,15 +137,17 @@ typedef struct NameData {
   bool assignType;
 } NameData;
 
-typedef struct InstructionType {
-  const char *name;
-  size_t length;
-  TokenType tokenType;
-  bool fromRight;
-} InstructionType;
+typedef struct TokenPriorityData {
+  Token **instructions;
+  size_t count;
+} TokenPriorityData;
 
-Token *createToken(Token *createToken);
-Token *createTokenFromString(CreateTokenFromString *createTokenFromString);
+typedef struct ControlFlowBlock {
+  Program *program;
+  Token *condition;
+  size_t nextInstruction;
+  size_t endInstruction;
+} ControlFlowBlock;
 
 Program *createProgram();
 Program *createProgramWithParent(Program *parent);
@@ -148,7 +157,12 @@ void pushProgramInstruction(Program *program, Token *instruction);
 Token *popProgramInstruction(Program *program);
 Token *getProgramInstruction(Program *program, size_t i, bool remove);
 
+Token *createToken(Token *createToken);
+Token *createTokenFromString(CreateTokenFromString *createTokenFromString);
 size_t isStringTokenFromRight(const char *string, size_t length);
+
+int crossrefrenceBlocks(Program *program);
+void cleanupElseIfs(Program *program);
 
 Program *createProgramFromFile(const char *filePath, char *error);
 

@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "pawscript_error.h"
 
 char *popArgument(Args *args) {
   char *arg = args->args[0];
@@ -137,7 +138,7 @@ FILE *openFile(const char *filePath, const char *modes) {
   FILE *file = fopen(filePath, modes);
   if(!file) {
     fprintf(stderr, "Couldn't open file \"%s\": %s\n", filePath, strerror(errno));
-    exit(1);
+    exit(ERROR_OPEN_FILE);
   }
   return file;
 }
