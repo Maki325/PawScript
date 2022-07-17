@@ -1,5 +1,5 @@
 #include "utils.h"
-#include "pawscript_error.h"
+#include "../pawscript_error.h"
 
 char *popArgument(Args *args) {
   char *arg = args->args[0];
@@ -43,20 +43,38 @@ char *getBasenameWithDirectory(char *path) {
 bool isDigit(char c) {
   return c >= '0' && c <= '9';
 }
-void printProgram(Program *program) {
-  printf("Program: %p\n", program);
-  printf(" - count: %zu\n", program->count);
-  printf(" - capacity: %zu\n", program->capacity);
-  printf(" - instructions:\n");
+void printProgram(Program *program, unsigned int depth) {
+  printf("%*sProgram: %p\n", depth, "", program);
+  printf("%*s - count: %zu\n", depth, "", program->count);
+  printf("%*s - capacity: %zu\n", depth, "", program->capacity);
+  if(program->functions && program->functions->size) {
+    printf("%*s - functions:\n", depth, "");
+    unsigned int funcDepth = depth + 1 * TAB_SPACES;
+    for(size_t i = 0; i < program->functions->capacity;i++) {
+      const char *functionName = program->functions->elements[i].key;
+      if(!functionName) continue;
+      FunctionDefinition *data = program->functions->elements[i].value;
+      printf("%*s - name: %s\n", funcDepth, "", functionName);
+      printf("%*s - return type: %s\n", funcDepth, "", getTypeName(data->returnType));
+      
+      printf("%*s - parameters: %p, count: %zu\n", funcDepth, "", data->parameters, data->parameters->count);
+      for(size_t i = 0;i < data->parameters->count;i++) {
+        printToken(data->parameters->instructions[i], depth + 1 * TAB_SPACES, i);
+      }
+      printf("%*s - body: %p\n", funcDepth, "", data->body);
+      printProgram(data->body, funcDepth + 2 * TAB_SPACES);
+    }
+  }
+  printf("%*s - instructions:\n", depth, "");
   for(size_t i = 0; i < program->count;i++) {
     Token *token = program->instructions[i];
-    printf("  - ");
-    printToken(token, 0, i);
+    printToken(token, depth + 1 * TAB_SPACES, i);
   }
 }
-void printToken(Token *token, size_t depth, size_t index) {
+void printToken(Token *token, unsigned int depth, size_t index) {
   ASSERT(TOKEN_COUNT == 26, "Not all operations are implemented in createTokenFromString!");
   
+  printf("%*s - ", depth, "");
   printf("[%02zu]: ", index);
   switch(token->type) {
     case TOKEN_TYPE: {
@@ -72,10 +90,26 @@ void printToken(Token *token, size_t depth, size_t index) {
       }
       break;
     }
+    case TOKEN_DECLARE_FUNCTION: {
+      printf("TOKEN_DECLARE_FUNCTION: %p\n", token->data);
+      break;
+    }
+    case TOKEN_PRIORITY: {
+      TokenPriorityData *priorityData = token->data;
+      printf("PRIORITY: %p, count: %zu\n", priorityData, priorityData->count);
+      for(size_t i = 0;i < priorityData->count;i++) {
+        printToken(priorityData->instructions[i], depth + 1 * TAB_SPACES, i);
+      }
+      break;
+    }
+    case TOKEN_SCOPE: {
+      Program *scopeProgram = token->data;
+      printf("SCOPE: %p\n", scopeProgram);
+      printProgram(scopeProgram, depth + 2 * TAB_SPACES);
+      break;
+    }
     default: {
       printf("%s\n", getTokenTypeName(token->type));
-      // printf("UNKNOWN TOKEN (Type id: %d)!!!\n", token->type);
-      // ASSERT(false, "Not all operations are implemented in printToken!");
       break;
     }
   }

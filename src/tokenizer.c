@@ -11,7 +11,7 @@ Program *createProgram() {
   program->capacity = 20;
   program->count = 0;
   program->instructions = calloc(program->capacity, sizeof(Token*));
-  program->variableTypes = createHashTable(255);
+  program->functions = createHashTable(255);
 
   return program;
 }
@@ -22,7 +22,7 @@ Program *createProgramWithParent(Program *parent) {
   program->parent = parent;
   program->capacity = 20;
   program->count = 0;
-  program->variableTypes = createHashTable(255);
+  program->functions = createHashTable(255);
 
   return program;
 }
@@ -33,7 +33,7 @@ void deleteProgram(Program *program) {
     free(program->instructions[i]);
   }
   free(program->instructions);
-  deleteHashTable(program->variableTypes);
+  deleteHashTable(program->functions);
   free(program);
 }
 
@@ -104,7 +104,7 @@ Token *createToken(Token *createToken) {
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
   ASSERT(TOKEN_COUNT == 26, "Not all operations are implemented in createTokenFromString!");
-  ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in createTokenFromString!");
+  ASSERT(TYPES_COUNT ==  4, "Not all types are implemented in createTokenFromString!");
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
   token->line = createOptions->line;
@@ -122,6 +122,11 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     createOptions->length -= 4;
     token->type = TOKEN_TYPE;
     token->data = (void*) TYPE_BOOL;
+    return token;
+  } else if(strncmp("void", createOptions->string, 4) == 0) {
+    createOptions->length -= 4;
+    token->type = TOKEN_TYPE;
+    token->data = (void*) TYPE_VOID;
     return token;
   } else if(strncmp("true", createOptions->string, 4) == 0) {
     createOptions->length -= 4;
@@ -190,7 +195,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
 
 size_t isStringTokenFromRight(const char *string, size_t length) {
   ASSERT(TOKEN_COUNT == 26, "Not all operations are implemented in isStringTokenFromRight!");
-  ASSERT(TYPES_COUNT ==  3, "Not all types are implemented in isStringTokenFromRight!");
+  ASSERT(TYPES_COUNT ==  4, "Not all types are implemented in isStringTokenFromRight!");
   for(size_t i = 0;true;i++) {
     InstructionType *inst = &INSTRUCTION_TYPES[i];
     if(!inst->name) return 0;
@@ -202,7 +207,7 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
   return 0;
 }
 
-int crossrefrenceBlocks(Program *program) {
+int crossreferenceBlocks(Program *program) {
   ASSERT(TOKEN_COUNT == 26, "Not all operations are implemented in crossrefrenceProgram!");
   size_t refrences[program->count], count = 0;
   Token token;
@@ -457,6 +462,119 @@ void cleanupElseIfs(Program *program) {
   }
 }
 
+bool shouldGoDeeper(TokenType type) {
+  switch (type) {
+    case TOKEN_PRIORITY:
+    case TOKEN_SCOPE:
+      return true;
+
+    default:
+      return false;
+  }
+}
+
+void goDeeper(Token *token, void (*fnc)(Program*)) {
+  switch (token->type) {
+    case TOKEN_PRIORITY: {
+      TokenPriorityData *priorityData = token->data;
+      Program p = {
+        .count = priorityData->count,
+        .capacity = priorityData->count,
+        .instructions = priorityData->instructions,
+
+        .parent = NULL,
+        .id = 0,
+        .functions = NULL,
+      };
+      (*fnc)(&p);
+      return;
+    }
+    case TOKEN_SCOPE: {
+      (*fnc)(token->data);
+      return;
+    }
+    default: {
+      ASSERT(true, "Unreachable in `goDeeper`!");
+      break;
+    }
+  }
+}
+
+void crossreferenceFunctions(Program *program) {
+  for(size_t i = 0;i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+    if(shouldGoDeeper(instruction->type)) {
+      goDeeper(instruction, crossreferenceFunctions);
+      continue;
+    }
+    if(instruction->type != TOKEN_DECLARE_FUNCTION) {
+      continue;
+    }
+
+    if(i == 0) {
+      nameBeforeDeclareFunction:
+      fprintf(stderr, "ERROR: %s at: %s:%zu:%zu\n",
+            getPawscriptErrorName(ERROR_NAME_BEFORE_DECLARE_FUNCTION), instruction->file, instruction->line, instruction->column);
+      exit(ERROR_NAME_BEFORE_DECLARE_FUNCTION);
+      return;
+    }
+    Token *functionName = getProgramInstruction(program, --i, true);
+    if(functionName->type != TOKEN_NAME) {
+      goto nameBeforeDeclareFunction;
+    }
+    NameData *nameData = functionName->data;
+    const char *name = nameData->variableName;
+
+    size_t popIndex = i + 1;
+    Token *functionParams = getProgramInstruction(program, popIndex, true);
+    if(functionParams->type != TOKEN_PRIORITY) {
+      fprintf(stderr, "ERROR: %s at: %s:%zu:%zu\n",
+            getPawscriptErrorName(ERROR_PARAMS_AFTER_DECLARE_FUNCTION), instruction->file, instruction->line, instruction->column);
+      exit(ERROR_PARAMS_AFTER_DECLARE_FUNCTION);
+      return;
+    }
+
+    Token *functionBody = getProgramInstruction(program, popIndex, true);
+    if(functionBody->type == TOKEN_SCOPE) {
+      FunctionDefinition *function = malloc(sizeof(FunctionDefinition));
+      function->body = functionBody->data;
+      function->parameters = functionParams->data;
+      function->returnType = TYPE_VOID;
+
+      instruction->data = function;
+      setElementInHashTable(program->functions, name, function);
+      continue;
+    }
+    if(functionBody->type != TOKEN_ASSIGN_TYPE) {
+      fprintf(stderr, "ERROR: %s at: %s:%zu:%zu\n",
+            getPawscriptErrorName(ERROR_TYPE_AFTER_PARAMS_FUNCTION), instruction->file, instruction->line, instruction->column);
+      exit(ERROR_TYPE_AFTER_PARAMS_FUNCTION);
+      return;
+    }
+    Token *functionReturnType = getProgramInstruction(program, popIndex, true);
+    if(functionReturnType->type != TOKEN_TYPE) {
+      fprintf(stderr, "ERROR: %s at: %s:%zu:%zu\n",
+            getPawscriptErrorName(ERROR_TYPE_AFTER_PARAMS_FUNCTION), instruction->file, instruction->line, instruction->column);
+      exit(ERROR_TYPE_AFTER_PARAMS_FUNCTION);
+      return;
+    }
+    functionBody = getProgramInstruction(program, popIndex, true);
+    if(functionBody->type != TOKEN_SCOPE) {
+      fprintf(stderr, "ERROR: %s at: %s:%zu:%zu\n",
+            getPawscriptErrorName(ERROR_TYPE_AFTER_PARAMS_FUNCTION), instruction->file, instruction->line, instruction->column);
+      exit(ERROR_TYPE_AFTER_PARAMS_FUNCTION);
+      return;
+    }
+    FunctionDefinition *function = malloc(sizeof(FunctionDefinition));
+    function->body = functionBody->data;
+    function->parameters = functionParams->data;
+    function->returnType = (Type) functionReturnType->data;
+
+    instruction->data = function;
+    setElementInHashTable(program->functions, name, function);
+  }
+}
+
 Program *createProgramFromFile(const char *filePath, char *error) {
   Program *program = createProgram();
   FILE *in = openFile(filePath, "r");
@@ -494,7 +612,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
           break;
         }
         size_t s = isStringTokenFromRight(line, end);
-        if(s == 0 || (end < length - 1 && !(isspace(line[end]) && line[end] != '\0'))) {
+        if(s == 0 && (end < length - 1 && !(isspace(line[end]) && line[end] != '\0'))) {
           end++;
         } else if(s == end) {
           break;
@@ -536,9 +654,13 @@ Program *createProgramFromFile(const char *filePath, char *error) {
 
   fclose(in);
 
-  printProgram(program);
-  crossrefrenceBlocks(program);
-  printProgram(program);
+  printProgram(program, 0);
+
+  crossreferenceBlocks(program);
+  printProgram(program, 0);
+
+  crossreferenceFunctions(program);
+  printProgram(program, 0);
 
   return program;
 }

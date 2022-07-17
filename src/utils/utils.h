@@ -3,6 +3,8 @@
 #include "../includes.h"
 #include "../tokenizer.h"
 
+#define TAB_SPACES 2
+
 typedef struct Args {
   size_t count;
   char **args;
@@ -12,8 +14,8 @@ char *popArgument(Args *args);
 char *getBasename(char *path);
 char *getBasenameWithDirectory(char *path);
 bool isDigit(char c);
-void printProgram(Program *program);
-void printToken(Token *token, size_t depth, size_t index);
+void printProgram(Program *program, unsigned int depth);
+void printToken(Token *token, unsigned int depth, size_t index);
 void printn(const char* string, size_t length);
 
 int trimLeft(char **text, size_t *length);

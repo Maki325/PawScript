@@ -71,14 +71,16 @@ typedef enum Type {
   TYPE_NONE = 0,
   TYPE_INT,
   TYPE_BOOL,
+  TYPE_VOID,
   TYPES_COUNT
 } Type;
 
 static inline const char *getTypeName(Type type) {
-  ASSERT(TYPES_COUNT == 3, "Not all types are implemented in getTypeName!");
+  ASSERT(TYPES_COUNT == 4, "Not all types are implemented in getTypeName!");
   switch (type) {
     case TYPE_INT:  return "int";
     case TYPE_BOOL: return "bool";
+    case TYPE_VOID: return "void";
     case TYPE_NONE: return "NONE!!!";
     default:        return "Unknown Token!!!";
   }
@@ -103,7 +105,7 @@ typedef struct Program {
   size_t count;
   size_t capacity;
 
-  HashTable *variableTypes;
+  HashTable *functions;
 } Program;
 
 typedef struct InstructionType {
@@ -149,6 +151,12 @@ typedef struct ControlFlowBlock {
   size_t endInstruction;
 } ControlFlowBlock;
 
+typedef struct FunctionDefinition {
+  TokenPriorityData *parameters;
+  Program *body;
+  Type returnType;
+} FunctionDefinition;
+
 Program *createProgram();
 Program *createProgramWithParent(Program *parent);
 void deleteProgram(Program *program);
@@ -161,8 +169,11 @@ Token *createToken(Token *createToken);
 Token *createTokenFromString(CreateTokenFromString *createTokenFromString);
 size_t isStringTokenFromRight(const char *string, size_t length);
 
-int crossrefrenceBlocks(Program *program);
+int crossreferenceBlocks(Program *program);
 void cleanupElseIfs(Program *program);
+
+bool shouldGoDeeper(TokenType type);
+void goDeeper(Token *token, void (*fnc)(Program*));
 
 Program *createProgramFromFile(const char *filePath, char *error);
 
