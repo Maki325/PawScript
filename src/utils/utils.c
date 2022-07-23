@@ -59,7 +59,7 @@ void printProgram(Program *program, unsigned int depth) {
       
       printf("%*s - parameters: %p, count: %zu\n", funcDepth, "", data->parameters, data->parameters->count);
       for(size_t i = 0;i < data->parameters->count;i++) {
-        printToken(data->parameters->instructions[i], depth + 1 * TAB_SPACES, i);
+        printToken(data->parameters->instructions[i], depth + 2 * TAB_SPACES, i);
       }
       printf("%*s - body: %p\n", funcDepth, "", data->body);
       printProgram(data->body, funcDepth + 2 * TAB_SPACES);
@@ -72,7 +72,7 @@ void printProgram(Program *program, unsigned int depth) {
   }
 }
 void printToken(Token *token, unsigned int depth, size_t index) {
-  ASSERT(TOKEN_COUNT == 26, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 27, "Not all operations are implemented in createTokenFromString!");
   
   printf("%*s - ", depth, "");
   printf("[%02zu]: ", index);

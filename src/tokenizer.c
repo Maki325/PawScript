@@ -1,6 +1,7 @@
 #include "tokenizer.h"
 #include "pawscript_error.h"
 #include "utils/utils.h"
+#include <stdarg.h>
 
 size_t PROGRAM_COUNT = 0;
 
@@ -103,7 +104,7 @@ Token *createToken(Token *createToken) {
 }
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
-  ASSERT(TOKEN_COUNT == 26, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 27, "Not all operations are implemented in createTokenFromString!");
   ASSERT(TYPES_COUNT ==  4, "Not all types are implemented in createTokenFromString!");
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
@@ -194,7 +195,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
 }
 
 size_t isStringTokenFromRight(const char *string, size_t length) {
-  ASSERT(TOKEN_COUNT == 26, "Not all operations are implemented in isStringTokenFromRight!");
+  ASSERT(TOKEN_COUNT == 27, "Not all operations are implemented in isStringTokenFromRight!");
   ASSERT(TYPES_COUNT ==  4, "Not all types are implemented in isStringTokenFromRight!");
   for(size_t i = 0;true;i++) {
     InstructionType *inst = &INSTRUCTION_TYPES[i];
@@ -208,7 +209,7 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
 }
 
 int crossreferenceBlocks(Program *program) {
-  ASSERT(TOKEN_COUNT == 26, "Not all operations are implemented in crossrefrenceProgram!");
+  ASSERT(TOKEN_COUNT == 27, "Not all operations are implemented in crossrefrenceProgram!");
   size_t refrences[program->count], count = 0;
   Token token;
   for(size_t i = 0;i < program->count;i++) {
@@ -466,6 +467,9 @@ bool shouldGoDeeper(TokenType type) {
   switch (type) {
     case TOKEN_PRIORITY:
     case TOKEN_SCOPE:
+    case TOKEN_IF:
+    case TOKEN_ELSE:
+    case TOKEN_DECLARE_FUNCTION:
       return true;
 
     default:
@@ -473,40 +477,220 @@ bool shouldGoDeeper(TokenType type) {
   }
 }
 
-void goDeeper(Token *token, void (*fnc)(Program*)) {
+GoDeeperData* goDeeper2(Token *token) {
+  GoDeeperData *data = calloc(1, sizeof(GoDeeperData));
   switch (token->type) {
     case TOKEN_PRIORITY: {
       TokenPriorityData *priorityData = token->data;
-      Program p = {
-        .count = priorityData->count,
-        .capacity = priorityData->count,
-        .instructions = priorityData->instructions,
-
-        .parent = NULL,
-        .id = 0,
-        .functions = NULL,
-      };
-      (*fnc)(&p);
-      return;
+      data->programs = calloc(1, sizeof(Program *));
+      Program *p = malloc(sizeof(Program));
+      p->count = priorityData->count;
+      p->capacity = priorityData->count;
+      p->instructions = priorityData->instructions;
+      p->parent = NULL;
+      p->id = 0;
+      p->functions = NULL;
+      data->programs[0] = p;
+      data->deletePrograms = calloc(1, sizeof(bool));
+      data->deletePrograms[0] = true;
+      data->programCount = 1;
+      return data;
     }
     case TOKEN_SCOPE: {
-      (*fnc)(token->data);
-      return;
+      data->programs = calloc(1, sizeof(Program *));
+      data->programs[0] = token->data;
+      data->deletePrograms = calloc(1, sizeof(bool));
+      data->deletePrograms[0] = false;
+      data->programCount = 1;
+      return data;
+    }
+    case TOKEN_IF: {
+      ControlFlowBlock *block = token->data;
+      data->programs = calloc(2, sizeof(Program *));
+      data->deletePrograms = calloc(2, sizeof(bool));
+      data->programCount = 2;
+
+      data->programs[0] = token->data;
+      data->deletePrograms[0] = false;
+
+      Program *p = malloc(sizeof(Program));
+      p->count = 1;
+      p->capacity = 1;
+      p->instructions = &block->condition;
+      p->parent = NULL;
+      p->id = 0;
+      p->functions = NULL;
+      data->programs[1] = p;
+      data->deletePrograms[1] = true;
+      return data;
+    }
+    case TOKEN_ELSE: {
+      ControlFlowBlock *block = token->data;
+      data->programs = calloc(1, sizeof(Program *));
+      data->deletePrograms = calloc(1, sizeof(bool));
+      data->programCount = 1;
+
+      data->programs[0] = block->program;
+      data->deletePrograms[0] = false;
+      return data;
+    }
+    case TOKEN_DECLARE_FUNCTION: {
+      data->programs = calloc(1, sizeof(Program *));
+      data->deletePrograms = calloc(1, sizeof(bool));
+      data->programCount = 1;
+
+      data->programs[0] = token->data;
+      data->deletePrograms[0] = false;
+      return data;
     }
     default: {
       ASSERT(true, "Unreachable in `goDeeper`!");
       break;
     }
   }
+  // if(!program) {
+  //   ASSERT(true, "Unreachable in `goDeeper`!");
+  //   return;
+  // }
+  
+  // goDeeperRunProgram:
+  // if(paramCount == 0) {
+  //   (*fnc)(program);
+  // } else if(paramCount == 1) {
+  //   printf("HERE!!! D\n");
+  //   va_list argp;
+  //   printf("HERE!!! C\n");
+  //   va_start(argp, paramCount);
+  //   printf("HERE!!! A\n");
+  //   (*fnc)(program, va_arg(argp, void*));
+  //   printf("HERE!!! B\n");
+  //   va_end(argp);
+  // } else {
+  //   printf("goDeeper count: %d\n", paramCount);
+  //   exit(-1);
+  // }
+  // if(program2) {
+  //   program = program2;
+  //   program2 = NULL;
+  //   goto goDeeperRunProgram;
+  // }
+}
+
+void goDeeper(Token *token, void (*fnc)(Program*, ...), int paramCount, ...) {
+  Program *program = NULL, *program2 = NULL;
+  Program p;
+  switch (token->type) {
+    case TOKEN_PRIORITY: {
+      TokenPriorityData *priorityData = token->data;
+      // Program p = {
+      //   .count = priorityData->count,
+      //   .capacity = priorityData->count,
+      //   .instructions = priorityData->instructions,
+      //   .parent = NULL,
+      //   .id = 0,
+      //   .functions = NULL,
+      // };
+      
+      p.count = priorityData->count;
+      p.capacity = priorityData->count;
+      p.instructions = priorityData->instructions;
+      p.parent = NULL;
+      p.id = 0;
+      p.functions = NULL;
+      program = &p;
+      break;
+    }
+    case TOKEN_SCOPE: {
+      program = token->data;
+      break;
+    }
+    case TOKEN_IF: {
+      ControlFlowBlock *block = token->data;
+      program = token->data;
+
+      // Program p = {
+      //   .count = 1,
+      //   .capacity = 1,
+      //   .instructions = &block->condition,
+      //   .parent = NULL,
+      //   .id = 0,
+      //   .functions = NULL,
+      // };
+      
+      p.count = 1;
+      p.capacity = 1;
+      p.instructions = &block->condition;
+      p.parent = NULL;
+      p.id = 0;
+      p.functions = NULL;
+
+      program2 = &p;
+      break;
+    }
+    case TOKEN_ELSE: {
+      ControlFlowBlock *block = token->data;
+      program = block->program;
+      break;
+    }
+    case TOKEN_DECLARE_FUNCTION: {
+      program = token->data;
+      break;
+    }
+    default: {
+      ASSERT(true, "Unreachable in `goDeeper`!");
+      break;
+    }
+  }
+  if(!program) {
+    ASSERT(true, "Unreachable in `goDeeper`!");
+    return;
+  }
+  
+  goDeeperRunProgram:
+  printf("Program: %p\n", program);
+  printf("Program2: %p\n", program2);
+  if(paramCount == 0) {
+    printf("HERE!!! C: ");
+    printToken(token, 0, 0);
+    (*fnc)(program);
+    printf("HERE!!! D\n");
+  } else if(paramCount == 1) {
+    va_list argp;
+    va_start(argp, paramCount);
+    printf("HERE!!! A: ");
+    printToken(token, 0, 0);
+    (*fnc)(program, va_arg(argp, void*));
+    printf("HERE!!! B\n");
+    va_end(argp);
+  } else {
+    printf("goDeeper count: %d\n", paramCount);
+    exit(-1);
+  }
+  if(program2) {
+    program = program2;
+    program2 = NULL;
+    goto goDeeperRunProgram;
+  }
 }
 
 void crossreferenceFunctions(Program *program) {
+  printf("crossreferenceFunctions: %p, count: %zu\n", program, program->count);
   for(size_t i = 0;i < program->count;i++) {
     Token *instruction = program->instructions[i];
-    if(shouldGoDeeper(instruction->type)) {
-      goDeeper(instruction, crossreferenceFunctions);
-      continue;
+    // if(instruction->type != TOKEN_DECLARE_FUNCTION && shouldGoDeeper(instruction->type)) {
+    //   GoDeeperData *data = goDeeper(instruction);
+    //   for(size_t j = 0;j < data->programCount;j++) {
+    //     crossreferenceFunctions(data->programs[j]);
+    //     if(data->deletePrograms[j]) {
+    //       free(data->programs[j]);
+    //     }
+    //   }
+    //   continue;
+    // }
+    if(instruction->type != TOKEN_DECLARE_FUNCTION && shouldGoDeeper(instruction->type)) {
+      goDeeper(instruction, crossreferenceFunctions, 0);
     }
+
     if(instruction->type != TOKEN_DECLARE_FUNCTION) {
       continue;
     }
@@ -533,9 +717,11 @@ void crossreferenceFunctions(Program *program) {
       exit(ERROR_PARAMS_AFTER_DECLARE_FUNCTION);
       return;
     }
+    goDeeper(functionParams, crossreferenceFunctions, 0);
 
     Token *functionBody = getProgramInstruction(program, popIndex, true);
     if(functionBody->type == TOKEN_SCOPE) {
+      goDeeper(functionBody, crossreferenceFunctions, 0);
       FunctionDefinition *function = malloc(sizeof(FunctionDefinition));
       function->body = functionBody->data;
       function->parameters = functionParams->data;
@@ -565,6 +751,7 @@ void crossreferenceFunctions(Program *program) {
       exit(ERROR_TYPE_AFTER_PARAMS_FUNCTION);
       return;
     }
+    goDeeper(functionBody, crossreferenceFunctions, 0);
     FunctionDefinition *function = malloc(sizeof(FunctionDefinition));
     function->body = functionBody->data;
     function->parameters = functionParams->data;
@@ -573,6 +760,77 @@ void crossreferenceFunctions(Program *program) {
     instruction->data = function;
     setElementInHashTable(program->functions, name, function);
   }
+  printf("crossreferenceFunctions END\n");
+}
+
+NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, Program *program, size_t i) {
+  NameMapValue *element = malloc(sizeof(NameMapValue));
+  element->program = program;
+
+  Type *type = malloc(sizeof(Type));
+  *type = TYPE_NONE;
+  element->type = type;
+
+  const size_t newNameLength = 4 +
+        (program->id == 0 ? 1 : ((int) log10(program->id) + 1)) +
+        1 + (i == 0 ? 1 : ((int) log10(i) + 1)) + 1;
+  char *newName = calloc(newNameLength, sizeof(char));
+  snprintf(newName, newNameLength, "var_%zu_%zu", program->id, i);
+  element->name = newName;
+
+  setElementInHashTable(nameMap, name, element);
+
+  return element;
+}
+
+int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
+  ASSERT(TOKEN_COUNT == 27, "Not all operations are implemented in crossrefrenceVariables!");
+  HashTable *nameMap = parentNameMap == NULL ? createHashTable(255) : createHashTableFrom(parentNameMap);
+  for(size_t i = 0; i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+    // printf("Instruction[%zu]: ", i);
+    // printToken(instruction, 0, 0);
+    if(instruction->type == TOKEN_DECLARE_FUNCTION) {
+      FunctionDefinition *data = instruction->data;
+      ASSERT(data, "Unreachable!");
+      TokenPriorityData *inputs = data->parameters;
+      Program *body = data->body;
+      for(size_t j = 0;j < inputs->count;j++) {
+        Token *input = inputs->instructions[j];
+        if(input->type != TOKEN_NAME) continue;
+        NameData *inputName = input->data;
+        NameMapValue *element = createAndAddNameMapVariable(nameMap, inputName->name, body, j);
+        inputName->name = element->name;
+        inputName->type = element->type;
+      }
+
+      int code = crossrefrenceVariables(body, nameMap);
+      if(code != 0) return code;
+      continue;
+    } else if(shouldGoDeeper(instruction->type)) {
+      goDeeper(instruction, crossrefrenceVariables, 1, parentNameMap);
+      continue;
+    }
+    if(instruction->type != TOKEN_NAME) continue;
+    NameData *value = instruction->data;
+    const char *name = value->name;
+    if(existsElementInHashTable(nameMap, name)) {
+      NameMapValue *element = getElementFromHashTable(nameMap, name);
+      if(!value->assignType || element->program == program) {
+        value->name = element->name;
+        value->type = element->type;
+        continue;
+      }
+    }
+    NameMapValue *element = createAndAddNameMapVariable(nameMap, name, program, i);
+
+    value->name = element->name;
+    value->type = element->type;
+  }
+
+  deleteHashTable(nameMap);
+
+  return 0;
 }
 
 Program *createProgramFromFile(const char *filePath, char *error) {
@@ -662,6 +920,9 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   crossreferenceFunctions(program);
   printProgram(program, 0);
 
+  crossrefrenceVariables(program, NULL);
+  printProgram(program, 0);
+
   return program;
 }
 
@@ -674,6 +935,7 @@ InstructionType INSTRUCTION_TYPES[] = {
   {.name = ";",          .tokenType = TOKEN_SEMICOLON,         .length = 1,  .fromRight = true},
   {.name = "=",          .tokenType = TOKEN_ASSIGN,            .length = 1,  .fromRight = true},
   {.name = "beta_print", .tokenType = TOKEN_PRINT,             .length = 10, .fromRight = false},
+  {.name = ",",          .tokenType = TOKEN_COMMA,             .length = 1,  .fromRight = true},
   {.name = "+",          .tokenType = TOKEN_ADD,               .length = 1,  .fromRight = true},
   {.name = "-",          .tokenType = TOKEN_SUBTRACT,          .length = 1,  .fromRight = true},
   {.name = ">",          .tokenType = TOKEN_GREATER_THAN,      .length = 1,  .fromRight = true},

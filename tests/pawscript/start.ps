@@ -5,6 +5,11 @@ testint => (): int {
   i = 3;
   beta_print i;
 
+  tmp => (j: int): int {
+    // i needs to be const if we want to use it here!
+    return i, j;
+  }
+
   return 0;
 }
 

@@ -30,11 +30,12 @@ typedef enum TokenType {
   TOKEN_EQUALS,
   TOKEN_NOT_EQUALS,
   TOKEN_RETURN,
+  TOKEN_COMMA,
   TOKEN_COUNT
 } TokenType;
 
 static inline const char *getTokenTypeName(TokenType type) {
-  ASSERT(TOKEN_COUNT == 26, "Not all tokens are implemented in getTokenTypeName!");
+  ASSERT(TOKEN_COUNT == 27, "Not all tokens are implemented in getTokenTypeName!");
   switch (type) {
     case TOKEN_TYPE:              return "TOKEN_TYPE";
     case TOKEN_NAME:              return "TOKEN_NAME";
@@ -63,6 +64,7 @@ static inline const char *getTokenTypeName(TokenType type) {
     case TOKEN_EQUALS:            return "TOKEN_EQUALS";
     case TOKEN_NOT_EQUALS:        return "TOKEN_NOT_EQUALS";
     case TOKEN_RETURN:            return "TOKEN_RETURN";
+    case TOKEN_COMMA:             return "TOKEN_COMMA";
     default:                      return "Unknown Token!!!";
   }
 }
@@ -157,6 +159,18 @@ typedef struct FunctionDefinition {
   Type returnType;
 } FunctionDefinition;
 
+typedef struct GoDeeperData {
+  Program **programs;
+  size_t programCount;
+  bool *deletePrograms;
+} GoDeeperData;
+
+typedef struct NameMapValue {
+  Program *program;
+  const char *name;
+  Type *type;
+} NameMapValue;
+
 Program *createProgram();
 Program *createProgramWithParent(Program *parent);
 void deleteProgram(Program *program);
@@ -173,7 +187,9 @@ int crossreferenceBlocks(Program *program);
 void cleanupElseIfs(Program *program);
 
 bool shouldGoDeeper(TokenType type);
-void goDeeper(Token *token, void (*fnc)(Program*));
+// void goDeeper(Token *token, void (*fnc)(Program*));
+void goDeeper(Token *token, void (*fnc)(Program*, ...), int paramCount, ...);
+// GoDeeperData* goDeeper(Token *token);
 
 Program *createProgramFromFile(const char *filePath, char *error);
 
