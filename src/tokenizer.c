@@ -982,6 +982,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   crossreferenceFunctions(program);
   crossreferenceVariables(program, NULL);
   typesetProgram(program);
+  printProgram(program, 0);
 
   return program;
 }
