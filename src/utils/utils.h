@@ -27,6 +27,7 @@ void printTokenLocation(Token *token, FILE *out);
 
 int strnint(const char *str, size_t n);
 uint32_t strnuint32(const char *str, size_t n);
+uint64_t strnuint64(const char *str, size_t n);
 
 FILE *openFile(const char *filePath, const char *modes);
 

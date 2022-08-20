@@ -1,5 +1,8 @@
 testint => (): int {
-  i := 5;
+  mut i = 5;
+  // Do I allow for no mutability modifier,
+  // and set const for default?
+  // I won't allow, but maybe in the future
   beta_print i;
 
   i = 3;
@@ -10,7 +13,18 @@ testint => (): int {
     return i, j;
   }
 
+  {
+    const i = 88;
+    beta_print i;
+  }
+
+  const b = true;
+  if(b) {
+    beta_print b;
+  }
+
   return 0;
 }
 
+const mark: int = 0;
 testint();

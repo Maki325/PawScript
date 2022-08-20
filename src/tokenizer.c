@@ -77,16 +77,12 @@ Token *getProgramInstruction(Program *program, size_t pos, bool remove) {
 // Changes the createOptions and checks them
 void createVariableToken(CreateTokenFromString *createOptions, Token *token) {
   size_t length = createOptions->length;
-  bool assignType = createOptions->string[length - 1] == ':';
-  if(assignType) {
-    length--;
-  }
 
   const char *name = strndup(createOptions->string, length);
   NameData *data = malloc(sizeof(NameData));
   data->variableName = name;
   data->name = name;
-  data->assignType = assignType;
+  data->mutable = false;
 
   token->type = TOKEN_NAME;
   token->data = data;
@@ -104,8 +100,8 @@ Token *createToken(Token *createToken) {
 }
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
-  ASSERT(TOKEN_COUNT == 27, "Not all operations are implemented in createTokenFromString!");
-  ASSERT(TYPES_COUNT ==  4, "Not all types are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in createTokenFromString!");
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
   token->line = createOptions->line;
@@ -179,8 +175,8 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
       token->type = TOKEN_VALUE;
       ValueData *value = malloc(sizeof(ValueData));
       value->type = TYPE_INT;
-      value->data = malloc(sizeof(uint32_t));
-      *((uint32_t*) value->data) = strnuint32(createOptions->string, createOptions->length);
+      value->data = malloc(sizeof(uint64_t));
+      *((uint64_t*) value->data) = strnuint64(createOptions->string, createOptions->length);
       token->data = value;
     } else {
       createVariableToken(createOptions, token);
@@ -195,8 +191,8 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
 }
 
 size_t isStringTokenFromRight(const char *string, size_t length) {
-  ASSERT(TOKEN_COUNT == 27, "Not all operations are implemented in isStringTokenFromRight!");
-  ASSERT(TYPES_COUNT ==  4, "Not all types are implemented in isStringTokenFromRight!");
+  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in isStringTokenFromRight!");
+  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in isStringTokenFromRight!");
   for(size_t i = 0;true;i++) {
     InstructionType *inst = &INSTRUCTION_TYPES[i];
     if(!inst->name) return 0;
@@ -209,7 +205,7 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
 }
 
 int crossreferenceBlocks(Program *program) {
-  ASSERT(TOKEN_COUNT == 27, "Not all operations are implemented in crossrefrenceProgram!");
+  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in crossrefrenceProgram!");
   size_t refrences[program->count], count = 0;
   Token token;
   for(size_t i = 0;i < program->count;i++) {
@@ -464,6 +460,7 @@ void cleanupElseIfs(Program *program) {
 }
 
 bool shouldGoDeeper(TokenType type) {
+  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in shouldGoDeeper!");
   switch (type) {
     case TOKEN_PRIORITY:
     case TOKEN_SCOPE:
@@ -478,19 +475,22 @@ bool shouldGoDeeper(TokenType type) {
 }
 
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
+  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in goDeeper!");
   Program *program = NULL, *program2 = NULL;
-  Program p;
+  Program prog;
+  size_t *p_count = NULL;
   switch (token->type) {
     case TOKEN_PRIORITY: {
       TokenPriorityData *priorityData = token->data;
 
-      p.count = priorityData->count;
-      p.capacity = priorityData->count;
-      p.instructions = priorityData->instructions;
-      p.parent = NULL;
-      p.id = 0;
-      p.functions = NULL;
-      program = &p;
+      prog.count = priorityData->count;
+      prog.capacity = priorityData->count;
+      prog.instructions = priorityData->instructions;
+      prog.parent = NULL;
+      prog.id = 0;
+      prog.functions = NULL;
+      program = &prog;
+      p_count = &priorityData->count;
       break;
     }
     case TOKEN_SCOPE: {
@@ -499,16 +499,16 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
     }
     case TOKEN_IF: {
       ControlFlowBlock *block = token->data;
-      program = token->data;
+      program = block->program;
 
-      p.count = 1;
-      p.capacity = 1;
-      p.instructions = &block->condition;
-      p.parent = NULL;
-      p.id = 0;
-      p.functions = NULL;
+      prog.count = 1;
+      prog.capacity = 1;
+      prog.instructions = &block->condition;
+      prog.parent = NULL;
+      prog.id = 0;
+      prog.functions = NULL;
 
-      program2 = &p;
+      program2 = &prog;
       break;
     }
     case TOKEN_ELSE: {
@@ -517,7 +517,19 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
       break;
     }
     case TOKEN_DECLARE_FUNCTION: {
-      program = token->data;
+      FunctionDefinition *data = token->data;
+
+      prog.count = data->parameters->count;
+      prog.capacity = data->parameters->count;
+      prog.instructions = data->parameters->instructions;
+      prog.parent = NULL;
+      prog.id = 0;
+      prog.functions = NULL;
+      program = &prog;
+      p_count = &data->parameters->count;
+      
+      program2 = data->body;
+
       break;
     }
     default: {
@@ -530,23 +542,28 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
     return;
   }
   
-  goDeeperRunProgram:
-  if(paramCount == 0) {
-    (*fnc)(program);
-  } else if(paramCount == 1) {
-    va_list argp;
-    va_start(argp, paramCount);
-    (*fnc)(program, va_arg(argp, void*));
-    va_end(argp);
-  } else {
-    fprintf(stderr, "ERROR: Unsupported `paramCount` at: %s:%zu:%zu\n",
-          token->file, token->line, token->column);
-    exit(-1);
-  }
-  if(program2) {
-    program = program2;
-    program2 = NULL;
-    goto goDeeperRunProgram;
+  while(true) {
+    if(paramCount == 0) {
+      (*fnc)(program);
+      if(program == &prog && prog.count > 0 && p_count != NULL) {
+        *p_count = program->count;
+      }
+    } else if(paramCount == 1) {
+      va_list argp;
+      va_start(argp, paramCount);
+      (*fnc)(program, va_arg(argp, void*));
+      va_end(argp);
+    } else {
+      fprintf(stderr, "ERROR: Unsupported `paramCount` at: %s:%zu:%zu\n",
+            token->file, token->line, token->column);
+      exit(-1);
+    }
+    if(program2) {
+      program = program2;
+      program2 = NULL;
+      continue;
+    }
+    break;
   }
 }
 
@@ -589,6 +606,7 @@ void crossreferenceFunctions(Program *program) {
     if(functionBody->type == TOKEN_SCOPE) {
       goDeeper(functionBody, (goDeeperFunction) crossreferenceFunctions, 0);
       FunctionDefinition *function = malloc(sizeof(FunctionDefinition));
+      function->name = name;
       function->body = functionBody->data;
       function->parameters = functionParams->data;
       function->returnType = TYPE_VOID;
@@ -619,6 +637,7 @@ void crossreferenceFunctions(Program *program) {
     }
     goDeeper(functionBody, (goDeeperFunction) crossreferenceFunctions, 0);
     FunctionDefinition *function = malloc(sizeof(FunctionDefinition));
+    function->name = name;
     function->body = functionBody->data;
     function->parameters = functionParams->data;
     function->returnType = (Type) functionReturnType->data;
@@ -628,13 +647,22 @@ void crossreferenceFunctions(Program *program) {
   }
 }
 
-NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, Program *program, size_t i) {
+FunctionDefinition *getFunctionFromProgram(Program *program, const char *name) {
+  FunctionDefinition *data = getElementFromHashTable(program->functions, name);
+  if(data) return data;
+  if(!program->parent) return NULL;
+  return getFunctionFromProgram(program->parent, name);
+}
+
+NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, bool mutable, Program *program, size_t i) {
   NameMapValue *element = malloc(sizeof(NameMapValue));
   element->program = program;
 
   Type *type = malloc(sizeof(Type));
   *type = TYPE_NONE;
   element->type = type;
+
+  element->mutable = mutable;
 
   const size_t newNameLength = 4 +
         (program->id == 0 ? 1 : ((int) log10(program->id) + 1)) +
@@ -648,8 +676,8 @@ NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, 
   return element;
 }
 
-int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
-  ASSERT(TOKEN_COUNT == 27, "Not all operations are implemented in crossrefrenceVariables!");
+void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
+  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in crossreferenceVariables!");
   HashTable *nameMap = parentNameMap == NULL ? createHashTable(255) : createHashTableFrom(parentNameMap);
   for(size_t i = 0; i < program->count;i++) {
     Token *instruction = program->instructions[i];
@@ -658,42 +686,217 @@ int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
       ASSERT(data, "Unreachable!");
       TokenPriorityData *inputs = data->parameters;
       Program *body = data->body;
+      Program inputsProgram = {
+        .count = inputs->count,
+        .capacity = inputs->count,
+        .instructions = inputs->instructions,
+        .parent = NULL,
+        .id = 0,
+        .functions = NULL,
+      };
       for(size_t j = 0;j < inputs->count;j++) {
         Token *input = inputs->instructions[j];
         if(input->type != TOKEN_NAME) continue;
         NameData *inputName = input->data;
-        NameMapValue *element = createAndAddNameMapVariable(nameMap, inputName->name, body, j);
-        inputName->name = element->name;
-        inputName->type = element->type;
+
+        if(j != 0) {
+          Token *last = inputs->instructions[j - 1];
+          if(last->type == TOKEN_MUT || last->type == TOKEN_CONST) {
+            inputName->mutable = last->type == TOKEN_MUT;
+            free(getProgramInstruction(&inputsProgram, j - 1, true));
+            j--;
+          }
+        }
+
+        NameMapValue *element = createAndAddNameMapVariable(nameMap, inputName->name, inputName->mutable, body, j);
+        inputName->name    = element->name;
+        inputName->type    = element->type;
+        inputName->mutable = element->mutable;
       }
 
-      int code = crossrefrenceVariables(body, nameMap);
-      if(code != 0) return code;
+      crossreferenceVariables(body, nameMap);
+      NameMapValue *functionElement = createAndAddNameMapVariable(nameMap, data->name, false, program, i);
+      *functionElement->type = TYPE_FUNCTION;
+
       continue;
     } else if(shouldGoDeeper(instruction->type)) {
-      goDeeper(instruction, (goDeeperFunction) crossrefrenceVariables, 1, parentNameMap);
+      goDeeper(instruction, (goDeeperFunction) crossreferenceVariables, 1, nameMap);
       continue;
     }
     if(instruction->type != TOKEN_NAME) continue;
     NameData *value = instruction->data;
     const char *name = value->name;
+
+    bool assignType = false;
+    if(i + 2 < program->count) {
+      assignType = program->instructions[i + 1]->type == TOKEN_ASSIGN_TYPE && program->instructions[i + 2]->type == TOKEN_TYPE;
+    }
+
     if(existsElementInHashTable(nameMap, name)) {
       NameMapValue *element = getElementFromHashTable(nameMap, name);
-      if(!value->assignType || element->program == program) {
-        value->name = element->name;
-        value->type = element->type;
+      if(!assignType || element->program == program) {
+        value->name    = element->name;
+        value->type    = element->type;
+        value->mutable = element->mutable;
         continue;
       }
     }
-    NameMapValue *element = createAndAddNameMapVariable(nameMap, name, program, i);
 
-    value->name = element->name;
-    value->type = element->type;
+    if(i == 0) {
+      crossreferenceVariables_noMutabilityError_mainLoop:
+      fprintf(stderr, "ERROR: %s: %s:%zu:%zu\n",
+        getPawscriptErrorName(ERROR_NO_MUTABILITY_FOR_VARIABLE),
+        instruction->file, instruction->line, instruction->column);
+      exit(ERROR_NO_MUTABILITY_FOR_VARIABLE);
+    }
+    Token *last = program->instructions[i - 1];
+    if(last->type != TOKEN_MUT && last->type != TOKEN_CONST) {
+      goto crossreferenceVariables_noMutabilityError_mainLoop;
+    }
+    value->mutable = (last->type == TOKEN_MUT);
+    free(getProgramInstruction(program, i - 1, true));
+    i--;
+
+
+    bool mutable = value->mutable;
+    NameMapValue *element = createAndAddNameMapVariable(nameMap, name, mutable, program, i);
+
+    value->name    = element->name;
+    value->type    = element->type;
+    value->mutable = element->mutable;
   }
 
   deleteHashTable(nameMap);
+}
 
-  return 0;
+void typesetProgramError(PawscriptError pawscriptError, const char *variableName, Token *token) {
+  fprintf(stderr, "ERROR: %s: Variable `%s` at %s:%zu:%zu\n",
+    getPawscriptErrorName(pawscriptError),
+    variableName,
+    token->file, token->line, token->column);
+  exit(pawscriptError);
+  return;
+}
+
+void typesetProgramReassignError(const char *variableName, Token *token, Type expected, Type got) {
+  fprintf(stderr, "ERROR: %s: Variable `%s` expected type `%s` got `%s` at %s:%zu:%zu\n",
+    getPawscriptErrorName(ERROR_CANT_REASSIGN_VARIABLE_TYPE),
+    variableName, getTypeName(expected), getTypeName(got),
+    token->file, token->line, token->column);
+  exit(ERROR_CANT_REASSIGN_VARIABLE_TYPE);
+  return;
+}
+
+void typesetProgram(Program *program) {
+  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in typesetProgram!");
+  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in typesetProgram!");
+  for(size_t i = 0;i < program->count;i++) {
+    Token *token = program->instructions[i], *next;
+    if(shouldGoDeeper(token->type)) {
+      goDeeper(token, (goDeeperFunction) typesetProgram, 0);
+      continue;
+    }
+    if(token->type != TOKEN_NAME) {
+      continue;
+    }
+    NameData *value = token->data;
+
+    if(i + 1 == program->count - 1 && program->instructions[i + 1]->type == TOKEN_ASSIGN_TYPE) {
+      typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
+      return;
+    }
+
+    if(i == program->count - 1) {
+      if(value->type == TYPE_NONE) {
+        typesetProgramError(ERROR_VARIABLE_NO_TYPE, value->variableName, token);
+        return;
+      } else {
+        continue;
+      }
+    }
+    next = program->instructions[i + 1];
+    switch (next->type) {
+      case TOKEN_ASSIGN_TYPE: {
+        if(i == program->count - 2) {
+          typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
+          return;
+        }
+        next = program->instructions[i + 2];
+        switch (next->type) {
+          case TOKEN_TYPE: {
+            Type type = (Type) next->data;
+            if(*value->type == TYPE_NONE) {
+              *value->type = type;
+            } else if(*value->type != type) {
+              typesetProgramError(ERROR_CANT_REASSIGN_VARIABLE_TYPE, value->variableName, token);
+              return;
+            }
+            
+            // Free the unneeded instructions (TOKEN_ASSIGN_TYPE and TOKEN_TYPE)
+            free(getProgramInstruction(program, i + 1, true));
+            free(getProgramInstruction(program, i + 1, true));
+            break;
+          }
+
+          default: {
+            typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
+            return;
+          }
+        }
+        break;
+      }
+      case TOKEN_ASSIGN: {
+        if(i == program->count - 2) {
+          typesetProgramError(ERROR_NO_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+          return;
+        }
+        next = program->instructions[i + 2];
+        switch (next->type) {
+          case TOKEN_VALUE: {
+            ValueData *data = next->data;
+            if(*value->type == TYPE_NONE) {
+              // TODO: Add multiple types support for value token
+              *value->type = data->type;
+              break;
+            } else if(*value->type != data->type) {
+              // TODO: Add multiple types support for value token
+              typesetProgramReassignError(value->variableName, token, *value->type, data->type);
+              return;
+            }
+            break;
+          }
+          case TOKEN_NAME: {
+            NameData *nextValue = next->data;
+            if(*nextValue->type == TYPE_NONE) {
+              typesetProgramError(ERROR_VARIABLE_NO_TYPE, nextValue->variableName, next);
+              return;
+            } else if(*value->type == TYPE_NONE) {
+              *value->type = *nextValue->type;
+              break;
+            } else if(*value->type != *nextValue->type) {
+              typesetProgramReassignError(value->variableName, token, *value->type, *nextValue->type);
+              return;
+            }
+            break;
+          }
+          
+          default: {
+            typesetProgramError(ERROR_NO_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+            return;
+          }
+        }
+        break;
+      }
+      default: {
+        if(value->type == TYPE_NONE) {
+          typesetProgramError(ERROR_UNINITIALIZED_VARIABLE, value->variableName, token);
+          return;
+        } else {
+          break;
+        }
+      }
+    }
+  }
 }
 
 Program *createProgramFromFile(const char *filePath, char *error) {
@@ -777,8 +980,8 @@ Program *createProgramFromFile(const char *filePath, char *error) {
 
   crossreferenceBlocks(program);
   crossreferenceFunctions(program);
-  crossrefrenceVariables(program, NULL);
-  printProgram(program, 0);
+  crossreferenceVariables(program, NULL);
+  typesetProgram(program);
 
   return program;
 }
@@ -786,27 +989,28 @@ Program *createProgramFromFile(const char *filePath, char *error) {
 // Instructions
 
 InstructionType INSTRUCTION_TYPES[] = {
-  {.name = ":=",         .tokenType = TOKEN_DECLARE,           .length = 2,  .fromRight = true},
-  {.name = "=>",         .tokenType = TOKEN_DECLARE_FUNCTION,  .length = 2,  .fromRight = true},
-  {.name = ":",          .tokenType = TOKEN_ASSIGN_TYPE,       .length = 1,  .fromRight = true},
-  {.name = ";",          .tokenType = TOKEN_SEMICOLON,         .length = 1,  .fromRight = true},
-  {.name = "=",          .tokenType = TOKEN_ASSIGN,            .length = 1,  .fromRight = true},
+  {.name = "=>",         .tokenType = TOKEN_DECLARE_FUNCTION,  .length = 2,  .fromRight = true },
+  {.name = ":",          .tokenType = TOKEN_ASSIGN_TYPE,       .length = 1,  .fromRight = true },
+  {.name = ";",          .tokenType = TOKEN_SEMICOLON,         .length = 1,  .fromRight = true },
+  {.name = "=",          .tokenType = TOKEN_ASSIGN,            .length = 1,  .fromRight = true },
   {.name = "beta_print", .tokenType = TOKEN_PRINT,             .length = 10, .fromRight = false},
-  {.name = ",",          .tokenType = TOKEN_COMMA,             .length = 1,  .fromRight = true},
-  {.name = "+",          .tokenType = TOKEN_ADD,               .length = 1,  .fromRight = true},
-  {.name = "-",          .tokenType = TOKEN_SUBTRACT,          .length = 1,  .fromRight = true},
-  {.name = ">",          .tokenType = TOKEN_GREATER_THAN,      .length = 1,  .fromRight = true},
-  {.name = "<",          .tokenType = TOKEN_LESS_THAN,         .length = 1,  .fromRight = true},
-  {.name = "(",          .tokenType = TOKEN_PARENTHESES_OPEN,  .length = 1,  .fromRight = true},
-  {.name = ")",          .tokenType = TOKEN_PARENTHESES_CLOSE, .length = 1,  .fromRight = true},
-  {.name = "{",          .tokenType = TOKEN_BRACES_OPEN,       .length = 1,  .fromRight = true},
-  {.name = "}",          .tokenType = TOKEN_BRACES_CLOSE,      .length = 1,  .fromRight = true},
-  {.name = "[",          .tokenType = TOKEN_BRACKETS_OPEN,     .length = 1,  .fromRight = true},
-  {.name = "]",          .tokenType = TOKEN_BRACKETS_CLOSE,    .length = 1,  .fromRight = true},
+  {.name = "const",      .tokenType = TOKEN_CONST,             .length = 5,  .fromRight = false},
+  {.name = "mut",        .tokenType = TOKEN_MUT,               .length = 3,  .fromRight = false},
+  {.name = ",",          .tokenType = TOKEN_COMMA,             .length = 1,  .fromRight = true },
+  {.name = "+",          .tokenType = TOKEN_ADD,               .length = 1,  .fromRight = true },
+  {.name = "-",          .tokenType = TOKEN_SUBTRACT,          .length = 1,  .fromRight = true },
+  {.name = ">",          .tokenType = TOKEN_GREATER_THAN,      .length = 1,  .fromRight = true },
+  {.name = "<",          .tokenType = TOKEN_LESS_THAN,         .length = 1,  .fromRight = true },
+  {.name = "(",          .tokenType = TOKEN_PARENTHESES_OPEN,  .length = 1,  .fromRight = true },
+  {.name = ")",          .tokenType = TOKEN_PARENTHESES_CLOSE, .length = 1,  .fromRight = true },
+  {.name = "{",          .tokenType = TOKEN_BRACES_OPEN,       .length = 1,  .fromRight = true },
+  {.name = "}",          .tokenType = TOKEN_BRACES_CLOSE,      .length = 1,  .fromRight = true },
+  {.name = "[",          .tokenType = TOKEN_BRACKETS_OPEN,     .length = 1,  .fromRight = true },
+  {.name = "]",          .tokenType = TOKEN_BRACKETS_CLOSE,    .length = 1,  .fromRight = true },
   {.name = "if",         .tokenType = TOKEN_IF,                .length = 2,  .fromRight = false},
   {.name = "else",       .tokenType = TOKEN_ELSE,              .length = 4,  .fromRight = false},
-  {.name = "==",         .tokenType = TOKEN_EQUALS,            .length = 2,  .fromRight = true},
-  {.name = "!=",         .tokenType = TOKEN_NOT_EQUALS,        .length = 2,  .fromRight = true},
+  {.name = "==",         .tokenType = TOKEN_EQUALS,            .length = 2,  .fromRight = true },
+  {.name = "!=",         .tokenType = TOKEN_NOT_EQUALS,        .length = 2,  .fromRight = true },
   {.name = "return",     .tokenType = TOKEN_RETURN,            .length = 6,  .fromRight = false},
   {.name = NULL,         .tokenType = -1,                      .length = 0,  .fromRight = false},
 };

@@ -2,6 +2,7 @@
 #define TOKENIZER_H
 #include "includes.h"
 #include "utils/hashtable.h"
+#include "pawscript_error.h"
 
 typedef enum TokenType {
   TOKEN_TYPE = 0,
@@ -9,7 +10,8 @@ typedef enum TokenType {
   TOKEN_SEMICOLON,
   TOKEN_ASSIGN,
   TOKEN_ASSIGN_TYPE,
-  TOKEN_DECLARE,
+  TOKEN_MUT,
+  TOKEN_CONST,
   TOKEN_DECLARE_FUNCTION,
   TOKEN_VALUE,
   TOKEN_PRINT,
@@ -35,14 +37,15 @@ typedef enum TokenType {
 } TokenType;
 
 static inline const char *getTokenTypeName(TokenType type) {
-  ASSERT(TOKEN_COUNT == 27, "Not all tokens are implemented in getTokenTypeName!");
+  ASSERT(TOKEN_COUNT == 28, "Not all tokens are implemented in getTokenTypeName!");
   switch (type) {
     case TOKEN_TYPE:              return "TOKEN_TYPE";
     case TOKEN_NAME:              return "TOKEN_NAME";
     case TOKEN_SEMICOLON:         return "TOKEN_SEMICOLON";
     case TOKEN_ASSIGN:            return "TOKEN_ASSIGN";
     case TOKEN_ASSIGN_TYPE:       return "TOKEN_ASSIGN_TYPE";
-    case TOKEN_DECLARE:           return "TOKEN_DECLARE";
+    case TOKEN_MUT:               return "TOKEN_MUT";
+    case TOKEN_CONST:             return "TOKEN_CONST";
     case TOKEN_DECLARE_FUNCTION:  return "TOKEN_DECLARE_FUNCTION";
     case TOKEN_VALUE:             return "TOKEN_VALUE";
     case TOKEN_PRINT:             return "TOKEN_PRINT";
@@ -74,17 +77,19 @@ typedef enum Type {
   TYPE_INT,
   TYPE_BOOL,
   TYPE_VOID,
+  TYPE_FUNCTION,
   TYPES_COUNT
 } Type;
 
 static inline const char *getTypeName(Type type) {
-  ASSERT(TYPES_COUNT == 4, "Not all types are implemented in getTypeName!");
+  ASSERT(TYPES_COUNT == 5, "Not all types are implemented in getTypeName!");
   switch (type) {
-    case TYPE_INT:  return "int";
-    case TYPE_BOOL: return "bool";
-    case TYPE_VOID: return "void";
-    case TYPE_NONE: return "NONE!!!";
-    default:        return "Unknown Token!!!";
+    case TYPE_INT:      return "int";
+    case TYPE_BOOL:     return "bool";
+    case TYPE_VOID:     return "void";
+    case TYPE_FUNCTION: return "function";
+    case TYPE_NONE:     return "NONE!!!";
+    default:            return "Unknown Token!!!";
   }
 }
 
@@ -138,7 +143,7 @@ typedef struct NameData {
   const char *variableName;
   const char *name;
   Type *type;
-  bool assignType;
+  bool mutable;
 } NameData;
 
 typedef struct TokenPriorityData {
@@ -154,6 +159,7 @@ typedef struct ControlFlowBlock {
 } ControlFlowBlock;
 
 typedef struct FunctionDefinition {
+  const char *name;
   TokenPriorityData *parameters;
   Program *body;
   Type returnType;
@@ -169,6 +175,7 @@ typedef struct NameMapValue {
   Program *program;
   const char *name;
   Type *type;
+  bool mutable;
 } NameMapValue;
 
 typedef void (*goDeeperFunction)(Program*, ...);
@@ -190,6 +197,14 @@ void cleanupElseIfs(Program *program);
 
 bool shouldGoDeeper(TokenType type);
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...);
+
+FunctionDefinition *getFunctionFromProgram(Program *program, const char *name);
+NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, bool mutable, Program *program, size_t i);
+void crossreferenceVariables(Program *program, HashTable *parentNameMap);
+
+void typesetProgramError(PawscriptError pawscriptError, const char *variableName, Token *token);
+void typesetProgramReassignError(const char *variableName, Token *token, Type expected, Type got);
+void typesetProgram(Program *program);
 
 Program *createProgramFromFile(const char *filePath, char *error);
 

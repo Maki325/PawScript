@@ -72,7 +72,9 @@ void printProgram(Program *program, unsigned int depth) {
   }
 }
 void printToken(Token *token, unsigned int depth, size_t index) {
-  ASSERT(TOKEN_COUNT == 27, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in printToken!");
+
   
   printf("%*s - ", depth, "");
   printf("[%02zu]: ", index);
@@ -84,9 +86,9 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     case TOKEN_NAME: {
       NameData *value = token->data;
       if(!value->type) {
-        printf("NAME: %s, TYPE: (NULL, NULL), ASSIGN: %d\n", value->variableName, value->assignType);
+        printf("NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d\n", value->variableName, value->mutable);
       } else {
-        printf("NAME: %s, TYPE: (%p, %s), ASSIGN: %d\n", value->variableName, value->type, getTypeName(*((Type *) value->type)), value->assignType);
+        printf("NAME: %s, TYPE: (%p, %s), MUTABLE: %d\n", value->variableName, value->type, getTypeName(*((Type *) value->type)), value->mutable);
       }
       break;
     }
@@ -106,6 +108,33 @@ void printToken(Token *token, unsigned int depth, size_t index) {
       Program *scopeProgram = token->data;
       printf("SCOPE: %p\n", scopeProgram);
       printProgram(scopeProgram, depth + 2 * TAB_SPACES);
+      break;
+    }
+    case TOKEN_VALUE: {
+      printf("VALUE: {type: ");
+      ValueData *data = token->data;
+      switch (data->type) {
+        case TYPE_BOOL: {
+          printf("BOOL, value: %s}\n", data->data == 0 ? "FALSE" : "TRUE");
+          break;
+        }
+        case TYPE_INT: {
+          printf("INT, value: %" PRIu64 "}\n", *((uint64_t*) data->data));
+          break;
+        }
+        case TYPE_VOID: {
+          printf("VOID}\n");
+          break;
+        }
+        case TYPE_FUNCTION: {
+          printf("FUNCTION}\n");
+          break;
+        }
+        case TYPE_NONE: {
+          printf("NONE}\n");
+          break;
+        }
+      }
       break;
     }
     default: {
@@ -162,6 +191,13 @@ int strnint(const char *str, size_t n) {
 }
 uint32_t strnuint32(const char *str, size_t n) {
   uint32_t out = 0;
+  for(size_t i = 0;i < n;i++) {
+    out = out * 10 + str[i] - '0';
+  }
+  return out;
+}
+uint64_t strnuint64(const char *str, size_t n) {
+  uint64_t out = 0;
   for(size_t i = 0;i < n;i++) {
     out = out * 10 + str[i] - '0';
   }
