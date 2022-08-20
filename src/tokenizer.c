@@ -2,6 +2,7 @@
 #include "pawscript_error.h"
 #include "utils/utils.h"
 #include <stdarg.h>
+#include <time.h>
 
 size_t PROGRAM_COUNT = 0;
 
@@ -905,6 +906,8 @@ void typesetProgram(Program *program) {
 }
 
 Program *createProgramFromFile(const char *filePath, char *error) {
+  clock_t startClock = clock();
+
   Program *program = createProgram();
   FILE *in = openFile(filePath, "r");
 
@@ -983,11 +986,29 @@ Program *createProgramFromFile(const char *filePath, char *error) {
 
   fclose(in);
 
+  startClock = clock() - startClock;
+  printf("[LOG]: File reading & tokenizing  : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
   crossreferenceBlocks(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: Crossreferencing blocks    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
   crossreferenceFunctions(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: Crossreferencing functions : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
   crossreferenceVariables(program, NULL);
+  startClock = clock() - startClock;
+  printf("[LOG]: Crossreferencing variables : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
   typesetProgram(program);
-  printProgram(program, 0);
+  startClock = clock() - startClock;
+  printf("[LOG]: Typeseting                 : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
 
   return program;
 }
