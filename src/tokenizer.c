@@ -704,6 +704,7 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
           if(last->type == TOKEN_MUT || last->type == TOKEN_CONST) {
             inputName->mutable = last->type == TOKEN_MUT;
             free(getProgramInstruction(&inputsProgram, j - 1, true));
+            inputs->count = inputsProgram.count;
             j--;
           }
         }
@@ -732,9 +733,15 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
       assignType = program->instructions[i + 1]->type == TOKEN_ASSIGN_TYPE && program->instructions[i + 2]->type == TOKEN_TYPE;
     }
 
+    bool isMutConst = false;
+    if(i > 0) {
+      Token *last = program->instructions[i - 1];
+      isMutConst = last->type == TOKEN_MUT || last->type == TOKEN_CONST;
+    }
+
     if(existsElementInHashTable(nameMap, name)) {
       NameMapValue *element = getElementFromHashTable(nameMap, name);
-      if(!assignType || element->program == program) {
+      if(!isMutConst && (!assignType || element->program == program)) {
         value->name    = element->name;
         value->type    = element->type;
         value->mutable = element->mutable;

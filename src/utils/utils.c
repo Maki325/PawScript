@@ -110,6 +110,14 @@ void printToken(Token *token, unsigned int depth, size_t index) {
       printProgram(scopeProgram, depth + 2 * TAB_SPACES);
       break;
     }
+    case TOKEN_IF: {
+      ControlFlowBlock *data = token->data;
+      printf("IF: %p\n", data);
+      
+      printToken(data->condition, depth + 1 * TAB_SPACES, 0);
+      printProgram(data->program, depth + 2 * TAB_SPACES);
+      break;
+    }
     case TOKEN_VALUE: {
       printf("VALUE: {type: ");
       ValueData *data = token->data;
