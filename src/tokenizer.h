@@ -171,6 +171,8 @@ typedef struct NameMapValue {
   Type *type;
 } NameMapValue;
 
+typedef void (*goDeeperFunction)(Program*, ...);
+
 Program *createProgram();
 Program *createProgramWithParent(Program *parent);
 void deleteProgram(Program *program);
@@ -187,9 +189,7 @@ int crossreferenceBlocks(Program *program);
 void cleanupElseIfs(Program *program);
 
 bool shouldGoDeeper(TokenType type);
-// void goDeeper(Token *token, void (*fnc)(Program*));
-void goDeeper(Token *token, void (*fnc)(Program*, ...), int paramCount, ...);
-// GoDeeperData* goDeeper(Token *token);
+void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...);
 
 Program *createProgramFromFile(const char *filePath, char *error);
 

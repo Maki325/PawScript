@@ -477,120 +477,13 @@ bool shouldGoDeeper(TokenType type) {
   }
 }
 
-GoDeeperData* goDeeper2(Token *token) {
-  GoDeeperData *data = calloc(1, sizeof(GoDeeperData));
-  switch (token->type) {
-    case TOKEN_PRIORITY: {
-      TokenPriorityData *priorityData = token->data;
-      data->programs = calloc(1, sizeof(Program *));
-      Program *p = malloc(sizeof(Program));
-      p->count = priorityData->count;
-      p->capacity = priorityData->count;
-      p->instructions = priorityData->instructions;
-      p->parent = NULL;
-      p->id = 0;
-      p->functions = NULL;
-      data->programs[0] = p;
-      data->deletePrograms = calloc(1, sizeof(bool));
-      data->deletePrograms[0] = true;
-      data->programCount = 1;
-      return data;
-    }
-    case TOKEN_SCOPE: {
-      data->programs = calloc(1, sizeof(Program *));
-      data->programs[0] = token->data;
-      data->deletePrograms = calloc(1, sizeof(bool));
-      data->deletePrograms[0] = false;
-      data->programCount = 1;
-      return data;
-    }
-    case TOKEN_IF: {
-      ControlFlowBlock *block = token->data;
-      data->programs = calloc(2, sizeof(Program *));
-      data->deletePrograms = calloc(2, sizeof(bool));
-      data->programCount = 2;
-
-      data->programs[0] = token->data;
-      data->deletePrograms[0] = false;
-
-      Program *p = malloc(sizeof(Program));
-      p->count = 1;
-      p->capacity = 1;
-      p->instructions = &block->condition;
-      p->parent = NULL;
-      p->id = 0;
-      p->functions = NULL;
-      data->programs[1] = p;
-      data->deletePrograms[1] = true;
-      return data;
-    }
-    case TOKEN_ELSE: {
-      ControlFlowBlock *block = token->data;
-      data->programs = calloc(1, sizeof(Program *));
-      data->deletePrograms = calloc(1, sizeof(bool));
-      data->programCount = 1;
-
-      data->programs[0] = block->program;
-      data->deletePrograms[0] = false;
-      return data;
-    }
-    case TOKEN_DECLARE_FUNCTION: {
-      data->programs = calloc(1, sizeof(Program *));
-      data->deletePrograms = calloc(1, sizeof(bool));
-      data->programCount = 1;
-
-      data->programs[0] = token->data;
-      data->deletePrograms[0] = false;
-      return data;
-    }
-    default: {
-      ASSERT(true, "Unreachable in `goDeeper`!");
-      break;
-    }
-  }
-  // if(!program) {
-  //   ASSERT(true, "Unreachable in `goDeeper`!");
-  //   return;
-  // }
-  
-  // goDeeperRunProgram:
-  // if(paramCount == 0) {
-  //   (*fnc)(program);
-  // } else if(paramCount == 1) {
-  //   printf("HERE!!! D\n");
-  //   va_list argp;
-  //   printf("HERE!!! C\n");
-  //   va_start(argp, paramCount);
-  //   printf("HERE!!! A\n");
-  //   (*fnc)(program, va_arg(argp, void*));
-  //   printf("HERE!!! B\n");
-  //   va_end(argp);
-  // } else {
-  //   printf("goDeeper count: %d\n", paramCount);
-  //   exit(-1);
-  // }
-  // if(program2) {
-  //   program = program2;
-  //   program2 = NULL;
-  //   goto goDeeperRunProgram;
-  // }
-}
-
-void goDeeper(Token *token, void (*fnc)(Program*, ...), int paramCount, ...) {
+void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
   Program *program = NULL, *program2 = NULL;
   Program p;
   switch (token->type) {
     case TOKEN_PRIORITY: {
       TokenPriorityData *priorityData = token->data;
-      // Program p = {
-      //   .count = priorityData->count,
-      //   .capacity = priorityData->count,
-      //   .instructions = priorityData->instructions,
-      //   .parent = NULL,
-      //   .id = 0,
-      //   .functions = NULL,
-      // };
-      
+
       p.count = priorityData->count;
       p.capacity = priorityData->count;
       p.instructions = priorityData->instructions;
@@ -608,15 +501,6 @@ void goDeeper(Token *token, void (*fnc)(Program*, ...), int paramCount, ...) {
       ControlFlowBlock *block = token->data;
       program = token->data;
 
-      // Program p = {
-      //   .count = 1,
-      //   .capacity = 1,
-      //   .instructions = &block->condition,
-      //   .parent = NULL,
-      //   .id = 0,
-      //   .functions = NULL,
-      // };
-      
       p.count = 1;
       p.capacity = 1;
       p.instructions = &block->condition;
@@ -647,23 +531,16 @@ void goDeeper(Token *token, void (*fnc)(Program*, ...), int paramCount, ...) {
   }
   
   goDeeperRunProgram:
-  printf("Program: %p\n", program);
-  printf("Program2: %p\n", program2);
   if(paramCount == 0) {
-    printf("HERE!!! C: ");
-    printToken(token, 0, 0);
     (*fnc)(program);
-    printf("HERE!!! D\n");
   } else if(paramCount == 1) {
     va_list argp;
     va_start(argp, paramCount);
-    printf("HERE!!! A: ");
-    printToken(token, 0, 0);
     (*fnc)(program, va_arg(argp, void*));
-    printf("HERE!!! B\n");
     va_end(argp);
   } else {
-    printf("goDeeper count: %d\n", paramCount);
+    fprintf(stderr, "ERROR: Unsupported `paramCount` at: %s:%zu:%zu\n",
+          token->file, token->line, token->column);
     exit(-1);
   }
   if(program2) {
@@ -674,21 +551,10 @@ void goDeeper(Token *token, void (*fnc)(Program*, ...), int paramCount, ...) {
 }
 
 void crossreferenceFunctions(Program *program) {
-  printf("crossreferenceFunctions: %p, count: %zu\n", program, program->count);
   for(size_t i = 0;i < program->count;i++) {
     Token *instruction = program->instructions[i];
-    // if(instruction->type != TOKEN_DECLARE_FUNCTION && shouldGoDeeper(instruction->type)) {
-    //   GoDeeperData *data = goDeeper(instruction);
-    //   for(size_t j = 0;j < data->programCount;j++) {
-    //     crossreferenceFunctions(data->programs[j]);
-    //     if(data->deletePrograms[j]) {
-    //       free(data->programs[j]);
-    //     }
-    //   }
-    //   continue;
-    // }
     if(instruction->type != TOKEN_DECLARE_FUNCTION && shouldGoDeeper(instruction->type)) {
-      goDeeper(instruction, crossreferenceFunctions, 0);
+      goDeeper(instruction, (goDeeperFunction) crossreferenceFunctions, 0);
     }
 
     if(instruction->type != TOKEN_DECLARE_FUNCTION) {
@@ -717,11 +583,11 @@ void crossreferenceFunctions(Program *program) {
       exit(ERROR_PARAMS_AFTER_DECLARE_FUNCTION);
       return;
     }
-    goDeeper(functionParams, crossreferenceFunctions, 0);
+    goDeeper(functionParams, (goDeeperFunction) crossreferenceFunctions, 0);
 
     Token *functionBody = getProgramInstruction(program, popIndex, true);
     if(functionBody->type == TOKEN_SCOPE) {
-      goDeeper(functionBody, crossreferenceFunctions, 0);
+      goDeeper(functionBody, (goDeeperFunction) crossreferenceFunctions, 0);
       FunctionDefinition *function = malloc(sizeof(FunctionDefinition));
       function->body = functionBody->data;
       function->parameters = functionParams->data;
@@ -751,7 +617,7 @@ void crossreferenceFunctions(Program *program) {
       exit(ERROR_TYPE_AFTER_PARAMS_FUNCTION);
       return;
     }
-    goDeeper(functionBody, crossreferenceFunctions, 0);
+    goDeeper(functionBody, (goDeeperFunction) crossreferenceFunctions, 0);
     FunctionDefinition *function = malloc(sizeof(FunctionDefinition));
     function->body = functionBody->data;
     function->parameters = functionParams->data;
@@ -760,7 +626,6 @@ void crossreferenceFunctions(Program *program) {
     instruction->data = function;
     setElementInHashTable(program->functions, name, function);
   }
-  printf("crossreferenceFunctions END\n");
 }
 
 NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, Program *program, size_t i) {
@@ -788,8 +653,6 @@ int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
   HashTable *nameMap = parentNameMap == NULL ? createHashTable(255) : createHashTableFrom(parentNameMap);
   for(size_t i = 0; i < program->count;i++) {
     Token *instruction = program->instructions[i];
-    // printf("Instruction[%zu]: ", i);
-    // printToken(instruction, 0, 0);
     if(instruction->type == TOKEN_DECLARE_FUNCTION) {
       FunctionDefinition *data = instruction->data;
       ASSERT(data, "Unreachable!");
@@ -808,7 +671,7 @@ int crossrefrenceVariables(Program *program, HashTable *parentNameMap) {
       if(code != 0) return code;
       continue;
     } else if(shouldGoDeeper(instruction->type)) {
-      goDeeper(instruction, crossrefrenceVariables, 1, parentNameMap);
+      goDeeper(instruction, (goDeeperFunction) crossrefrenceVariables, 1, parentNameMap);
       continue;
     }
     if(instruction->type != TOKEN_NAME) continue;
@@ -912,14 +775,8 @@ Program *createProgramFromFile(const char *filePath, char *error) {
 
   fclose(in);
 
-  printProgram(program, 0);
-
   crossreferenceBlocks(program);
-  printProgram(program, 0);
-
   crossreferenceFunctions(program);
-  printProgram(program, 0);
-
   crossrefrenceVariables(program, NULL);
   printProgram(program, 0);
 
