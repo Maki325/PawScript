@@ -8,8 +8,7 @@ then
   set -x
 fi
 
-# DisableWarnings="-Wall -Wextra"
-DisableWarnings=""
+DisableWarnings="-Wall -Wextra"
 if [[ "$*" == *"dw"* ]]
 then
   DisableWarnings="-w"

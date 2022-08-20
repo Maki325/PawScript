@@ -142,6 +142,10 @@ void printToken(Token *token, unsigned int depth, size_t index) {
           printf("NONE}\n");
           break;
         }
+        case TYPES_COUNT: {
+          printf("COUNT}\n");
+          break;
+        }
       }
       break;
     }

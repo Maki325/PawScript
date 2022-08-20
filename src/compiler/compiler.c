@@ -80,6 +80,12 @@ void postCompile(FILE *out) {
 
 void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *error) {
   const char *name = NULL;
+
+  (void) name;
+  (void) table;
+  (void) out;
+  (void) error;
+
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     switch(token->type) {
@@ -106,9 +112,15 @@ void generateAsm(Program *program, const char *basename, bool silent, char *erro
   postCompile(out);
   
   bool data = false, bss = false;
+
+  (void) data;
+  (void) bss;
+
   for(size_t i = 0;i < table->capacity;i++) {
     if(table->elements[i].key == NULL) continue;
     const char* name = table->elements[i].key;
+
+    (void) name;
     // CompileVariable *variable = table->elements[i].value;
     // if(variable->initialValue == NULL) continue;
     // if(!data) {
@@ -126,6 +138,8 @@ void generateAsm(Program *program, const char *basename, bool silent, char *erro
   for(size_t i = 0;i < table->capacity;i++) {
     if(table->elements[i].key == NULL) continue;
     const char* name = table->elements[i].key;
+
+    (void) name;
     // CompileVariable *variable = table->elements[i].value;
     // if(variable->initialValue != NULL) continue;
     // if(!bss) {

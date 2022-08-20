@@ -108,8 +108,6 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
   token->column = createOptions->column;
   token->data = NULL;
 
-  size_t actualLength = strlen(createOptions->string);
-  
   if(strncmp("int", createOptions->string, 3) == 0) {
     createOptions->length -= 3;
     token->type = TOKEN_TYPE;
