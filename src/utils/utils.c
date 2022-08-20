@@ -54,7 +54,7 @@ void printProgram(Program *program, unsigned int depth) {
       const char *functionName = program->functions->elements[i].key;
       if(!functionName) continue;
       FunctionDefinition *data = program->functions->elements[i].value;
-      printf("%*s - name: %s\n", funcDepth, "", functionName);
+      printf("%*s - name: %s (%p)\n", funcDepth, "", functionName, data);
       printf("%*s - return type: %s\n", funcDepth, "", getTypeName(data->returnType));
       
       printf("%*s - parameters: %p, count: %zu\n", funcDepth, "", data->parameters, data->parameters->count);

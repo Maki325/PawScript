@@ -646,13 +646,6 @@ void crossreferenceFunctions(Program *program) {
   }
 }
 
-FunctionDefinition *getFunctionFromProgram(Program *program, const char *name) {
-  FunctionDefinition *data = getElementFromHashTable(program->functions, name);
-  if(data) return data;
-  if(!program->parent) return NULL;
-  return getFunctionFromProgram(program->parent, name);
-}
-
 NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, bool mutable, Program *program, size_t i) {
   NameMapValue *element = malloc(sizeof(NameMapValue));
   element->program = program;
@@ -905,6 +898,31 @@ void typesetProgram(Program *program) {
   }
 }
 
+void removeFunctionTokens(Program *program) {
+  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in typesetProgram!");
+  bool resetToZero = false;
+  for(size_t i = 0;i < program->count;i++) {
+    if(resetToZero) {
+      i = 0;
+      resetToZero = false;
+    }
+    Token *token = program->instructions[i];
+    if(token->type == TOKEN_DECLARE_FUNCTION) {
+      goDeeper(token, (goDeeperFunction) removeFunctionTokens, 0);
+      free(getProgramInstruction(program, i, true));
+      if(i == 0) {
+        resetToZero = true;
+      } else {
+        i--;
+      }
+      continue;
+    } else if(shouldGoDeeper(token->type)) {
+      goDeeper(token, (goDeeperFunction) removeFunctionTokens, 0);
+      continue;
+    }
+  }
+}
+
 Program *createProgramFromFile(const char *filePath, char *error) {
   clock_t startClock = clock();
 
@@ -985,7 +1003,6 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   }
 
   fclose(in);
-
   startClock = clock() - startClock;
   printf("[LOG]: File reading & tokenizing  : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
@@ -1008,6 +1025,11 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   typesetProgram(program);
   startClock = clock() - startClock;
   printf("[LOG]: Typeseting                 : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
+  removeFunctionTokens(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: Removing function tokens   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   return program;

@@ -198,7 +198,6 @@ void cleanupElseIfs(Program *program);
 bool shouldGoDeeper(TokenType type);
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...);
 
-FunctionDefinition *getFunctionFromProgram(Program *program, const char *name);
 NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, bool mutable, Program *program, size_t i);
 void crossreferenceVariables(Program *program, HashTable *parentNameMap);
 
