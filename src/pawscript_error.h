@@ -1,6 +1,8 @@
 #ifndef PAWSCRIPT_ERROR
 #define PAWSCRIPT_ERROR
 
+typedef struct Token Token;
+
 typedef enum PawscriptError {
   ERROR_OPEN_FILE = 1,
   ERROR_PARENTHESES_NOT_BALANCED,
@@ -17,11 +19,17 @@ typedef enum PawscriptError {
   ERROR_CANT_REASSIGN_VARIABLE_TYPE,
   ERROR_NO_ARGUMENT_AFTER_ASSIGN,
   ERROR_UNINITIALIZED_VARIABLE,
+  ERROR_OPERATION_DOESNT_HAVE_BOTH_OPERANDS,
+  ERROR_OPERATION_NOT_ENOUGH_OPERANDS,
+  ERROR_OPERAND_CANT_BE_USED,
+  ERROR_OPERATION_NO_TYPE,
   ERROR_COUNT
 } PawscriptError;
 
 const char *getPawscriptErrorName(PawscriptError error);
 
 void pawscriptExit(PawscriptError error);
+
+void exitError(PawscriptError pawscriptError, Token *token);
 
 #endif // PAWSCRIPT_ERROR

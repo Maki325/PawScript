@@ -178,6 +178,12 @@ typedef struct NameMapValue {
   bool mutable;
 } NameMapValue;
 
+typedef struct BinaryOperationData {
+  Token *operandOne;
+  Token *operandTwo;
+  Type type;
+} BinaryOperationData;
+
 typedef void (*goDeeperFunction)(Program*, ...);
 
 Program *createProgram();
@@ -201,9 +207,14 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...);
 NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, bool mutable, Program *program, size_t i);
 void crossreferenceVariables(Program *program, HashTable *parentNameMap);
 
+void removeUnneededPriorities(Program *program);
+
 void typesetProgramError(PawscriptError pawscriptError, const char *variableName, Token *token);
 void typesetProgramReassignError(const char *variableName, Token *token, Type expected, Type got);
 void typesetProgram(Program *program);
+
+void crossreferenceOperations(Program *program);
+void removeFunctionTokens(Program *program);
 
 Program *createProgramFromFile(const char *filePath, char *error);
 

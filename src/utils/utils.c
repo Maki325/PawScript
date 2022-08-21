@@ -65,7 +65,7 @@ void printProgram(Program *program, unsigned int depth) {
       printProgram(data->body, funcDepth + 2 * TAB_SPACES);
     }
   }
-  printf("%*s - instructions:\n", depth, "");
+  printf("%*s - instructions (%zu):\n", depth, "", program->count);
   for(size_t i = 0; i < program->count;i++) {
     Token *token = program->instructions[i];
     printToken(token, depth + 1 * TAB_SPACES, i);
@@ -75,7 +75,6 @@ void printToken(Token *token, unsigned int depth, size_t index) {
   ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in createTokenFromString!");
   ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in printToken!");
 
-  
   printf("%*s - ", depth, "");
   printf("[%02zu]: ", index);
   switch(token->type) {
@@ -146,6 +145,14 @@ void printToken(Token *token, unsigned int depth, size_t index) {
           printf("COUNT}\n");
           break;
         }
+      }
+      break;
+    }
+    case TOKEN_RETURN: {
+      TokenPriorityData *priorityData = token->data;
+      printf("RETURN: %p, count: %zu\n", priorityData, priorityData->count);
+      for(size_t i = 0;i < priorityData->count;i++) {
+        printToken(priorityData->instructions[i], depth + 1 * TAB_SPACES, i);
       }
       break;
     }

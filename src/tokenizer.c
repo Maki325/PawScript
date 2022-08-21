@@ -218,9 +218,7 @@ int crossreferenceBlocks(Program *program) {
         size_t start = refrences[--count],
           length = i - start, pos = 0;
         if(getProgramInstruction(program, start - 1, false)->type != TOKEN_PARENTHESES_OPEN) {
-          fprintf(stderr, "ERROR: Parentheses blocks are not balanced at: %s:%zu:%zu\n",
-                    instruction->file, instruction->line, instruction->column);
-          exit(ERROR_PARENTHESES_NOT_BALANCED);
+          exitError(ERROR_PARENTHESES_NOT_BALANCED, instruction);
           return -1;
         }
         Token **tokens = calloc(length, sizeof(Token*));
@@ -270,9 +268,7 @@ int crossreferenceBlocks(Program *program) {
           length = i - start;
         Token *openInstruction = getProgramInstruction(program, start - 1, false);
         if(openInstruction->type != TOKEN_BRACES_OPEN) {
-          fprintf(stderr, "ERROR: Braces blocks are not balanced at: %s:%zu:%zu\n",
-                    instruction->file, instruction->line, instruction->column);
-          exit(ERROR_BRACES_NOT_BALANCED);
+          exitError(ERROR_BRACES_NOT_BALANCED, instruction);
           return -1;
         }
         Program *inside = openInstruction->data;
@@ -318,9 +314,7 @@ int crossreferenceBlocks(Program *program) {
               Token *ifToken = program->instructions[newStart];
               ControlFlowBlock *block = ifToken->data;
               if(!block) {
-                fprintf(stderr, "ERROR: No condition for if statement at %s:%zu:%zu!\n",
-                                ifToken->file, ifToken->line, ifToken->column);
-                exit(ERROR_IF_NO_CONDITION);
+                exitError(ERROR_IF_NO_CONDITION, program->instructions[i]);
                 return -1;
               }
               if(block->program) break;
@@ -365,10 +359,7 @@ int crossreferenceBlocks(Program *program) {
       }
       case TOKEN_ELSE: {
         if(i == 0 || program->instructions[i - 1]->type != TOKEN_IF) {
-          fprintf(stderr, "ERROR: ");
-          printTokenLocation(program->instructions[i], stderr);
-          fprintf(stderr, ": Token `else` must follow an `if` token!\n");
-          exit(ERROR_ELSE_AFTER_IF);
+          exitError(ERROR_ELSE_AFTER_IF, program->instructions[i]);
           return 1;
         }
         refrences[count++] = i;
@@ -578,15 +569,13 @@ void crossreferenceFunctions(Program *program) {
     }
 
     if(i == 0) {
-      nameBeforeDeclareFunction:
-      fprintf(stderr, "ERROR: %s at: %s:%zu:%zu\n",
-            getPawscriptErrorName(ERROR_NAME_BEFORE_DECLARE_FUNCTION), instruction->file, instruction->line, instruction->column);
-      exit(ERROR_NAME_BEFORE_DECLARE_FUNCTION);
+      exitError(ERROR_NAME_BEFORE_DECLARE_FUNCTION, instruction);
       return;
     }
     Token *functionName = getProgramInstruction(program, --i, true);
     if(functionName->type != TOKEN_NAME) {
-      goto nameBeforeDeclareFunction;
+      exitError(ERROR_NAME_BEFORE_DECLARE_FUNCTION, instruction);
+      return;
     }
     NameData *nameData = functionName->data;
     const char *name = nameData->variableName;
@@ -594,9 +583,7 @@ void crossreferenceFunctions(Program *program) {
     size_t popIndex = i + 1;
     Token *functionParams = getProgramInstruction(program, popIndex, true);
     if(functionParams->type != TOKEN_PRIORITY) {
-      fprintf(stderr, "ERROR: %s at: %s:%zu:%zu\n",
-            getPawscriptErrorName(ERROR_PARAMS_AFTER_DECLARE_FUNCTION), instruction->file, instruction->line, instruction->column);
-      exit(ERROR_PARAMS_AFTER_DECLARE_FUNCTION);
+      exitError(ERROR_PARAMS_AFTER_DECLARE_FUNCTION, instruction);
       return;
     }
     goDeeper(functionParams, (goDeeperFunction) crossreferenceFunctions, 0);
@@ -615,23 +602,17 @@ void crossreferenceFunctions(Program *program) {
       continue;
     }
     if(functionBody->type != TOKEN_ASSIGN_TYPE) {
-      fprintf(stderr, "ERROR: %s at: %s:%zu:%zu\n",
-            getPawscriptErrorName(ERROR_TYPE_AFTER_PARAMS_FUNCTION), instruction->file, instruction->line, instruction->column);
-      exit(ERROR_TYPE_AFTER_PARAMS_FUNCTION);
+      exitError(ERROR_TYPE_AFTER_PARAMS_FUNCTION, instruction);
       return;
     }
     Token *functionReturnType = getProgramInstruction(program, popIndex, true);
     if(functionReturnType->type != TOKEN_TYPE) {
-      fprintf(stderr, "ERROR: %s at: %s:%zu:%zu\n",
-            getPawscriptErrorName(ERROR_TYPE_AFTER_PARAMS_FUNCTION), instruction->file, instruction->line, instruction->column);
-      exit(ERROR_TYPE_AFTER_PARAMS_FUNCTION);
+      exitError(ERROR_TYPE_AFTER_PARAMS_FUNCTION, instruction);
       return;
     }
     functionBody = getProgramInstruction(program, popIndex, true);
     if(functionBody->type != TOKEN_SCOPE) {
-      fprintf(stderr, "ERROR: %s at: %s:%zu:%zu\n",
-            getPawscriptErrorName(ERROR_TYPE_AFTER_PARAMS_FUNCTION), instruction->file, instruction->line, instruction->column);
-      exit(ERROR_TYPE_AFTER_PARAMS_FUNCTION);
+      exitError(ERROR_TYPE_AFTER_PARAMS_FUNCTION, instruction);
       return;
     }
     goDeeper(functionBody, (goDeeperFunction) crossreferenceFunctions, 0);
@@ -742,15 +723,13 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
     }
 
     if(i == 0) {
-      crossreferenceVariables_noMutabilityError_mainLoop:
-      fprintf(stderr, "ERROR: %s: %s:%zu:%zu\n",
-        getPawscriptErrorName(ERROR_NO_MUTABILITY_FOR_VARIABLE),
-        instruction->file, instruction->line, instruction->column);
-      exit(ERROR_NO_MUTABILITY_FOR_VARIABLE);
+      exitError(ERROR_NO_MUTABILITY_FOR_VARIABLE, instruction);
+      return;
     }
     Token *last = program->instructions[i - 1];
     if(last->type != TOKEN_MUT && last->type != TOKEN_CONST) {
-      goto crossreferenceVariables_noMutabilityError_mainLoop;
+      exitError(ERROR_NO_MUTABILITY_FOR_VARIABLE, instruction);
+      return;
     }
     value->mutable = (last->type == TOKEN_MUT);
     free(getProgramInstruction(program, i - 1, true));
@@ -766,6 +745,29 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
   }
 
   deleteHashTable(nameMap);
+}
+
+void removeUnneededPriorities(Program *program) {
+  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in removeUnneededPriorities!");
+  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in removeUnneededPriorities!");
+  for(size_t i = 0;i < program->count;i++) {
+    Token *token = program->instructions[i];
+    if(token->type != TOKEN_PRIORITY) {
+      if(shouldGoDeeper(token->type)) {
+        goDeeper(token, (goDeeperFunction) removeUnneededPriorities, 0);
+      }
+      continue;
+    }
+    TokenPriorityData *data = token->data;
+    if(data->count == 1) {
+      program->instructions[i] = data->instructions[0];
+      free(data->instructions);
+      free(data);
+      free(token);
+    } else {
+      goDeeper(token, (goDeeperFunction) removeUnneededPriorities, 0);
+    }
+  }
 }
 
 void typesetProgramError(PawscriptError pawscriptError, const char *variableName, Token *token) {
@@ -878,8 +880,31 @@ void typesetProgram(Program *program) {
             }
             break;
           }
+
+          case TOKEN_ADD:
+          case TOKEN_SUBTRACT:
+          case TOKEN_GREATER_THAN:
+          case TOKEN_LESS_THAN:
+          case TOKEN_NOT_EQUALS:
+          case TOKEN_EQUALS: {
+            BinaryOperationData *data = next->data;
+            if(data->type == TYPE_NONE) {
+              exitError(ERROR_OPERATION_NO_TYPE, next);
+              return;
+            } else if(*value->type == TYPE_NONE) {
+              // TODO: Add multiple types support for value token
+              *value->type = data->type;
+              break;
+            } else if(*value->type != data->type) {
+              // TODO: Add multiple types support for value token
+              typesetProgramReassignError(value->variableName, token, *value->type, data->type);
+              return;
+            }
+            break;
+          }
           
           default: {
+            printToken(next, 0, i);
             typesetProgramError(ERROR_NO_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
             return;
           }
@@ -894,6 +919,197 @@ void typesetProgram(Program *program) {
           break;
         }
       }
+    }
+  }
+}
+
+bool canBeUsedInArithmeticOperations(TokenType type) {
+  return type == TOKEN_NAME || type == TOKEN_VALUE || type == TOKEN_ADD
+          || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY;
+}
+bool canBeUsedInComparisonOperations(TokenType type) {
+  return type == TOKEN_NAME || type == TOKEN_VALUE || type == TOKEN_ADD
+          || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY
+          || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN;
+}
+
+void crossreferenceOperations(Program *program) {
+  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in typesetProgram!");
+  for(size_t i = 0;i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+    if(shouldGoDeeper(instruction->type)) {
+      goDeeper(instruction, (goDeeperFunction) crossreferenceOperations, 0);
+      continue;
+    }
+
+    switch(instruction->type) {
+      case TOKEN_ADD:
+      case TOKEN_SUBTRACT: {
+        if(instruction->data) {
+          BinaryOperationData *value = instruction->data;
+          if(value->operandOne && value->operandTwo) break;
+          else if(value->operandOne || value->operandTwo) {
+            exitError(ERROR_OPERATION_DOESNT_HAVE_BOTH_OPERANDS, instruction);
+            return;
+          }
+        }
+        if(i == 0 || i == program->count - 1) {
+          exitError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
+          return;
+        }
+
+        Token *left  = getProgramInstruction(program, i - 1, false),
+              *right = getProgramInstruction(program, i + 1, false);
+        if(!canBeUsedInArithmeticOperations(left->type)) {
+          exitError(ERROR_OPERAND_CANT_BE_USED, left);
+          return;
+        }
+        if(!canBeUsedInArithmeticOperations(right->type)) {
+          exitError(ERROR_OPERAND_CANT_BE_USED, right);
+          return;
+        }
+        // NOTE: Since the crossrefrences are done above
+        // No need to redo the left one? and only do the right one
+        // if(left->type == TOKEN_PRIORITY) {
+        //   goDeeper(program->instructions[i - 1], (goDeeperFunction) crossreferenceOperations, 0);
+        // }
+
+        if(right->type == TOKEN_PRIORITY) {
+          goDeeper(program->instructions[i + 1], (goDeeperFunction) crossreferenceOperations, 0);
+        }
+        BinaryOperationData *value = instruction->data = malloc(sizeof(BinaryOperationData));
+
+        value->operandTwo = getProgramInstruction(program, i + 1, true);
+        value->operandOne = getProgramInstruction(program, i - 1, true);
+        i -= 1;
+
+        // [FUTURE]: Actually check what the data is!!!
+        value->type = TYPE_INT;
+
+        break;
+      }
+    
+      default: break;
+    }
+  }
+
+  for(size_t i = 0;i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+
+    switch(instruction->type) {
+      case TOKEN_GREATER_THAN:
+      case TOKEN_LESS_THAN: {
+        if(i == 0 || i == program->count - 1) {
+          exitError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
+          return;
+        }
+
+        Token *left  = getProgramInstruction(program, i - 1, false),
+              *right = getProgramInstruction(program, i + 1, false);
+        if(!canBeUsedInComparisonOperations(left->type)) {
+          exitError(ERROR_OPERAND_CANT_BE_USED, left);
+          return;
+        }
+        if(!canBeUsedInComparisonOperations(right->type)) {
+          exitError(ERROR_OPERAND_CANT_BE_USED, right);
+          return;
+        }
+        
+        // NOTE: Since the crossrefrences are done above
+        // No need to redo them?
+        BinaryOperationData *value = instruction->data = malloc(sizeof(BinaryOperationData));
+        value->operandTwo = getProgramInstruction(program, i + 1, true);
+        value->operandOne = getProgramInstruction(program, i - 1, true);
+        i -= 1;
+
+        // [FUTURE]: Actually check what the data is!!!
+        value->type = TYPE_INT;
+
+        break;
+      }
+
+      default: break;
+    }
+  }
+
+  for(size_t i = 0;i < program->count;i++) {
+    Token *instruction = program->instructions[i];
+
+    switch(instruction->type) {
+      case TOKEN_PRINT: {
+        if(i == program->count - 1) {
+          exitError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
+          return;
+        }
+
+        Token *right = getProgramInstruction(program, i + 1, true);
+        NameData *value = right->data;
+        free(right);
+        instruction->data = (void*) value->name;
+        free(value);
+
+        break;
+      }
+      case TOKEN_RETURN: {
+        if(i == program->count - 1) {
+          exitError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
+          return;
+        }
+
+        size_t j = i + 1, len = 0, valueCount = 0;
+        while(j < program->count && program->instructions[j]->type != TOKEN_SEMICOLON) {
+          if(canBeUsedInComparisonOperations(program->instructions[j]->type)) valueCount++;
+          len++;
+          j++;
+        }
+        TokenPriorityData *data = malloc(sizeof(TokenPriorityData));
+        data->instructions = calloc(valueCount, sizeof(Token *));
+        data->count = valueCount;
+
+        for(size_t j = 0, index = 0;j < len;j++) {
+          size_t calcIndex = i + 1 + j - index;
+          if(canBeUsedInComparisonOperations(program->instructions[calcIndex]->type)) {
+            data->instructions[index] = getProgramInstruction(program, calcIndex, true);
+            index++;
+          }
+        }
+        instruction->data = data;
+
+        break;
+      }
+
+      case TOKEN_NOT_EQUALS:
+      case TOKEN_EQUALS: {
+        if(i == 0 || i == program->count - 1) {
+          exitError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
+          return;
+        }
+
+        Token *left  = getProgramInstruction(program, i - 1, false),
+              *right = getProgramInstruction(program, i + 1, false);
+        if(!canBeUsedInComparisonOperations(left->type)) {
+          exitError(ERROR_OPERAND_CANT_BE_USED, left);
+          return;
+        }
+        if(!canBeUsedInComparisonOperations(right->type)) {
+          exitError(ERROR_OPERAND_CANT_BE_USED, right);
+          return;
+        }
+        
+        // NOTE: Since the crossrefrences are done above
+        // No need to redo them?
+        BinaryOperationData *value = instruction->data = malloc(sizeof(BinaryOperationData));
+        value->operandTwo = getProgramInstruction(program, i + 1, true);
+        value->operandOne = getProgramInstruction(program, i - 1, true);
+        i -= 1;
+
+        // [FUTURE]: Actually check what the data is!!!
+        value->type = TYPE_BOOL;
+
+        break;
+      }
+
+      default: break;
     }
   }
 }
@@ -1004,33 +1220,45 @@ Program *createProgramFromFile(const char *filePath, char *error) {
 
   fclose(in);
   startClock = clock() - startClock;
-  printf("[LOG]: File reading & tokenizing  : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: File reading & tokenizing    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   crossreferenceBlocks(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Crossreferencing blocks    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: Crossreferencing blocks      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   crossreferenceFunctions(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Crossreferencing functions : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: Crossreferencing functions   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   crossreferenceVariables(program, NULL);
   startClock = clock() - startClock;
-  printf("[LOG]: Crossreferencing variables : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: Crossreferencing variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
+  crossreferenceOperations(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: Crossreferencing operations  : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
+  removeUnneededPriorities(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: Removing Unneeded Priorities : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   typesetProgram(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Typeseting                 : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: Typeseting                   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
-
+  
   removeFunctionTokens(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Removing function tokens   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: Removing function tokens     : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
+
+  printProgram(program, 0);
 
   return program;
 }
