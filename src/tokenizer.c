@@ -1250,19 +1250,20 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   createOptions.file = filePath;
   createOptions.error = error;
   while((lineLength = getline(&lineStart, &length, in)) != -1) {
+    size_t column = 0;
     row++;
     length = (size_t) lineLength;
     char *line = lineStart;
     trimRight(line, &length);
     if(length == 0) continue;
-    trimLeft(&line, &length);
+    column += trimLeft(&line, &length);
     for(size_t st = 0; st < length;st++) {
       if(line[st] == '/' && line[st - 1] == '/') {
         length = st - 1;
         break;
       }
     }
-    trimLeft(&line, &length);
+    column += trimLeft(&line, &length);
     size_t start = 0, end = 1;
     const size_t lineLength = length;
     while(start < lineLength) {
@@ -1285,7 +1286,7 @@ Program *createProgramFromFile(const char *filePath, char *error) {
       end = min(end, length);
 
       createOptions.line = row;
-      createOptions.column = start + 1;
+      createOptions.column = column + start + 1;
       createOptions.last = last;
       createOptions.length = end;
       createOptions.string = line;
