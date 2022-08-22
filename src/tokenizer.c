@@ -101,12 +101,13 @@ Token *createToken(Token *createToken) {
 }
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
-  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in createTokenFromString!");
   ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in createTokenFromString!");
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
   token->line = createOptions->line;
   token->column = createOptions->column;
+  token->wasInPriority = false;
   token->data = NULL;
 
   if(strncmp("int", createOptions->string, 3) == 0) {
@@ -190,7 +191,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
 }
 
 size_t isStringTokenFromRight(const char *string, size_t length) {
-  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in isStringTokenFromRight!");
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in isStringTokenFromRight!");
   ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in isStringTokenFromRight!");
   for(size_t i = 0;true;i++) {
     InstructionType *inst = &INSTRUCTION_TYPES[i];
@@ -204,7 +205,7 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
 }
 
 int crossreferenceBlocks(Program *program) {
-  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in crossrefrenceProgram!");
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in crossrefrenceProgram!");
   size_t refrences[program->count], count = 0;
   Token token;
   for(size_t i = 0;i < program->count;i++) {
@@ -450,13 +451,14 @@ void cleanupElseIfs(Program *program) {
 }
 
 bool shouldGoDeeper(TokenType type) {
-  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in shouldGoDeeper!");
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in shouldGoDeeper!");
   switch (type) {
     case TOKEN_PRIORITY:
     case TOKEN_SCOPE:
     case TOKEN_IF:
     case TOKEN_ELSE:
     case TOKEN_DECLARE_FUNCTION:
+    case TOKEN_FUNCTION_CALL:
       return true;
 
     default:
@@ -465,7 +467,7 @@ bool shouldGoDeeper(TokenType type) {
 }
 
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
-  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in goDeeper!");
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in goDeeper!");
   Program *program = NULL, *program2 = NULL;
   Program prog;
   size_t *p_count = NULL;
@@ -520,6 +522,20 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
       
       program2 = data->body;
 
+      break;
+    }
+    case TOKEN_FUNCTION_CALL: {
+      FunctionCallData *data = token->data;
+      TokenPriorityData *priorityData = data->arguments;
+
+      prog.count = priorityData->count;
+      prog.capacity = priorityData->count;
+      prog.instructions = priorityData->instructions;
+      prog.parent = NULL;
+      prog.id = 0;
+      prog.functions = NULL;
+      program = &prog;
+      p_count = &priorityData->count;
       break;
     }
     default: {
@@ -649,8 +665,14 @@ NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, 
   return element;
 }
 
+bool isOperationTokenType(TokenType type) {
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in isOperationTokenType!");
+  return type == TOKEN_ADD || type == TOKEN_SUBTRACT
+          || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN;
+}
+
 void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
-  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in crossreferenceVariables!");
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in crossreferenceVariables!");
   HashTable *nameMap = parentNameMap == NULL ? createHashTable(255) : createHashTableFrom(parentNameMap);
   for(size_t i = 0; i < program->count;i++) {
     Token *instruction = program->instructions[i];
@@ -723,12 +745,12 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
     }
 
     if(i == 0) {
-      exitError(ERROR_NO_MUTABILITY_FOR_VARIABLE, instruction);
+      exitError(ERROR_UNDECLARED_VARIABLE, instruction);
       return;
     }
     Token *last = program->instructions[i - 1];
     if(last->type != TOKEN_MUT && last->type != TOKEN_CONST) {
-      exitError(ERROR_NO_MUTABILITY_FOR_VARIABLE, instruction);
+      exitError(ERROR_UNDECLARED_VARIABLE, instruction);
       return;
     }
     value->mutable = (last->type == TOKEN_MUT);
@@ -748,7 +770,7 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
 }
 
 void removeUnneededPriorities(Program *program) {
-  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in removeUnneededPriorities!");
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in removeUnneededPriorities!");
   ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in removeUnneededPriorities!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
@@ -761,6 +783,7 @@ void removeUnneededPriorities(Program *program) {
     TokenPriorityData *data = token->data;
     if(data->count == 1) {
       program->instructions[i] = data->instructions[0];
+      program->instructions[i]->wasInPriority = true;
       free(data->instructions);
       free(data);
       free(token);
@@ -789,7 +812,7 @@ void typesetProgramReassignError(const char *variableName, Token *token, Type ex
 }
 
 void typesetProgram(Program *program) {
-  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in typesetProgram!");
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
   ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i], *next;
@@ -924,17 +947,19 @@ void typesetProgram(Program *program) {
 }
 
 bool canBeUsedInArithmeticOperations(TokenType type) {
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in canBeUsedInArithmeticOperations!");
   return type == TOKEN_NAME || type == TOKEN_VALUE || type == TOKEN_ADD
           || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY;
 }
 bool canBeUsedInComparisonOperations(TokenType type) {
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in canBeUsedInComparisonOperations!");
   return type == TOKEN_NAME || type == TOKEN_VALUE || type == TOKEN_ADD
           || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY
           || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN;
 }
 
 void crossreferenceOperations(Program *program) {
-  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in typesetProgram!");
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *instruction = program->instructions[i];
     if(shouldGoDeeper(instruction->type)) {
@@ -1115,7 +1140,7 @@ void crossreferenceOperations(Program *program) {
 }
 
 void removeFunctionTokens(Program *program) {
-  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in typesetProgram!");
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
   bool resetToZero = false;
   for(size_t i = 0;i < program->count;i++) {
     if(resetToZero) {
@@ -1136,6 +1161,76 @@ void removeFunctionTokens(Program *program) {
       goDeeper(token, (goDeeperFunction) removeFunctionTokens, 0);
       continue;
     }
+  }
+}
+
+FunctionDefinition *getFunctionFromProgram(Program *program, const char *name) {
+  if(existsElementInHashTable(program->functions, name)) {
+    FunctionDefinition *data = getElementFromHashTable(program->functions, name);
+    if(data) return data;
+  }
+  if(!program->parent) return NULL;
+  return getFunctionFromProgram(program->parent, name);
+}
+
+void createFunctionCalls(Program *program) {
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in removeUnneededPriorities!");
+  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in removeUnneededPriorities!");
+  for(size_t i = 0;i < program->count;i++) {
+    Token *token = program->instructions[i];
+    if(shouldGoDeeper(token->type)) {
+      goDeeper(token, (goDeeperFunction) removeUnneededPriorities, 0);
+      continue;
+    }
+    if(token->type != TOKEN_NAME) {
+      continue;
+    }
+    NameData *data = token->data;
+    if(*data->type != TYPE_FUNCTION) {
+      continue;
+    }
+    if(i + 1 == program->count) {
+      continue;
+    }
+    Token *next = program->instructions[i + 1];
+    if(next->type != TOKEN_PRIORITY && !next->wasInPriority) {
+      continue;
+    }
+
+    FunctionCallData *functionCallData = malloc(sizeof(FunctionCallData));
+    functionCallData->function = getFunctionFromProgram(program, data->variableName);
+    if(next->type == TOKEN_PRIORITY) {
+      TokenPriorityData *priorityData = next->data;
+      if(functionCallData->function->parameters->count != priorityData->count) {
+        exitError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
+        return;
+      }
+      functionCallData->arguments = priorityData;
+      for(size_t j = 0;j < priorityData->count;j++) {
+        // TODO: check types of all the arguments
+      }
+      free(getProgramInstruction(program, i + 1, true));
+      program->instructions[i]->type = TOKEN_FUNCTION_CALL;
+      program->instructions[i]->data = functionCallData;
+
+      free(data);
+      continue;
+    }
+    if(functionCallData->function->parameters->count != 1) {
+      exitError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
+      return;
+    }
+    TokenPriorityData *priorityData = functionCallData->arguments = calloc(1, sizeof(TokenPriorityData));
+    priorityData->count = 1;
+    priorityData->instructions = calloc(1, sizeof(Token*));
+    priorityData->instructions[0] = getProgramInstruction(program, i + 1, true);
+
+    // TODO: check types of the single argument
+    
+    program->instructions[i]->type = TOKEN_FUNCTION_CALL;
+    program->instructions[i]->data = functionCallData;
+
+    free(data);
   }
 }
 
@@ -1256,6 +1351,11 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   removeFunctionTokens(program);
   startClock = clock() - startClock;
   printf("[LOG]: Removing function tokens     : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+  
+  createFunctionCalls(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: Creating function calls      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   printProgram(program, 0);

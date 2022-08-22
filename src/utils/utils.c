@@ -72,7 +72,7 @@ void printProgram(Program *program, unsigned int depth) {
   }
 }
 void printToken(Token *token, unsigned int depth, size_t index) {
-  ASSERT(TOKEN_COUNT == 28, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in createTokenFromString!");
   ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in printToken!");
 
   printf("%*s - ", depth, "");
@@ -85,9 +85,9 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     case TOKEN_NAME: {
       NameData *value = token->data;
       if(!value->type) {
-        printf("NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d\n", value->variableName, value->mutable);
+        printf("NAME: %s, CODE NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d\n", value->variableName, value->name, value->mutable);
       } else {
-        printf("NAME: %s, TYPE: (%p, %s), MUTABLE: %d\n", value->variableName, value->type, getTypeName(*((Type *) value->type)), value->mutable);
+        printf("NAME: %s, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d\n", value->variableName, value->name, value->type, getTypeName(*((Type *) value->type)), value->mutable);
       }
       break;
     }
@@ -151,6 +151,19 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     case TOKEN_RETURN: {
       TokenPriorityData *priorityData = token->data;
       printf("RETURN: %p, count: %zu\n", priorityData, priorityData->count);
+      for(size_t i = 0;i < priorityData->count;i++) {
+        printToken(priorityData->instructions[i], depth + 1 * TAB_SPACES, i);
+      }
+      break;
+    }
+    case TOKEN_PRINT: {
+      printf("PRINT: %s\n", (char*) token->data);
+      break;
+    }
+    case TOKEN_FUNCTION_CALL: {
+      FunctionCallData *data = token->data;
+      TokenPriorityData *priorityData = data->arguments;
+      printf("FUNCTION CALL: %p, count: %zu\n", data->function, priorityData->count);
       for(size_t i = 0;i < priorityData->count;i++) {
         printToken(priorityData->instructions[i], depth + 1 * TAB_SPACES, i);
       }

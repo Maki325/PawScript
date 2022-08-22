@@ -33,11 +33,12 @@ typedef enum TokenType {
   TOKEN_NOT_EQUALS,
   TOKEN_RETURN,
   TOKEN_COMMA,
+  TOKEN_FUNCTION_CALL,
   TOKEN_COUNT
 } TokenType;
 
 static inline const char *getTokenTypeName(TokenType type) {
-  ASSERT(TOKEN_COUNT == 28, "Not all tokens are implemented in getTokenTypeName!");
+  ASSERT(TOKEN_COUNT == 29, "Not all tokens are implemented in getTokenTypeName!");
   switch (type) {
     case TOKEN_TYPE:              return "TOKEN_TYPE";
     case TOKEN_NAME:              return "TOKEN_NAME";
@@ -68,6 +69,7 @@ static inline const char *getTokenTypeName(TokenType type) {
     case TOKEN_NOT_EQUALS:        return "TOKEN_NOT_EQUALS";
     case TOKEN_RETURN:            return "TOKEN_RETURN";
     case TOKEN_COMMA:             return "TOKEN_COMMA";
+    case TOKEN_FUNCTION_CALL:     return "TOKEN_FUNCTION_CALL";
     default:                      return "Unknown Token!!!";
   }
 }
@@ -96,6 +98,7 @@ static inline const char *getTypeName(Type type) {
 typedef struct Token {
   TokenType type;
   void *data;
+  bool wasInPriority;
 
   const char *file;
 
@@ -184,6 +187,11 @@ typedef struct BinaryOperationData {
   Type type;
 } BinaryOperationData;
 
+typedef struct FunctionCallData {
+  FunctionDefinition* function;
+  TokenPriorityData *arguments;
+} FunctionCallData;
+
 typedef void (*goDeeperFunction)(Program*, ...);
 
 Program *createProgram();
@@ -205,6 +213,7 @@ bool shouldGoDeeper(TokenType type);
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...);
 
 NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, bool mutable, Program *program, size_t i);
+bool isOperationTokenType(TokenType type);
 void crossreferenceVariables(Program *program, HashTable *parentNameMap);
 
 void removeUnneededPriorities(Program *program);
@@ -215,6 +224,9 @@ void typesetProgram(Program *program);
 
 void crossreferenceOperations(Program *program);
 void removeFunctionTokens(Program *program);
+
+FunctionDefinition *getFunctionFromProgram(Program *program, const char *name);
+void createFunctionCalls(Program *program);
 
 Program *createProgramFromFile(const char *filePath, char *error);
 
