@@ -114,8 +114,10 @@ typedef struct Program {
   Token **instructions;
   size_t count;
   size_t capacity;
+  int32_t variableOffset;
 
   HashTable *functions;
+  HashTable *variables;
 } Program;
 
 typedef struct InstructionType {
@@ -142,11 +144,19 @@ typedef struct ValueData {
   void *data;
 } ValueData;
 
+/**
+ * 
+ * @param variableName The name that the user gave to the variable
+ * @param name The unique generated name of the variable
+ * @param type The type of the variable
+ * @param mutable Whether the variable is mutable or not
+ */
 typedef struct NameData {
   const char *variableName;
   const char *name;
   Type *type;
   bool mutable;
+  int32_t offset;
 } NameData;
 
 typedef struct TokenPriorityData {
@@ -212,7 +222,7 @@ void cleanupElseIfs(Program *program);
 bool shouldGoDeeper(TokenType type);
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...);
 
-NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, bool mutable, Program *program, size_t i);
+NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData, Program *program, size_t i);
 bool isOperationTokenType(TokenType type);
 void crossreferenceVariables(Program *program, HashTable *parentNameMap);
 
@@ -221,6 +231,9 @@ void removeUnneededPriorities(Program *program);
 void typesetProgramError(PawscriptError pawscriptError, const char *variableName, Token *token);
 void typesetProgramReassignError(const char *variableName, Token *token, Type expected, Type got);
 void typesetProgram(Program *program);
+
+size_t getTypeByteSize(Type type);
+void calculateOffsets(Program *program);
 
 void crossreferenceOperations(Program *program);
 void removeFunctionTokens(Program *program);

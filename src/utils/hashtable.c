@@ -11,6 +11,7 @@ HashTable *createHashTable(size_t capacity) {
 }
 
 HashTable *createHashTableFrom(HashTable *origin) {
+  if(!origin) return createHashTable(DEFAULT_HASHTABLE_CAPACITY);
   HashTable *hashTable = malloc(sizeof(HashTable));
   hashTable->capacity = origin->capacity;
   hashTable->size = origin->size;

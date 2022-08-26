@@ -33,7 +33,7 @@ void interpretScope(Program *program, void** eax, char *error, HashTable *table)
 }
 
 void interpret(Program *program, char *error) {
-  HashTable *table = createHashTable(255);
+  HashTable *table = createHashTable(256);
   void *eax = NULL;
   interpretScope(program, &eax, error, table);
   deleteHashTable(table);

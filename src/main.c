@@ -75,11 +75,17 @@ int main(int argc, char *argv[]) {
       return 0;
     }
 
-    generateAsm(program, basename, silent, error);
-    compile(basename, silent);
+    CompilerOptions compilerOptions = {
+      .program = program,
+      .basename = basename,
+      .silent = silent,
+    };
+
+    generateAsm(&compilerOptions);
+    compile(&compilerOptions);
 
     if(run) {
-      runProgram(basename, silent);
+      runProgram(&compilerOptions);
     }
   } else {
     usage(programName);

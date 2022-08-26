@@ -2,30 +2,37 @@
 #include "../utils/utils.h"
 
 char *getInitializedType(Type type) {
-  ASSERT(TYPES_COUNT == 3, "Not all types are implemented in getInitializedType!");
-  static char* bytes[TYPES_COUNT] = {
-    /* NONE */ "ERROR NONE!!!",
-    /* INT  */ "dd",
-    /* BOOL */ "dd"
+  ASSERT(TYPES_COUNT == 5, "Not all types are implemented in getInitializedType!");
+  static char* bytes[TYPES_COUNT + 1] = {
+    /* NONE     */ "ERROR NONE!!!",
+    /* INT      */ "DQ",
+    /* BOOL     */ "DQ",
+    /* VOID     */ "ERROR VOID!!!",
+    /* FUNCTION */ "ERROR FUNCTION!!!",
+    /* COUNT    */ "ERROR COUNT!!!",
   };
-  if(type >= TYPES_COUNT) return "UI";
+  if(type > TYPES_COUNT) return "ERROR UNKNOWN!!!";
   return bytes[type];
 }
 char *getUninitializedType(Type type) {
-  ASSERT(TYPES_COUNT == 3, "Not all types are implemented in getUninitializedType!");
-  static char* bytes[TYPES_COUNT] = {
-    /* NONE */ "ERROR NONE!!!",
-    /* INT  */ "resd",
-    /* BOOL */ "resd"
+  ASSERT(TYPES_COUNT == 5, "Not all types are implemented in getUninitializedType!");
+  static char* bytes[TYPES_COUNT + 1] = {
+    /* NONE     */ "ERROR NONE!!!",
+    /* INT      */ "RESQ",
+    /* BOOL     */ "RESQ",
+    /* VOID     */ "ERROR VOID!!!",
+    /* FUNCTION */ "ERROR FUNCTION!!!",
+    /* COUNT    */ "ERROR COUNT!!!",
   };
-  if(type >= TYPES_COUNT) return "UU";
+  if(type > TYPES_COUNT) return "ERROR UNKNOWN!!!";
   return bytes[type];
 }
-CompileVariable *createVariable(Type type, void *initialValue) {
+
+CompileVariable *createVariable(NameData *nameData, int offset) {
   CompileVariable *value = malloc(sizeof(CompileVariable));
-  value->type = type;
-  value->usageCount = 0;
-  value->initialValue = initialValue;
+  value->nameData = nameData;
+  value->type = *nameData->type;
+  value->offset = offset;
 
   return value;
 }
@@ -78,47 +85,99 @@ void postCompile(FILE *out) {
   fputs("syscall\n", out);
 }
 
-void generateProgramAsm(Program *program, HashTable *table, FILE *out, char *error) {
+void generateFunctionAsm(CompilerOptions *compilerOptions, FunctionDefinition *functionData, int offset, HashTable *parentVariables) {
+  // Optimize to use register for some fields instead of stack because faster 👍
+  HashTable *variables = createHashTableFrom(parentVariables);
+
+  TokenPriorityData *parameters = functionData->parameters + 16;
+  for(size_t i = 0;i < parameters->count;i++) {
+    if(parameters->instructions[i]->type != TOKEN_NAME) {
+      continue;
+    }
+    NameData *nameData = parameters->instructions[i]->data;
+    const char *name = nameData->name;
+    if(existsElementInHashTable(variables, name)) {
+      ASSERT(true, "Unreachable in `generateFunctionASM`");
+    }
+    CompileVariable *variable = createVariable(nameData, offset);
+    setElementInHashTable(variables, name, variable);
+    offset += getTypeByteSize(*nameData->type);
+  }
+
+  generateProgramAsm(compilerOptions, functionData->body, offset, variables, NULL);
+}
+
+int getVariableOffset(Program *program, CompileVariable *variable) {
+  if(!existsElementInHashTable(program->variables, variable->nameData->name)) {
+    if(!program->parent) return 0;
+    int parentOffset = getVariableOffset(program->parent, variable);
+    if(parentOffset == 0) {
+      return 0;
+    }
+    return 8 + parentOffset;
+  }
+  NameData* getElementFromHashTable(program->variables, variable->nameData->name);
+}
+
+void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int offset, HashTable *parentVariables, HashTable *globalVariables) {
+  HashTable *variables = createHashTableFrom(parentVariables);
   const char *name = NULL;
 
   (void) name;
-  (void) table;
-  (void) out;
-  (void) error;
+  (void) compilerOptions;
+  (void) offset;
+  (void) variables;
+  (void) globalVariables;
+
+  printf("program->count: %zu\n", program->count);
+
+  if(program->functions && program->functions->size) {
+    for(size_t i = 0; i < program->functions->capacity;i++) {
+      const char *functionName = program->functions->elements[i].key;
+      if(!functionName) continue;
+      FunctionDefinition *data = program->functions->elements[i].value;
+      generateFunctionAsm(compilerOptions, data, offset, variables);
+    }
+  }
 
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
+    printf("generateProgramAsm: %s (%d)\n", getTokenTypeName(token->type), token->type);
     switch(token->type) {
       default: {
-        fprintf(stderr, "Error: Token(%s) not implemented in compilation!\n", getTokenTypeName(token->type));
+        fprintf(stderr, "Error: Token type `%s` not implemented in compilation!\n", getTokenTypeName(token->type));
         exit(1);
         break;
       }
     }
   }
+
+  free(variables);
 }
 
-void generateAsm(Program *program, const char *basename, bool silent, char *error) {
-  ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in compile!");
+void generateAsm(CompilerOptions *compilerOptions) {
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in compile!");
 
-  char *asmName = calloc(strlen(basename) + 4 + 1, sizeof(char));
-  sprintf(asmName, "%s.asm", basename);
+  char *asmName = calloc(strlen(compilerOptions->basename) + 4 + 1, sizeof(char));
+  sprintf(asmName, "%s.asm", compilerOptions->basename);
   FILE *out = openFile(asmName, "w");
-  if(!silent) printf("[INFO]: Generating %s\n", asmName);
+  compilerOptions->output = out;
+  if(!compilerOptions->silent) printf("[INFO]: Generating %s\n", asmName);
 
   prepareFileForCompile(out);
-  HashTable *table = createHashTable(255);
-  generateProgramAsm(program, table, out, error);
+  HashTable *globalVariables = createHashTable(256);
+
+  generateProgramAsm(compilerOptions, compilerOptions->program, 0, NULL, globalVariables);
   postCompile(out);
-  
+
   bool data = false, bss = false;
 
   (void) data;
   (void) bss;
 
-  for(size_t i = 0;i < table->capacity;i++) {
-    if(table->elements[i].key == NULL) continue;
-    const char* name = table->elements[i].key;
+  for(size_t i = 0;i < globalVariables->capacity;i++) {
+    if(globalVariables->elements[i].key == NULL) continue;
+    const char* name = globalVariables->elements[i].key;
 
     (void) name;
     // CompileVariable *variable = table->elements[i].value;
@@ -135,9 +194,9 @@ void generateAsm(Program *program, const char *basename, bool silent, char *erro
     //   *((int*)variable->initialValue)
     // );
   }
-  for(size_t i = 0;i < table->capacity;i++) {
-    if(table->elements[i].key == NULL) continue;
-    const char* name = table->elements[i].key;
+  for(size_t i = 0;i < globalVariables->capacity;i++) {
+    if(globalVariables->elements[i].key == NULL) continue;
+    const char* name = globalVariables->elements[i].key;
 
     (void) name;
     // CompileVariable *variable = table->elements[i].value;
@@ -156,22 +215,22 @@ void generateAsm(Program *program, const char *basename, bool silent, char *erro
 
   fclose(out);
 }
-void compile(const char *basename, bool silent) {
+void compile(CompilerOptions *compilerOptions) {
   // TODO: Check if folder exists for output
   // TODO: And create if it doesn't exist
 
   char call[128];
-  snprintf(call, 128, "nasm -g -felf64 %s.asm", basename);
-  if(!silent) printf("[CMD]: %s\n", call);
+  snprintf(call, 128, "nasm -g -felf64 %s.asm", compilerOptions->basename);
+  if(!compilerOptions->silent) printf("[CMD]: %s\n", call);
   system(call);
 
-  snprintf(call, 128, "ld -o %s %s.o", basename, basename);
-  if(!silent) printf("[CMD]: %s\n", call);
+  snprintf(call, 128, "ld -o %s %s.o", compilerOptions->basename, compilerOptions->basename);
+  if(!compilerOptions->silent) printf("[CMD]: %s\n", call);
   system(call);
 }
-void runProgram(const char *basename, bool silent) {
+void runProgram(CompilerOptions *compilerOptions) {
   char call[128];
-  snprintf(call, 128, "./%s", basename);
-  if(!silent) printf("[CMD]: %s\n", call);
+  snprintf(call, 128, "./%s", compilerOptions->basename);
+  if(!compilerOptions->silent) printf("[CMD]: %s\n", call);
   system(call);
 }

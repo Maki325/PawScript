@@ -13,19 +13,16 @@ Program *createProgram() {
   program->capacity = 20;
   program->count = 0;
   program->instructions = calloc(program->capacity, sizeof(Token*));
-  program->functions = createHashTable(255);
+  program->functions = createHashTable(256);
+  program->variables = createHashTable(256);
+  program->variableOffset = 0;
 
   return program;
 }
 
 Program *createProgramWithParent(Program *parent) {
-  Program *program = malloc(sizeof(Program));
-  program->id = PROGRAM_COUNT++;
+  Program *program = createProgram();
   program->parent = parent;
-  program->capacity = 20;
-  program->count = 0;
-  program->functions = createHashTable(255);
-
   return program;
 }
 
@@ -36,6 +33,7 @@ void deleteProgram(Program *program) {
   }
   free(program->instructions);
   deleteHashTable(program->functions);
+  deleteHashTable(program->variables);
   free(program);
 }
 
@@ -643,7 +641,7 @@ void crossreferenceFunctions(Program *program) {
   }
 }
 
-NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, bool mutable, Program *program, size_t i) {
+NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData, Program *program, size_t i) {
   NameMapValue *element = malloc(sizeof(NameMapValue));
   element->program = program;
 
@@ -651,7 +649,7 @@ NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, 
   *type = TYPE_NONE;
   element->type = type;
 
-  element->mutable = mutable;
+  element->mutable = nameData->mutable;
 
   const size_t newNameLength = 4 +
         (program->id == 0 ? 1 : ((int) log10(program->id) + 1)) +
@@ -660,7 +658,8 @@ NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, const char *name, 
   snprintf(newName, newNameLength, "var_%zu_%zu", program->id, i);
   element->name = newName;
 
-  setElementInHashTable(nameMap, name, element);
+  setElementInHashTable(nameMap, nameData->name, element);
+  setElementInHashTable(program->variables, newName, nameData);
 
   return element;
 }
@@ -673,7 +672,7 @@ bool isOperationTokenType(TokenType type) {
 
 void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in crossreferenceVariables!");
-  HashTable *nameMap = parentNameMap == NULL ? createHashTable(255) : createHashTableFrom(parentNameMap);
+  HashTable *nameMap = parentNameMap == NULL ? createHashTable(256) : createHashTableFrom(parentNameMap);
   for(size_t i = 0; i < program->count;i++) {
     Token *instruction = program->instructions[i];
     if(instruction->type == TOKEN_DECLARE_FUNCTION) {
@@ -704,15 +703,22 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
           }
         }
 
-        NameMapValue *element = createAndAddNameMapVariable(nameMap, inputName->name, inputName->mutable, body, j);
+        NameMapValue *element = createAndAddNameMapVariable(nameMap, inputName, body, j);
         inputName->name    = element->name;
         inputName->type    = element->type;
         inputName->mutable = element->mutable;
       }
 
       crossreferenceVariables(body, nameMap);
-      NameMapValue *functionElement = createAndAddNameMapVariable(nameMap, data->name, false, program, i);
+      NameData *functionName = malloc(sizeof(NameData));
+      functionName->mutable = false;
+      functionName->name = data->name;
+      functionName->variableName = data->name;
+      NameMapValue *functionElement = createAndAddNameMapVariable(nameMap, functionName, program, i);
       *functionElement->type = TYPE_FUNCTION;
+      functionName->name    = functionElement->name;
+      functionName->type    = functionName->type;
+      functionName->mutable = functionName->mutable;
 
       continue;
     } else if(shouldGoDeeper(instruction->type)) {
@@ -758,9 +764,7 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
     i--;
 
 
-    bool mutable = value->mutable;
-    NameMapValue *element = createAndAddNameMapVariable(nameMap, name, mutable, program, i);
-
+    NameMapValue *element = createAndAddNameMapVariable(nameMap, value, program, i);
     value->name    = element->name;
     value->type    = element->type;
     value->mutable = element->mutable;
@@ -943,6 +947,22 @@ void typesetProgram(Program *program) {
         }
       }
     }
+  }
+}
+
+void callculateOffsets(Program *program) {
+  for(size_t i = 0;i < program->count;i++) {
+    Token *token = program->instructions[i], *next;
+    if(shouldGoDeeper(token->type)) {
+      goDeeper(token, (goDeeperFunction) callculateOffsets, 0);
+      continue;
+    }
+  }
+  HashTable *variables = program->variables;
+  for(size_t i = 0;i < variables->capacity;i++) {
+    if(variables->elements[i].key == NULL) continue;
+    NameData *variable = variables->elements[i].value;
+
   }
 }
 
@@ -1345,6 +1365,11 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   startClock = clock();
 
   typesetProgram(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: Typeseting                   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
+  callculateOffsets(program);
   startClock = clock() - startClock;
   printf("[LOG]: Typeseting                   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
