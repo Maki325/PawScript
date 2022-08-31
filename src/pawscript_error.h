@@ -26,13 +26,13 @@ typedef enum PawscriptError {
   ERROR_OPERATION_NO_TYPE,
   ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH,
   ERROR_FUNCTION_CALL_ARGUMENTS_MISMATCH,
+  ERROR_PLATFORM_NOT_SUPPORTED,
   ERROR_COUNT
 } PawscriptError;
 
 const char *getPawscriptErrorName(PawscriptError error);
 
-void pawscriptExit(PawscriptError error);
-
-void exitError(PawscriptError pawscriptError, Token *token);
+void exitError(PawscriptError pawscriptError);
+void exitTokenError(PawscriptError pawscriptError, Token *token);
 
 #endif // PAWSCRIPT_ERROR

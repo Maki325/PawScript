@@ -3,7 +3,7 @@
 #include "tokenizer.h"
 
 const char *getPawscriptErrorName(PawscriptError error) {
-  ASSERT(ERROR_COUNT == 23, "Not all errors are implemented in getPawscriptErrorName!");
+  ASSERT(ERROR_COUNT == 24, "Not all errors are implemented in getPawscriptErrorName!");
   switch (error) {
     case ERROR_OPEN_FILE:                               return "Couldn't open file!";
     case ERROR_PARENTHESES_NOT_BALANCED:                return "Parentheses are not balanced!";
@@ -27,18 +27,20 @@ const char *getPawscriptErrorName(PawscriptError error) {
     case ERROR_OPERATION_NO_TYPE:                       return "The oepration doesn't have a type!";
     case ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH: return "Not the correct amount of arguments!";
     case ERROR_FUNCTION_CALL_ARGUMENTS_MISMATCH:        return "Argument type doesn't match!";
+    case ERROR_PLATFORM_NOT_SUPPORTED:                  return "Platform not supported!";
     default:                                            return "Unknown Error!!!";
   }
 }
 
-void pawscript_exit(PawscriptError error) {
-  printf("Exiting with error: \"%s\" (%d)\n", getPawscriptErrorName(error), error);
-  exit(error);
-}
-
-void exitError(PawscriptError pawscriptError, Token *token) {
+void exitTokenError(PawscriptError pawscriptError, Token *token) {
   fprintf(stderr, "ERROR: %s at: %s:%zu:%zu\n",
     getPawscriptErrorName(pawscriptError),
     token->file, token->line, token->column);
+  exit(pawscriptError);
+}
+
+void exitError(PawscriptError pawscriptError) {
+  fprintf(stderr, "ERROR: %s (%d)\n",
+    getPawscriptErrorName(pawscriptError), pawscriptError);
   exit(pawscriptError);
 }

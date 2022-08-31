@@ -4,6 +4,11 @@
 #include "tokenizer.h"
 #include "compiler/compiler.h"
 #include "interpreter/interpreter.h"
+#include "config.h"
+
+Config config = {
+  .platform = PLATFORM_LINUX_x86_64,
+};
 
 void usage(char *programName) {
   printf("Usage:\n");

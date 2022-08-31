@@ -1,6 +1,8 @@
 #include "tokenizer.h"
 #include "pawscript_error.h"
 #include "utils/utils.h"
+#include "config.h"
+#include "platforms/linux_x86_64/tokenizer.h"
 #include <stdarg.h>
 #include <time.h>
 
@@ -15,7 +17,8 @@ Program *createProgram() {
   program->instructions = calloc(program->capacity, sizeof(Token*));
   program->functions = createHashTable(256);
   program->variables = createHashTable(256);
-  program->variableOffset = 0;
+  program->variableOffset = 8;
+  // Starting at 8 because we push RBP onto the stack before we start the program
 
   return program;
 }
@@ -217,7 +220,7 @@ int crossreferenceBlocks(Program *program) {
         size_t start = refrences[--count],
           length = i - start, pos = 0;
         if(getProgramInstruction(program, start - 1, false)->type != TOKEN_PARENTHESES_OPEN) {
-          exitError(ERROR_PARENTHESES_NOT_BALANCED, instruction);
+          exitTokenError(ERROR_PARENTHESES_NOT_BALANCED, instruction);
           return -1;
         }
         Token **tokens = calloc(length, sizeof(Token*));
@@ -267,7 +270,7 @@ int crossreferenceBlocks(Program *program) {
           length = i - start;
         Token *openInstruction = getProgramInstruction(program, start - 1, false);
         if(openInstruction->type != TOKEN_BRACES_OPEN) {
-          exitError(ERROR_BRACES_NOT_BALANCED, instruction);
+          exitTokenError(ERROR_BRACES_NOT_BALANCED, instruction);
           return -1;
         }
         Program *inside = openInstruction->data;
@@ -313,7 +316,7 @@ int crossreferenceBlocks(Program *program) {
               Token *ifToken = program->instructions[newStart];
               ControlFlowBlock *block = ifToken->data;
               if(!block) {
-                exitError(ERROR_IF_NO_CONDITION, program->instructions[i]);
+                exitTokenError(ERROR_IF_NO_CONDITION, program->instructions[i]);
                 return -1;
               }
               if(block->program) break;
@@ -358,7 +361,7 @@ int crossreferenceBlocks(Program *program) {
       }
       case TOKEN_ELSE: {
         if(i == 0 || program->instructions[i - 1]->type != TOKEN_IF) {
-          exitError(ERROR_ELSE_AFTER_IF, program->instructions[i]);
+          exitTokenError(ERROR_ELSE_AFTER_IF, program->instructions[i]);
           return 1;
         }
         refrences[count++] = i;
@@ -583,12 +586,12 @@ void crossreferenceFunctions(Program *program) {
     }
 
     if(i == 0) {
-      exitError(ERROR_NAME_BEFORE_DECLARE_FUNCTION, instruction);
+      exitTokenError(ERROR_NAME_BEFORE_DECLARE_FUNCTION, instruction);
       return;
     }
     Token *functionName = getProgramInstruction(program, --i, true);
     if(functionName->type != TOKEN_NAME) {
-      exitError(ERROR_NAME_BEFORE_DECLARE_FUNCTION, instruction);
+      exitTokenError(ERROR_NAME_BEFORE_DECLARE_FUNCTION, instruction);
       return;
     }
     NameData *nameData = functionName->data;
@@ -597,7 +600,7 @@ void crossreferenceFunctions(Program *program) {
     size_t popIndex = i + 1;
     Token *functionParams = getProgramInstruction(program, popIndex, true);
     if(functionParams->type != TOKEN_PRIORITY) {
-      exitError(ERROR_PARAMS_AFTER_DECLARE_FUNCTION, instruction);
+      exitTokenError(ERROR_PARAMS_AFTER_DECLARE_FUNCTION, instruction);
       return;
     }
     goDeeper(functionParams, (goDeeperFunction) crossreferenceFunctions, 0);
@@ -616,17 +619,17 @@ void crossreferenceFunctions(Program *program) {
       continue;
     }
     if(functionBody->type != TOKEN_ASSIGN_TYPE) {
-      exitError(ERROR_TYPE_AFTER_PARAMS_FUNCTION, instruction);
+      exitTokenError(ERROR_TYPE_AFTER_PARAMS_FUNCTION, instruction);
       return;
     }
     Token *functionReturnType = getProgramInstruction(program, popIndex, true);
     if(functionReturnType->type != TOKEN_TYPE) {
-      exitError(ERROR_TYPE_AFTER_PARAMS_FUNCTION, instruction);
+      exitTokenError(ERROR_TYPE_AFTER_PARAMS_FUNCTION, instruction);
       return;
     }
     functionBody = getProgramInstruction(program, popIndex, true);
     if(functionBody->type != TOKEN_SCOPE) {
-      exitError(ERROR_TYPE_AFTER_PARAMS_FUNCTION, instruction);
+      exitTokenError(ERROR_TYPE_AFTER_PARAMS_FUNCTION, instruction);
       return;
     }
     goDeeper(functionBody, (goDeeperFunction) crossreferenceFunctions, 0);
@@ -751,12 +754,12 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
     }
 
     if(i == 0) {
-      exitError(ERROR_UNDECLARED_VARIABLE, instruction);
+      exitTokenError(ERROR_UNDECLARED_VARIABLE, instruction);
       return;
     }
     Token *last = program->instructions[i - 1];
     if(last->type != TOKEN_MUT && last->type != TOKEN_CONST) {
-      exitError(ERROR_UNDECLARED_VARIABLE, instruction);
+      exitTokenError(ERROR_UNDECLARED_VARIABLE, instruction);
       return;
     }
     value->mutable = (last->type == TOKEN_MUT);
@@ -916,7 +919,7 @@ void typesetProgram(Program *program) {
           case TOKEN_EQUALS: {
             BinaryOperationData *data = next->data;
             if(data->type == TYPE_NONE) {
-              exitError(ERROR_OPERATION_NO_TYPE, next);
+              exitTokenError(ERROR_OPERATION_NO_TYPE, next);
               return;
             } else if(*value->type == TYPE_NONE) {
               // TODO: Add multiple types support for value token
@@ -950,19 +953,59 @@ void typesetProgram(Program *program) {
   }
 }
 
-void callculateOffsets(Program *program) {
+size_t getTypeByteSize(Type type) {
+  switch(config.platform) {
+    case PLATFORM_LINUX_x86_64: {
+      return getTypeByteSize_linux_x86_64(type);
+    }
+    default: {
+      exitError(ERROR_PLATFORM_NOT_SUPPORTED);
+      return 0;
+    }
+  }
+}
+
+void calculateOffsets(Program *program) {
   for(size_t i = 0;i < program->count;i++) {
-    Token *token = program->instructions[i], *next;
-    if(shouldGoDeeper(token->type)) {
-      goDeeper(token, (goDeeperFunction) callculateOffsets, 0);
+    Token *token = program->instructions[i];
+    if(token->type == TOKEN_DECLARE_FUNCTION) {
+      FunctionDefinition *data = token->data;
+      ASSERT(data, "Unreachable!");
+      TokenPriorityData *inputs = data->parameters;
+      int offset = 0;
+      for(size_t j = 0;j < inputs->count;j++) {
+        Token *input = inputs->instructions[j];
+        if(input->type != TOKEN_NAME) continue;
+        NameData *inputName = input->data;
+        inputName->offset = offset - getTypeByteSize(*inputName->type);
+        offset -= inputName->offset;
+      }
+
+      calculateOffsets(data->body);
+      continue;
+    } else if(shouldGoDeeper(token->type)) {
+      goDeeper(token, (goDeeperFunction) calculateOffsets, 0);
       continue;
     }
   }
   HashTable *variables = program->variables;
   for(size_t i = 0;i < variables->capacity;i++) {
+    // printf("Variable: %zu, program: %p\n", i, program);
     if(variables->elements[i].key == NULL) continue;
+    printf("Exists Variable: %zu, program: %p\n", i, program);
     NameData *variable = variables->elements[i].value;
-
+    // {
+    //   const char *variableName;
+    //   const char *name;
+    //   Type *type;
+    //   bool mutable;
+    //   int32_t offset;
+    // }
+    printf("variable->type: %p\n", variable->type);
+    printf("variable: {varName: %s, name: %s, mutable: %d, offset: %"PRId32"}\n",
+      variable->variableName, variable->name, variable->mutable, variable->offset);
+    variable->offset = program->variableOffset + getTypeByteSize(*variable->type);
+    program->variableOffset += variable->offset;
   }
 }
 
@@ -994,23 +1037,23 @@ void crossreferenceOperations(Program *program) {
           BinaryOperationData *value = instruction->data;
           if(value->operandOne && value->operandTwo) break;
           else if(value->operandOne || value->operandTwo) {
-            exitError(ERROR_OPERATION_DOESNT_HAVE_BOTH_OPERANDS, instruction);
+            exitTokenError(ERROR_OPERATION_DOESNT_HAVE_BOTH_OPERANDS, instruction);
             return;
           }
         }
         if(i == 0 || i == program->count - 1) {
-          exitError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
+          exitTokenError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
           return;
         }
 
         Token *left  = getProgramInstruction(program, i - 1, false),
               *right = getProgramInstruction(program, i + 1, false);
         if(!canBeUsedInArithmeticOperations(left->type)) {
-          exitError(ERROR_OPERAND_CANT_BE_USED, left);
+          exitTokenError(ERROR_OPERAND_CANT_BE_USED, left);
           return;
         }
         if(!canBeUsedInArithmeticOperations(right->type)) {
-          exitError(ERROR_OPERAND_CANT_BE_USED, right);
+          exitTokenError(ERROR_OPERAND_CANT_BE_USED, right);
           return;
         }
         // NOTE: Since the crossrefrences are done above
@@ -1045,18 +1088,18 @@ void crossreferenceOperations(Program *program) {
       case TOKEN_GREATER_THAN:
       case TOKEN_LESS_THAN: {
         if(i == 0 || i == program->count - 1) {
-          exitError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
+          exitTokenError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
           return;
         }
 
         Token *left  = getProgramInstruction(program, i - 1, false),
               *right = getProgramInstruction(program, i + 1, false);
         if(!canBeUsedInComparisonOperations(left->type)) {
-          exitError(ERROR_OPERAND_CANT_BE_USED, left);
+          exitTokenError(ERROR_OPERAND_CANT_BE_USED, left);
           return;
         }
         if(!canBeUsedInComparisonOperations(right->type)) {
-          exitError(ERROR_OPERAND_CANT_BE_USED, right);
+          exitTokenError(ERROR_OPERAND_CANT_BE_USED, right);
           return;
         }
         
@@ -1083,7 +1126,7 @@ void crossreferenceOperations(Program *program) {
     switch(instruction->type) {
       case TOKEN_PRINT: {
         if(i == program->count - 1) {
-          exitError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
+          exitTokenError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
           return;
         }
 
@@ -1097,7 +1140,7 @@ void crossreferenceOperations(Program *program) {
       }
       case TOKEN_RETURN: {
         if(i == program->count - 1) {
-          exitError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
+          exitTokenError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
           return;
         }
 
@@ -1126,18 +1169,18 @@ void crossreferenceOperations(Program *program) {
       case TOKEN_NOT_EQUALS:
       case TOKEN_EQUALS: {
         if(i == 0 || i == program->count - 1) {
-          exitError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
+          exitTokenError(ERROR_OPERATION_NOT_ENOUGH_OPERANDS, instruction);
           return;
         }
 
         Token *left  = getProgramInstruction(program, i - 1, false),
               *right = getProgramInstruction(program, i + 1, false);
         if(!canBeUsedInComparisonOperations(left->type)) {
-          exitError(ERROR_OPERAND_CANT_BE_USED, left);
+          exitTokenError(ERROR_OPERAND_CANT_BE_USED, left);
           return;
         }
         if(!canBeUsedInComparisonOperations(right->type)) {
-          exitError(ERROR_OPERAND_CANT_BE_USED, right);
+          exitTokenError(ERROR_OPERAND_CANT_BE_USED, right);
           return;
         }
         
@@ -1222,7 +1265,7 @@ void createFunctionCalls(Program *program) {
     if(next->type == TOKEN_PRIORITY) {
       TokenPriorityData *priorityData = next->data;
       if(functionCallData->function->parameters->count != priorityData->count) {
-        exitError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
+        exitTokenError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
         return;
       }
       functionCallData->arguments = priorityData;
@@ -1237,7 +1280,7 @@ void createFunctionCalls(Program *program) {
       continue;
     }
     if(functionCallData->function->parameters->count != 1) {
-      exitError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
+      exitTokenError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
       return;
     }
     TokenPriorityData *priorityData = functionCallData->arguments = calloc(1, sizeof(TokenPriorityData));
@@ -1368,11 +1411,6 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   startClock = clock() - startClock;
   printf("[LOG]: Typeseting                   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
-
-  callculateOffsets(program);
-  startClock = clock() - startClock;
-  printf("[LOG]: Typeseting                   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  startClock = clock();
   
   removeFunctionTokens(program);
   startClock = clock() - startClock;
@@ -1382,6 +1420,13 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   createFunctionCalls(program);
   startClock = clock() - startClock;
   printf("[LOG]: Creating function calls      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
+  printProgram(program, 0);
+
+  calculateOffsets(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: Calculating offsets          : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   printProgram(program, 0);

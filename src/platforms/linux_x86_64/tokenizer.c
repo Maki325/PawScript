@@ -1,9 +1,7 @@
-#include "../../tokenizer.h";
-
 // Linux x86_64
-#ifdef LINUX_x86_64
+#include "tokenizer.h"
 
-size_t getTypeByteSize(Type type) {
+size_t getTypeByteSize_linux_x86_64(Type type) {
   // We have to round up to the upper multiplier of 8
   // Because of the weird but good CPU thing called
   // Memory Alignment
@@ -18,5 +16,3 @@ size_t getTypeByteSize(Type type) {
   }
   return 0;
 }
-
-#endif

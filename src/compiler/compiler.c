@@ -116,7 +116,8 @@ int getVariableOffset(Program *program, CompileVariable *variable) {
     }
     return 8 + parentOffset;
   }
-  NameData* getElementFromHashTable(program->variables, variable->nameData->name);
+  // NameData* getElementFromHashTable(program->variables, variable->nameData->name);
+  return 0;
 }
 
 void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int offset, HashTable *parentVariables, HashTable *globalVariables) {
