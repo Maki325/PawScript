@@ -17,8 +17,7 @@ Program *createProgram() {
   program->instructions = calloc(program->capacity, sizeof(Token*));
   program->functions = createHashTable(256);
   program->variables = createHashTable(256);
-  program->variableOffset = 8;
-  // Starting at 8 because we push RBP onto the stack before we start the program
+  program->variableOffset = 0;
 
   return program;
 }
@@ -654,6 +653,10 @@ NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData
 
   element->mutable = nameData->mutable;
 
+  int32_t *offset = malloc(sizeof(int32_t));
+  *offset = 0;
+  element->offset = offset;
+
   const size_t newNameLength = 4 +
         (program->id == 0 ? 1 : ((int) log10(program->id) + 1)) +
         1 + (i == 0 ? 1 : ((int) log10(i) + 1)) + 1;
@@ -670,7 +673,8 @@ NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData
 bool isOperationTokenType(TokenType type) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in isOperationTokenType!");
   return type == TOKEN_ADD || type == TOKEN_SUBTRACT
-          || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN;
+          || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN
+          || type == TOKEN_EQUALS|| type == TOKEN_NOT_EQUALS;
 }
 
 void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
@@ -710,6 +714,7 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
         inputName->name    = element->name;
         inputName->type    = element->type;
         inputName->mutable = element->mutable;
+        inputName->offset  = element->offset;
       }
 
       crossreferenceVariables(body, nameMap);
@@ -720,8 +725,9 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
       NameMapValue *functionElement = createAndAddNameMapVariable(nameMap, functionName, program, i);
       *functionElement->type = TYPE_FUNCTION;
       functionName->name    = functionElement->name;
-      functionName->type    = functionName->type;
-      functionName->mutable = functionName->mutable;
+      functionName->type    = functionElement->type;
+      functionName->offset  = functionElement->offset;
+      functionName->mutable = functionElement->mutable;
 
       continue;
     } else if(shouldGoDeeper(instruction->type)) {
@@ -749,6 +755,7 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
         value->name    = element->name;
         value->type    = element->type;
         value->mutable = element->mutable;
+        value->offset  = element->offset;
         continue;
       }
     }
@@ -771,6 +778,7 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
     value->name    = element->name;
     value->type    = element->type;
     value->mutable = element->mutable;
+    value->offset  = element->offset;
   }
 
   deleteHashTable(nameMap);
@@ -972,13 +980,14 @@ void calculateOffsets(Program *program) {
       FunctionDefinition *data = token->data;
       ASSERT(data, "Unreachable!");
       TokenPriorityData *inputs = data->parameters;
-      int offset = 0;
+      int32_t offset = 8;
       for(size_t j = 0;j < inputs->count;j++) {
         Token *input = inputs->instructions[j];
         if(input->type != TOKEN_NAME) continue;
         NameData *inputName = input->data;
-        inputName->offset = offset - getTypeByteSize(*inputName->type);
-        offset -= inputName->offset;
+        ASSERT(inputName->offset != NULL, "Unreachable");
+        *inputName->offset = offset + getTypeByteSize(*inputName->type);
+        offset = *inputName->offset;
       }
 
       calculateOffsets(data->body);
@@ -990,22 +999,11 @@ void calculateOffsets(Program *program) {
   }
   HashTable *variables = program->variables;
   for(size_t i = 0;i < variables->capacity;i++) {
-    // printf("Variable: %zu, program: %p\n", i, program);
     if(variables->elements[i].key == NULL) continue;
-    printf("Exists Variable: %zu, program: %p\n", i, program);
     NameData *variable = variables->elements[i].value;
-    // {
-    //   const char *variableName;
-    //   const char *name;
-    //   Type *type;
-    //   bool mutable;
-    //   int32_t offset;
-    // }
-    printf("variable->type: %p\n", variable->type);
-    printf("variable: {varName: %s, name: %s, mutable: %d, offset: %"PRId32"}\n",
-      variable->variableName, variable->name, variable->mutable, variable->offset);
-    variable->offset = program->variableOffset + getTypeByteSize(*variable->type);
-    program->variableOffset += variable->offset;
+    if(*variable->offset != 0) continue;
+    *variable->offset = program->variableOffset - getTypeByteSize(*variable->type);
+    program->variableOffset = *variable->offset;
   }
 }
 
@@ -1017,8 +1015,8 @@ bool canBeUsedInArithmeticOperations(TokenType type) {
 bool canBeUsedInComparisonOperations(TokenType type) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in canBeUsedInComparisonOperations!");
   return type == TOKEN_NAME || type == TOKEN_VALUE || type == TOKEN_ADD
-          || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY
-          || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN;
+        || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY
+        || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN;
 }
 
 void crossreferenceOperations(Program *program) {
@@ -1411,6 +1409,11 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   startClock = clock() - startClock;
   printf("[LOG]: Typeseting                   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
+
+  calculateOffsets(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: Calculating offsets          : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
   
   removeFunctionTokens(program);
   startClock = clock() - startClock;
@@ -1420,13 +1423,6 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   createFunctionCalls(program);
   startClock = clock() - startClock;
   printf("[LOG]: Creating function calls      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  startClock = clock();
-
-  printProgram(program, 0);
-
-  calculateOffsets(program);
-  startClock = clock() - startClock;
-  printf("[LOG]: Calculating offsets          : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   printProgram(program, 0);

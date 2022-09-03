@@ -65,6 +65,7 @@ void printProgram(Program *program, unsigned int depth) {
       printProgram(data->body, funcDepth + 2 * TAB_SPACES);
     }
   }
+  printf("%*s - offset: %" PRIi32 "\n", depth, "", program->variableOffset);
   printf("%*s - instructions (%zu):\n", depth, "", program->count);
   for(size_t i = 0; i < program->count;i++) {
     Token *token = program->instructions[i];
@@ -85,9 +86,9 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     case TOKEN_NAME: {
       NameData *value = token->data;
       if(!value->type) {
-        printf("NAME: %s, CODE NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d\n", value->variableName, value->name, value->mutable);
+        printf("NAME: %s, CODE NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, value->name, value->mutable, *value->offset);
       } else {
-        printf("NAME: %s, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d\n", value->variableName, value->name, value->type, getTypeName(*((Type *) value->type)), value->mutable);
+        printf("NAME: %s, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, value->name, value->type, getTypeName(*((Type *) value->type)), value->mutable, *value->offset);
       }
       break;
     }

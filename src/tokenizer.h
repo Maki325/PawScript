@@ -156,7 +156,7 @@ typedef struct NameData {
   const char *name;
   Type *type;
   bool mutable;
-  int32_t offset;
+  int32_t *offset;
 } NameData;
 
 typedef struct TokenPriorityData {
@@ -189,6 +189,7 @@ typedef struct NameMapValue {
   const char *name;
   Type *type;
   bool mutable;
+  int32_t *offset;
 } NameMapValue;
 
 typedef struct BinaryOperationData {
