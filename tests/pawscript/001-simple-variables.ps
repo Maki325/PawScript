@@ -1,0 +1,21 @@
+main => (): int {
+  // Bool
+  mut bool_a = false;
+  beta_print bool_a;
+  bool_a = true;
+  beta_print bool_a;
+
+  // 64 bit int
+  const int_a = 78;
+  beta_print int_a;
+
+  // Bool to int conversion
+  const int_b: int = bool_a;
+  beta_print int_b;
+  
+  // Int to bool conversion
+  const bool_b: bool = int_a;
+  beta_print bool_b;
+
+  return 0;
+}

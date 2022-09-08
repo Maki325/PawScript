@@ -114,6 +114,121 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
   switch (next->type) {
     case TOKEN_VALUE: {
       ValueData *valueData = next->data;
+
+      switch(*data->type) {
+        case TYPE_INT: {
+          switch(valueData->type) {
+            case TYPE_INT: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN INT %" PRIu64 " VALUE INT -> %s ---\n",
+                *((uint64_t*) valueData->data),
+                data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov QWORD [rbp %" PRIi32 "], %" PRIu64 "\n",
+                *data->offset, *((uint64_t*) valueData->data)
+              );
+
+
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN INT %" PRIu64 " VALUE INT -> %s ---\n",
+                "; --- ASSIGN NAME INT %s -> INT %s ---\n",
+                valueData->data, data->variableName
+              );
+              fprintf(
+                compilerOptions->output,
+                "mov rax, [rbp %" PRIi32 "]\n",
+                *nextData->offset
+              );
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %" PRIi32 "], rax\n",
+                *data->offset
+              );
+              break;
+            }
+            case TYPE_BOOL: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN NAME BOOL %s -> INT %s ---\n",
+                nextData->variableName, data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "movzx eax, byte [rbp %" PRIi32 "]\n",
+                // We can use EAX, as it zeroes out the whole RAX for some reason
+                *nextData->offset
+              );
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %" PRIi32 "], rax\n",
+                *data->offset
+              );
+              break;
+            }
+            default: {
+              ASSERT(true, "Type not supported!");
+            }
+          }
+          break;
+        }
+        case TYPE_BOOL: {
+          switch(*nextData->type) {
+            case TYPE_BOOL: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN NAME BOOL %s -> BOOL %s ---\n",
+                nextData->variableName, data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov al, [rbp %" PRIi32 "]\n",
+                *nextData->offset
+              );
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %" PRIi32 "], al\n",
+                *data->offset
+              );
+              break;
+            }
+            case TYPE_INT: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN NAME INT %s -> BOOL %s ---\n",
+                nextData->variableName, data->variableName
+              );
+              fprintf(
+                compilerOptions->output,
+                "mov rax, [rbp %" PRIi32 "]\n",
+                *nextData->offset
+              );
+              fputs("and rax, 1\n", compilerOptions->output);
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %" PRIi32 "], rax\n",
+                *data->offset
+              );
+              break;
+            }
+            default: {
+              ASSERT(true, "Type not supported!");
+            }
+          }
+          break;
+        }
+        default: {
+          ASSERT(true, "Type not supported!");
+          break;
+        }
+      }
+
       switch (valueData->type) {
         case TYPE_INT: {
           fprintf(
@@ -227,12 +342,12 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 "; --- ASSIGN NAME INT %s -> BOOL %s ---\n",
                 nextData->variableName, data->variableName
               );
-
               fprintf(
                 compilerOptions->output,
                 "mov rax, [rbp %" PRIi32 "]\n",
                 *nextData->offset
               );
+              fputs("and rax, 1\n", compilerOptions->output);
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %" PRIi32 "], rax\n",
@@ -282,8 +397,6 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
   (void) offset;
   (void) variables;
   (void) globalVariables;
-
-  printf("program->count: %zu\n", program->count);
 
   if(program->functions && program->functions->size) {
     for(size_t i = 0; i < program->functions->capacity;i++) {

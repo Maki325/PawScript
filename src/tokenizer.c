@@ -110,22 +110,23 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
   token->wasInPriority = false;
   token->data = NULL;
 
-  if(strncmp("int", createOptions->string, 3) == 0) {
+  // 3 4 4 4 5
+  if(strncmp("int", createOptions->string, max(createOptions->length, 3)) == 0) {
     createOptions->length -= 3;
     token->type = TOKEN_TYPE;
     token->data = (void*) TYPE_INT;
     return token;
-  } else if(strncmp("bool", createOptions->string, 4) == 0) {
+  } else if(strncmp("bool", createOptions->string, max(createOptions->length, 4)) == 0) {
     createOptions->length -= 4;
     token->type = TOKEN_TYPE;
     token->data = (void*) TYPE_BOOL;
     return token;
-  } else if(strncmp("void", createOptions->string, 4) == 0) {
+  } else if(strncmp("void", createOptions->string, max(createOptions->length, 4)) == 0) {
     createOptions->length -= 4;
     token->type = TOKEN_TYPE;
     token->data = (void*) TYPE_VOID;
     return token;
-  } else if(strncmp("true", createOptions->string, 4) == 0) {
+  } else if(strncmp("true", createOptions->string, max(createOptions->length, 4)) == 0) {
     createOptions->length -= 4;
     token->type = TOKEN_VALUE;
     ValueData *value = malloc(sizeof(ValueData));
@@ -134,7 +135,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     *((uint8_t*) value->data) = 1;
     token->data = value;
     return token;
-  } else if(strncmp("false", createOptions->string, 5) == 0) {
+  } else if(strncmp("false", createOptions->string, max(createOptions->length, 5)) == 0) {
     createOptions->length -= 5;
     token->type = TOKEN_VALUE;
     ValueData *value = malloc(sizeof(ValueData));
@@ -1424,8 +1425,6 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   startClock = clock() - startClock;
   printf("[LOG]: Creating function calls      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
-
-  printProgram(program, 0);
 
   return program;
 }

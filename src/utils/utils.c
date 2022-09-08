@@ -86,9 +86,9 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     case TOKEN_NAME: {
       NameData *value = token->data;
       if(!value->type) {
-        printf("NAME: %s, CODE NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, value->name, value->mutable, *value->offset);
+        printf("NAME: %s, CODE NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, value->name, value->mutable, value->offset != NULL ? *value->offset : 0);
       } else {
-        printf("NAME: %s, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, value->name, value->type, getTypeName(*((Type *) value->type)), value->mutable, *value->offset);
+        printf("NAME: %s, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, value->name, value->type, getTypeName(*((Type *) value->type)), value->mutable, value->offset != NULL ? *value->offset : 0);
       }
       break;
     }
@@ -151,7 +151,12 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     }
     case TOKEN_RETURN: {
       TokenPriorityData *priorityData = token->data;
-      printf("RETURN: %p, count: %zu\n", priorityData, priorityData->count);
+      printf("RETURN: %p", priorityData);
+      if(!priorityData) {
+        putc('\n', stdout);
+        break;
+      }
+      printf(", count: %zu\n", priorityData->count);
       for(size_t i = 0;i < priorityData->count;i++) {
         printToken(priorityData->instructions[i], depth + 1 * TAB_SPACES, i);
       }
@@ -176,6 +181,7 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     }
   }
 }
+
 void printn(const char* string, size_t length) {
   for(size_t i = 0;i < length;i++) {
     printf("%c", string[i]);
