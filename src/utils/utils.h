@@ -29,6 +29,10 @@ int strnint(const char *str, size_t n);
 uint32_t strnuint32(const char *str, size_t n);
 uint64_t strnuint64(const char *str, size_t n);
 
+const char *getBoolStringFromValue(uint8_t *value);
+uint8_t getNormalizedBoolValueFromInt64(uint64_t *value);
+const char *getSign(int32_t value);
+
 FILE *openFile(const char *filePath, const char *modes);
 
 #endif

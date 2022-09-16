@@ -121,53 +121,34 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
             case TYPE_INT: {
               fprintf(
                 compilerOptions->output,
-                "; --- ASSIGN INT %" PRIu64 " VALUE INT -> %s ---\n",
+                "; --- ASSIGN INT VALUE %" PRIu64 " -> INT %s ---\n",
                 *((uint64_t*) valueData->data),
                 data->variableName
               );
 
               fprintf(
                 compilerOptions->output,
-                "mov QWORD [rbp %" PRIi32 "], %" PRIu64 "\n",
-                *data->offset, *((uint64_t*) valueData->data)
-              );
-
-
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN INT %" PRIu64 " VALUE INT -> %s ---\n",
-                "; --- ASSIGN NAME INT %s -> INT %s ---\n",
-                valueData->data, data->variableName
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov rax, [rbp %" PRIi32 "]\n",
-                *nextData->offset
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %" PRIi32 "], rax\n",
-                *data->offset
+                "mov QWORD [rbp %s %" PRIi32 "], %" PRIu64 "\n",
+                getSign(*data->offset),
+                abs(*data->offset),
+                *((uint64_t*) valueData->data)
               );
               break;
             }
             case TYPE_BOOL: {
               fprintf(
                 compilerOptions->output,
-                "; --- ASSIGN NAME BOOL %s -> INT %s ---\n",
-                nextData->variableName, data->variableName
+                "; --- ASSIGN BOOL VALUE %" PRIu8 " -> INT %s ---\n",
+                *((uint8_t*) valueData->data),
+                data->variableName
               );
 
               fprintf(
                 compilerOptions->output,
-                "movzx eax, byte [rbp %" PRIi32 "]\n",
-                // We can use EAX, as it zeroes out the whole RAX for some reason
-                *nextData->offset
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %" PRIi32 "], rax\n",
-                *data->offset
+                "mov BYTE [rbp %s %" PRIi32 "], %" PRIu8 "\n",
+                getSign(*data->offset),
+                abs(*data->offset),
+                *((uint8_t*) valueData->data)
               );
               break;
             }
@@ -178,42 +159,39 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
           break;
         }
         case TYPE_BOOL: {
-          switch(*nextData->type) {
+          switch(valueData->type) {
             case TYPE_BOOL: {
               fprintf(
                 compilerOptions->output,
-                "; --- ASSIGN NAME BOOL %s -> BOOL %s ---\n",
-                nextData->variableName, data->variableName
+                "; --- ASSIGN BOOL VALUE %s -> BOOL %s ---\n",
+                getBoolStringFromValue(valueData->data),
+                data->variableName
               );
 
               fprintf(
                 compilerOptions->output,
-                "mov al, [rbp %" PRIi32 "]\n",
-                *nextData->offset
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %" PRIi32 "], al\n",
-                *data->offset
+                "mov BYTE [rbp %s %" PRIi32 "], %" PRIu8 "\n",
+                getSign(*data->offset),
+                abs(*data->offset),
+                *((uint8_t*) valueData->data)
               );
               break;
             }
             case TYPE_INT: {
               fprintf(
                 compilerOptions->output,
-                "; --- ASSIGN NAME INT %s -> BOOL %s ---\n",
-                nextData->variableName, data->variableName
+                "; --- ASSIGN INT VALUE %" PRIu64 " (Normalized: %" PRIu8 ") -> BOOL %s ---\n",
+                *((uint64_t*) valueData->data),
+                getNormalizedBoolValueFromInt64(valueData->data),
+                data->variableName
               );
+
               fprintf(
                 compilerOptions->output,
-                "mov rax, [rbp %" PRIi32 "]\n",
-                *nextData->offset
-              );
-              fputs("and rax, 1\n", compilerOptions->output);
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %" PRIi32 "], rax\n",
-                *data->offset
+                "mov BYTE [rbp %s %" PRIi32 "], %" PRIu8 "\n",
+                getSign(*data->offset),
+                abs(*data->offset),
+                getNormalizedBoolValueFromInt64(valueData->data)
               );
               break;
             }
@@ -226,41 +204,6 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
         default: {
           ASSERT(true, "Type not supported!");
           break;
-        }
-      }
-
-      switch (valueData->type) {
-        case TYPE_INT: {
-          fprintf(
-            compilerOptions->output,
-            "; --- ASSIGN %" PRIu64 " VALUE INT -> %s ---\n",
-            *((uint64_t*) valueData->data),
-            data->variableName
-          );
-
-          fprintf(
-            compilerOptions->output,
-            "mov QWORD [rbp %" PRIi32 "], %" PRIu64 "\n",
-            *data->offset, *((uint64_t*) valueData->data)
-          );
-          break;
-        }
-        case TYPE_BOOL: {
-          fprintf(
-            compilerOptions->output,
-            "; --- ASSIGN %s VALUE BOOL -> %s ---\n",
-            *((uint8_t*) valueData->data) == 0 ? "false" : "true",
-            data->variableName
-          );
-          fprintf(
-            compilerOptions->output,
-            "mov BYTE [rbp %" PRIi32 "], %" PRIu8 "\n",
-            *data->offset, *((uint8_t*) valueData->data)
-          );
-          break;
-        }
-        default: {
-          ASSERT(true, "Type not supported!");
         }
       }
       break;
@@ -279,13 +222,15 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               );
               fprintf(
                 compilerOptions->output,
-                "mov rax, [rbp %" PRIi32 "]\n",
-                *nextData->offset
+                "mov rax, [rbp %s %" PRIi32 "]\n",
+                getSign(*nextData->offset),
+                abs(*nextData->offset)
               );
               fprintf(
                 compilerOptions->output,
-                "mov [rbp %" PRIi32 "], rax\n",
-                *data->offset
+                "mov [rbp %s %" PRIi32 "], rax\n",
+                getSign(*data->offset),
+                abs(*data->offset)
               );
               break;
             }
@@ -298,14 +243,16 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
 
               fprintf(
                 compilerOptions->output,
-                "movzx eax, byte [rbp %" PRIi32 "]\n",
+                "movzx eax, BYTE [rbp %s %" PRIi32 "]\n",
                 // We can use EAX, as it zeroes out the whole RAX for some reason
-                *nextData->offset
+                getSign(*nextData->offset),
+                abs(*nextData->offset)
               );
               fprintf(
                 compilerOptions->output,
-                "mov [rbp %" PRIi32 "], rax\n",
-                *data->offset
+                "mov [rbp %s %" PRIi32 "], rax\n",
+                getSign(*data->offset),
+                abs(*data->offset)
               );
               break;
             }
@@ -326,13 +273,15 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
 
               fprintf(
                 compilerOptions->output,
-                "mov al, [rbp %" PRIi32 "]\n",
-                *nextData->offset
+                "mov al, [rbp %s %" PRIi32 "]\n",
+                getSign(*nextData->offset),
+                abs(*nextData->offset)
               );
               fprintf(
                 compilerOptions->output,
-                "mov [rbp %" PRIi32 "], al\n",
-                *data->offset
+                "mov [rbp %s %" PRIi32 "], al\n",
+                getSign(*data->offset),
+                abs(*data->offset)
               );
               break;
             }
@@ -344,14 +293,16 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               );
               fprintf(
                 compilerOptions->output,
-                "mov rax, [rbp %" PRIi32 "]\n",
-                *nextData->offset
+                "mov rax, [rbp %s %" PRIi32 "]\n",
+                getSign(*nextData->offset),
+                abs(*nextData->offset)
               );
               fputs("and rax, 1\n", compilerOptions->output);
               fprintf(
                 compilerOptions->output,
-                "mov [rbp %" PRIi32 "], rax\n",
-                *data->offset
+                "mov [rbp %s %" PRIi32 "], rax\n",
+                getSign(*data->offset),
+                abs(*data->offset)
               );
               break;
             }
@@ -437,7 +388,8 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
 
             fprintf(
               compilerOptions->output,
-              "mov rax, %" PRIu8 "\n",
+              "mov eax, %" PRIu8 "\n",
+              // Setting EAX clears RAX
               *((uint8_t*) data->data)
             );
             break;
@@ -473,8 +425,9 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
 
         fprintf(
           compilerOptions->output,
-          "mov rdi, [rbp %" PRIi32 "]\n",
-          *data->offset
+          "mov rdi, [rbp %s %" PRIi32 "]\n",
+          getSign(*data->offset),
+          abs(*data->offset)
         );
         fputs("call print64\n", compilerOptions->output);
 

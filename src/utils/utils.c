@@ -243,6 +243,18 @@ uint64_t strnuint64(const char *str, size_t n) {
   return out;
 }
 
+const char *getBoolStringFromValue(uint8_t *value) {
+  return *value == 0 ? "false" : "true";
+}
+
+uint8_t getNormalizedBoolValueFromInt64(uint64_t *value) {
+  return *value & 1;
+}
+
+const char *getSign(int32_t value) {
+  return value >= 0 ? "+" : "-";
+}
+
 FILE *openFile(const char *filePath, const char *modes) {
   FILE *file = fopen(filePath, modes);
   if(!file) {
