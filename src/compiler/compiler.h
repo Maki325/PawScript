@@ -28,7 +28,24 @@ CompileVariable *createVariable(NameData *nameData, int offset);
 void addPrintFunction(FILE *out);
 void prepareFileForCompile(FILE *out);
 void postCompile(FILE *out);
-bool generateBinaryOperationAsm(Token *token, FILE *out, char *error);
+
+/**
+ * @brief Generated the asm code of the operation
+ * 
+ * @param compilerOptions The pointer to CompilerOptions struct
+ * @param operationToken The pointer to the Token with one of the binary operations types (See @link generateAssignAsm test
+ */
+void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operationToken);
+
+/**
+ * @brief Generates the asm code of the assign token
+ * 
+ * @param compilerOptions The pointer to CompilerOptions struct
+ * @param data The pointer to the data of the variable we want to assign to
+ * @param program The pointer to the program of the variable
+ * @param i Pointer to the index variable that's used in the parent function
+ */
+void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program *program, size_t *i);
 
 /**
  * @brief Generates the asm code of the function

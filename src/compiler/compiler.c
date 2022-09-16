@@ -109,6 +109,10 @@ Token *nextToken(Program *program, size_t *i) {
   return token;
 }
 
+void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operationToken) {
+
+}
+
 void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program *program, size_t *i) {
   Token *next = nextToken(program, i);
   switch (next->type) {
