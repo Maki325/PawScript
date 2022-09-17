@@ -4,10 +4,19 @@ main => (): int {
 
   const c = a + b;
   beta_print c;
-  // const d = c + (a + b);
-  // beta_print d;
+  const d = c + (a + b);
+  beta_print d;
 
-  // const same = c == d;
-  // beta_print same;
+  const not_same = c == d;
+  beta_print not_same;
+
+  const not_same2 = c == 4654;
+  beta_print not_same2;
+
+  const same = c == c;
+  beta_print same;
+
+  const same2 = c == 131;
+  beta_print same2;
 
 }

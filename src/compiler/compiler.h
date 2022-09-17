@@ -33,7 +33,7 @@ void postCompile(FILE *out);
  * @brief Generated the asm code of the operation
  * 
  * @param compilerOptions The pointer to CompilerOptions struct
- * @param operationToken The pointer to the Token with one of the binary operations types (See @link generateAssignAsm test
+ * @param operationToken The pointer to the Token with one of the binary operations types (See isOperationTokenType)
  */
 void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operationToken);
 

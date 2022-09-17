@@ -110,11 +110,365 @@ Token *nextToken(Program *program, size_t *i) {
 }
 
 void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operationToken) {
+  BinaryOperationData *data = operationToken->data;
+  Token *left = data->operandOne, *right = data->operandTwo;
+  fprintf(
+    compilerOptions->output,
+    "; --- BINARY OPERATION %s | TYPE %s ---\n",
+    getTokenTypeName(operationToken->type),
+    getTypeName(data->type)
+  );
 
+  switch (left->type) {
+    case TOKEN_VALUE: {
+      ValueData *valueData = left->data;
+      switch(valueData->type) {
+        case TYPE_INT: {
+          fprintf(
+            compilerOptions->output,
+            "; --- BINARY OPERATION LEFT VALUE INT %" PRIu64 " ---\n",
+            getIntValue(valueData->data)
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov rax, %" PRIu64 "\n",
+            getIntValue(valueData->data)
+          );
+          break;
+        }
+        case TYPE_BOOL: {
+          fprintf(
+            compilerOptions->output,
+            "; --- BINARY OPERATION LEFT VALUE BOOL %" PRIu8 " ---\n",
+            getBoolValue(valueData->data)
+          );
+
+          fprintf(
+            compilerOptions->output,
+            "mov eax, %" PRIu8 "\n",
+            getBoolValue(valueData->data)
+          );
+          break;
+        }
+        default: {
+          ASSERT(false, "Type not supported in `generateBinaryOperationAsm`!");
+        }
+      }
+      break;
+      break;
+    }
+    case TOKEN_NAME: {
+      NameData *nameData = left->data;
+      switch(*nameData->type) {
+        case TYPE_INT: {
+          fprintf(
+            compilerOptions->output,
+            "; --- BINARY OPERATION LEFT NAME INT %s ---\n",
+            nameData->variableName
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov rax, [rbp %s %" PRIi32 "]\n",
+            getSign(*nameData->offset),
+            abs(*nameData->offset)
+          );
+          break;
+        }
+        case TYPE_BOOL: {
+          fprintf(
+            compilerOptions->output,
+            "; --- BINARY OPERATION LEFT NAME BOOL %s ---\n",
+            nameData->variableName
+          );
+
+          fprintf(
+            compilerOptions->output,
+            "movzx eax, BYTE [rbp %s %" PRIi32 "]\n",
+            getSign(*nameData->offset),
+            abs(*nameData->offset)
+          );
+          break;
+        }
+        default: {
+          ASSERT(false, "Type not supported!");
+        }
+      }
+      break;
+    }
+    default: {
+      if(!isOperationTokenType(left->type)) {
+        if(left->type != TOKEN_PRIORITY) {
+          ASSERT(false, "Type not supported!");
+        }
+        TokenPriorityData *data = left->data;
+        if(data->count != 1) {
+          ASSERT(false, "Type not supported!");
+        }
+        left = data->instructions[0];
+      }
+      if(!isOperationTokenType(left->type)) {
+        ASSERT(false, "Type not supported!");
+      }
+      fprintf(
+        compilerOptions->output,
+        "; --- BINARY OPERATION LEFT | BINARY OPERATION ---\n"
+      );
+      generateBinaryOperationAsm(compilerOptions, left);
+      break;
+    }
+  }
+
+  switch (right->type) {
+    case TOKEN_VALUE: {
+      ValueData *valueData = right->data;
+      switch(valueData->type) {
+        case TYPE_INT: {
+          fprintf(
+            compilerOptions->output,
+            "; --- BINARY OPERATION RIGHT VALUE INT %" PRIu64 " ---\n",
+            getIntValue(valueData->data)
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov rbx, %" PRIu64 "\n",
+            getIntValue(valueData->data)
+          );
+          break;
+        }
+        case TYPE_BOOL: {
+          fprintf(
+            compilerOptions->output,
+            "; --- BINARY OPERATION RIGHT VALUE BOOL %" PRIu8 " ---\n",
+            getBoolValue(valueData->data)
+          );
+
+          fprintf(
+            compilerOptions->output,
+            "mov ebx, %" PRIu8 "\n",
+            getBoolValue(valueData->data)
+          );
+          break;
+        }
+        default: {
+          ASSERT(false, "Type not supported in `generateBinaryOperationAsm`!");
+        }
+      }
+      break;
+      break;
+    }
+    case TOKEN_NAME: {
+      NameData *nameData = right->data;
+      switch(*nameData->type) {
+        case TYPE_INT: {
+          fprintf(
+            compilerOptions->output,
+            "; --- BINARY OPERATION RIGHT NAME INT %s ---\n",
+            nameData->variableName
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov rbx, [rbp %s %" PRIi32 "]\n",
+            getSign(*nameData->offset),
+            abs(*nameData->offset)
+          );
+          break;
+        }
+        case TYPE_BOOL: {
+          fprintf(
+            compilerOptions->output,
+            "; --- BINARY OPERATION RIGHT NAME BOOL %s ---\n",
+            nameData->variableName
+          );
+
+          fprintf(
+            compilerOptions->output,
+            "movzx ebx, BYTE [rbp %s %" PRIi32 "]\n",
+            getSign(*nameData->offset),
+            abs(*nameData->offset)
+          );
+          break;
+        }
+        default: {
+          ASSERT(false, "Type not supported!");
+        }
+      }
+      break;
+    }
+    default: {
+      if(!isOperationTokenType(right->type)) {
+        if(right->type != TOKEN_PRIORITY) {
+          ASSERT(false, "Type not supported!");
+        }
+        TokenPriorityData *data = right->data;
+        if(data->count != 1) {
+          ASSERT(false, "Type not supported!");
+        }
+        right = data->instructions[0];
+      }
+      if(!isOperationTokenType(right->type)) {
+        ASSERT(false, "Type not supported!");
+      }
+
+      fprintf(
+        compilerOptions->output,
+        "; --- BINARY OPERATION RIGHT | BINARY OPERATION ---\n"
+      );
+      fputs("push rax\n", compilerOptions->output);
+      generateBinaryOperationAsm(compilerOptions, right);
+      fputs("mov rbx, rax\n", compilerOptions->output);
+      fputs("pop rax\n", compilerOptions->output);
+      break;
+    }
+  }
+
+  // TODO: [IMPORTANT]: Do operations based on byte size (i.e. only ax, or eax, or rax)
+  switch (operationToken->type) {
+    case TOKEN_ADD: {
+      fputs("add rax, rbx\n", compilerOptions->output);
+      break;
+    }
+    case TOKEN_SUBTRACT: {
+      fputs("sub rax, rbx\n", compilerOptions->output);
+      break;
+    }
+    case TOKEN_GREATER_THAN:
+    case TOKEN_LESS_THAN:
+    case TOKEN_EQUALS:
+    case TOKEN_NOT_EQUALS: {
+      fputs("push rcx\n", compilerOptions->output);
+      fputs("push rdx\n", compilerOptions->output);
+
+      // Prepare compare values
+      fputs("mov ecx, 0\n", compilerOptions->output);
+      fputs("mov edx, 1\n", compilerOptions->output);
+
+      fputs("cmp rax, rbx\n", compilerOptions->output);
+
+      // Agains, using eYx, not rYx, because speed
+      if(operationToken->type == TOKEN_GREATER_THAN) {
+        fputs("cmovg ecx, edx\n", compilerOptions->output);
+      } else if(operationToken->type == TOKEN_LESS_THAN) {
+        fputs("cmovl ecx, edx\n", compilerOptions->output);
+      } else if(operationToken->type == TOKEN_EQUALS) {
+        fputs("cmove ecx, edx\n", compilerOptions->output);
+      } else if(operationToken->type == TOKEN_NOT_EQUALS) {
+        fputs("cmovne ecx, edx\n", compilerOptions->output);
+      }
+
+      fputs("mov eax, ecx\n", compilerOptions->output);
+
+      fputs("pop rdx\n", compilerOptions->output);
+      fputs("pop rcx\n", compilerOptions->output);
+      break;
+    }
+    default: {
+      ASSERT(false, "Type not supported!");
+      break;
+    }
+  }
+
+  fprintf(
+    compilerOptions->output,
+    "; --- BINARY OPERATION %s | TYPE %s | END ---\n",
+    getTokenTypeName(operationToken->type),
+    getTypeName(data->type)
+  );
 }
 
 void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program *program, size_t *i) {
   Token *next = nextToken(program, i);
+
+  if(isOperationTokenType(next->type)) {
+    generateBinaryOperationAsm(compilerOptions, next);
+    BinaryOperationData *binaryOperationData = next->data;
+    Type operationType = binaryOperationData->type;
+
+    switch(*data->type) {
+      case TYPE_INT: {
+        switch(operationType) {
+          case TYPE_INT: {
+            fprintf(
+              compilerOptions->output,
+              "; --- ASSIGN OPERATION INT -> INT %s ---\n",
+              data->variableName
+            );
+            fprintf(
+              compilerOptions->output,
+              "mov [rbp %s %" PRIi32 "], rax\n",
+              getSign(*data->offset),
+              abs(*data->offset)
+            );
+            break;
+          }
+          case TYPE_BOOL: {
+            fprintf(
+              compilerOptions->output,
+              "; --- ASSIGN OPERATION BOOL -> INT %s ---\n",
+              data->variableName
+            );
+
+            fprintf(
+              compilerOptions->output,
+              "mov [rbp %s %" PRIi32 "], rax\n",
+              getSign(*data->offset),
+              abs(*data->offset)
+            );
+            break;
+          }
+          default: {
+            ASSERT(false, "Type not supported!");
+          }
+        }
+        break;
+      }
+      case TYPE_BOOL: {
+        switch(operationType) {
+          case TYPE_BOOL: {
+            fprintf(
+              compilerOptions->output,
+              "; --- ASSIGN OPERATION BOOL -> BOOL %s ---\n",
+              data->variableName
+            );
+
+            fputs("and rax, 1\n", compilerOptions->output);
+            fprintf(
+              compilerOptions->output,
+              "mov [rbp %s %" PRIi32 "], rax\n",
+              getSign(*data->offset),
+              abs(*data->offset)
+            );
+            break;
+          }
+          case TYPE_INT: {
+            fprintf(
+              compilerOptions->output,
+              "; --- ASSIGN OPERATION INT -> BOOL %s ---\n",
+              data->variableName
+            );
+            fputs("and rax, 1\n", compilerOptions->output);
+            fprintf(
+              compilerOptions->output,
+              "mov [rbp %s %" PRIi32 "], rax\n",
+              getSign(*data->offset),
+              abs(*data->offset)
+            );
+            break;
+          }
+          default: {
+            ASSERT(false, "Type not supported!");
+          }
+        }
+        break;
+      }
+      default: {
+        ASSERT(false, "Type not supported!");
+        break;
+      }
+    }
+
+    return;
+  }
+
   switch (next->type) {
     case TOKEN_VALUE: {
       ValueData *valueData = next->data;
@@ -157,7 +511,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               break;
             }
             default: {
-              ASSERT(true, "Type not supported!");
+              ASSERT(false, "Type not supported!");
             }
           }
           break;
@@ -200,13 +554,13 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               break;
             }
             default: {
-              ASSERT(true, "Type not supported!");
+              ASSERT(false, "Type not supported!");
             }
           }
           break;
         }
         default: {
-          ASSERT(true, "Type not supported!");
+          ASSERT(false, "Type not supported!");
           break;
         }
       }
@@ -261,7 +615,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               break;
             }
             default: {
-              ASSERT(true, "Type not supported!");
+              ASSERT(false, "Type not supported!");
             }
           }
           break;
@@ -311,20 +665,19 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               break;
             }
             default: {
-              ASSERT(true, "Type not supported!");
+              ASSERT(false, "Type not supported!");
             }
           }
           break;
         }
         default: {
-          ASSERT(true, "Type not supported!");
+          ASSERT(false, "Type not supported!");
           break;
         }
       }
 
       break;
     }
-
     default: {
       fprintf(stderr, "Error: Token type `%s` not implemented in generateAssignAsm!\n", getTokenTypeName(next->type));
       exit(-1);
@@ -346,12 +699,7 @@ NameData *getProgramVariable(Program *program, const char* name) {
 void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int offset, HashTable *parentVariables, HashTable *globalVariables) {
   HashTable *variables = createHashTableFrom(parentVariables);
   const char *name = NULL;
-
   (void) name;
-  (void) compilerOptions;
-  (void) offset;
-  (void) variables;
-  (void) globalVariables;
 
   if(program->functions && program->functions->size) {
     for(size_t i = 0; i < program->functions->capacity;i++) {
@@ -364,7 +712,6 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
 
   for(size_t i = 0;i < program->count;i++) {
     Token *token = nextToken(program, &i);
-    printf("generateProgramAsm: %s (%d)\n", getTokenTypeName(token->type), token->type);
     switch(token->type) {
       case TOKEN_NAME: {
         NameData *data = token->data;
@@ -377,6 +724,8 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
         Token *next = nextToken(program, &i);
         if(next->type == TOKEN_ASSIGN) {
           generateAssignAsm(compilerOptions, data, program, &i);
+        } else {
+          i--;
         }
         break;
       }
@@ -413,7 +762,7 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
             break;
           }
           default: {
-            ASSERT(true, "Type not supported!");
+            ASSERT(false, "Type not supported!");
           }
         }
         break;
@@ -463,6 +812,10 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
         fputs("mov rsp, rbp\n", compilerOptions->output);
         fputs("pop rbp\n", compilerOptions->output);
         fputs("ret\n", compilerOptions->output);
+        break;
+      }
+      case TOKEN_SEMICOLON: {
+        // What should it do?
         break;
       }
       default: {

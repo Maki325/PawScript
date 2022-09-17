@@ -175,6 +175,16 @@ void printToken(Token *token, unsigned int depth, size_t index) {
       }
       break;
     }
+    case TOKEN_ADD: {
+      BinaryOperationData *data = token->data;
+      printf("ADD: %p\n", data);
+      if(!data) {
+        break;
+      }
+      printToken(data->operandOne, depth + 1 * TAB_SPACES, 0);
+      printToken(data->operandTwo, depth + 1 * TAB_SPACES, 1);
+      break;
+    }
     default: {
       printf("%s\n", getTokenTypeName(token->type));
       break;
@@ -253,6 +263,13 @@ uint8_t getNormalizedBoolValueFromInt64(uint64_t *value) {
 
 const char *getSign(int32_t value) {
   return value >= 0 ? "+" : "-";
+}
+
+uint64_t getIntValue(void *data) {
+  return *((uint64_t*) data);
+}
+uint8_t getBoolValue(void *data) {
+  return *((uint8_t*) data);
 }
 
 FILE *openFile(const char *filePath, const char *modes) {

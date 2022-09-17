@@ -220,6 +220,7 @@ size_t isStringTokenFromRight(const char *string, size_t length);
 int crossreferenceBlocks(Program *program);
 void cleanupElseIfs(Program *program);
 
+bool shouldGoDeeperBase(TokenType type);
 bool shouldGoDeeper(TokenType type);
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...);
 

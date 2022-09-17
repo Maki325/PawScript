@@ -33,6 +33,9 @@ const char *getBoolStringFromValue(uint8_t *value);
 uint8_t getNormalizedBoolValueFromInt64(uint64_t *value);
 const char *getSign(int32_t value);
 
+uint64_t getIntValue(void *data);
+uint8_t getBoolValue(void *data);
+
 FILE *openFile(const char *filePath, const char *modes);
 
 #endif

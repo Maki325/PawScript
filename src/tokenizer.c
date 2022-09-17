@@ -451,8 +451,8 @@ void cleanupElseIfs(Program *program) {
   }
 }
 
-bool shouldGoDeeper(TokenType type) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in shouldGoDeeper!");
+bool shouldGoDeeperBase(TokenType type) {
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in shouldGoDeeperBase!");
   switch (type) {
     case TOKEN_PRIORITY:
     case TOKEN_SCOPE:
@@ -467,10 +467,20 @@ bool shouldGoDeeper(TokenType type) {
   }
 }
 
+bool shouldGoDeeper(TokenType type) {
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in shouldGoDeeper!");
+  return shouldGoDeeperBase(type) || isOperationTokenType(type);
+}
+
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in goDeeper!");
   Program *program = NULL, *program2 = NULL;
   Program prog;
+  prog.id = 0;
+  prog.parent = NULL;
+  prog.variables = NULL;
+  prog.functions = NULL;
+
   size_t *p_count = NULL;
   switch (token->type) {
     case TOKEN_PRIORITY: {
@@ -479,9 +489,6 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
       prog.count = priorityData->count;
       prog.capacity = priorityData->count;
       prog.instructions = priorityData->instructions;
-      prog.parent = NULL;
-      prog.id = 0;
-      prog.functions = NULL;
       program = &prog;
       p_count = &priorityData->count;
       break;
@@ -497,9 +504,6 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
       prog.count = 1;
       prog.capacity = 1;
       prog.instructions = &block->condition;
-      prog.parent = NULL;
-      prog.id = 0;
-      prog.functions = NULL;
 
       program2 = &prog;
       break;
@@ -515,9 +519,6 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
       prog.count = data->parameters->count;
       prog.capacity = data->parameters->count;
       prog.instructions = data->parameters->instructions;
-      prog.parent = NULL;
-      prog.id = 0;
-      prog.functions = NULL;
       program = &prog;
       p_count = &data->parameters->count;
       
@@ -532,20 +533,83 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
       prog.count = priorityData->count;
       prog.capacity = priorityData->count;
       prog.instructions = priorityData->instructions;
-      prog.parent = NULL;
-      prog.id = 0;
-      prog.functions = NULL;
       program = &prog;
       p_count = &priorityData->count;
       break;
     }
+    
+    case TOKEN_ADD:
+    case TOKEN_SUBTRACT:
+    case TOKEN_GREATER_THAN:
+    case TOKEN_LESS_THAN:
+    case TOKEN_EQUALS:
+    case TOKEN_NOT_EQUALS: {
+      BinaryOperationData *data = token->data;
+      return;
+      if(!data) return;
+      if(data->operandOne) {
+        if(shouldGoDeeper(data->operandOne->type)) {
+          if(paramCount == 0) {
+            goDeeper(data->operandOne, fnc, paramCount);
+          } else if(paramCount == 1) {
+            va_list argp;
+            va_start(argp, paramCount);
+            goDeeper(data->operandOne, fnc, paramCount, va_arg(argp, void*));
+            va_end(argp);
+          } else {
+            fprintf(stderr, "ERROR: Unsupported `paramCount` binary operation at: %s:%zu:%zu\n",
+                  token->file, token->line, token->column);
+            exit(-1);
+          }
+        } else {
+          prog.count = 1;
+          prog.capacity = 1;
+          prog.instructions = &data->operandOne;
+          program = &prog;
+          p_count = &prog.count;
+          break;
+        }
+      }
+      if(data->operandTwo) {
+        if(shouldGoDeeper(data->operandTwo->type)) {
+          if(paramCount == 0) {
+            goDeeper(data->operandTwo, fnc, paramCount);
+          } else if(paramCount == 1) {
+            va_list argp;
+            va_start(argp, paramCount);
+            goDeeper(data->operandTwo, fnc, paramCount, va_arg(argp, void*));
+            va_end(argp);
+          } else {
+            fprintf(stderr, "ERROR: Unsupported `paramCount` binary operation at: %s:%zu:%zu\n",
+                  token->file, token->line, token->column);
+            exit(-1);
+          }
+        } else {
+          prog.count = 1;
+          prog.capacity = 1;
+          prog.instructions = &data->operandTwo;
+          p_count = &prog.count;
+          if(program) {
+            program2 = &prog;
+          } else {
+            program = &prog;
+          }
+          break;
+        }
+      }
+      if(!program) {
+        return;
+      }
+      break;
+    }
+    
     default: {
-      ASSERT(true, "Unreachable in `goDeeper`!");
+      ASSERT(false, "Unreachable in `goDeeper`!");
       break;
     }
   }
   if(!program) {
-    ASSERT(true, "Unreachable in `goDeeper`!");
+    ASSERT(false, "Unreachable in `goDeeper`!");
     return;
   }
   
@@ -999,6 +1063,7 @@ void calculateOffsets(Program *program) {
     }
   }
   HashTable *variables = program->variables;
+  if(!variables) return;
   for(size_t i = 0;i < variables->capacity;i++) {
     if(variables->elements[i].key == NULL) continue;
     NameData *variable = variables->elements[i].value;
@@ -1024,10 +1089,6 @@ void crossreferenceOperations(Program *program) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *instruction = program->instructions[i];
-    if(shouldGoDeeper(instruction->type)) {
-      goDeeper(instruction, (goDeeperFunction) crossreferenceOperations, 0);
-      continue;
-    }
 
     switch(instruction->type) {
       case TOKEN_ADD:
@@ -1077,6 +1138,10 @@ void crossreferenceOperations(Program *program) {
       }
     
       default: break;
+    }
+    if(shouldGoDeeper(instruction->type)) {
+      goDeeper(instruction, (goDeeperFunction) crossreferenceOperations, 0);
+      continue;
     }
   }
 
@@ -1432,6 +1497,8 @@ Program *createProgramFromFile(const char *filePath, char *error) {
 // Instructions
 
 InstructionType INSTRUCTION_TYPES[] = {
+  {.name = "==",         .tokenType = TOKEN_EQUALS,            .length = 2,  .fromRight = true },
+  {.name = "!=",         .tokenType = TOKEN_NOT_EQUALS,        .length = 2,  .fromRight = true },
   {.name = "=>",         .tokenType = TOKEN_DECLARE_FUNCTION,  .length = 2,  .fromRight = true },
   {.name = ":",          .tokenType = TOKEN_ASSIGN_TYPE,       .length = 1,  .fromRight = true },
   {.name = ";",          .tokenType = TOKEN_SEMICOLON,         .length = 1,  .fromRight = true },
@@ -1452,8 +1519,6 @@ InstructionType INSTRUCTION_TYPES[] = {
   {.name = "]",          .tokenType = TOKEN_BRACKETS_CLOSE,    .length = 1,  .fromRight = true },
   {.name = "if",         .tokenType = TOKEN_IF,                .length = 2,  .fromRight = false},
   {.name = "else",       .tokenType = TOKEN_ELSE,              .length = 4,  .fromRight = false},
-  {.name = "==",         .tokenType = TOKEN_EQUALS,            .length = 2,  .fromRight = true },
-  {.name = "!=",         .tokenType = TOKEN_NOT_EQUALS,        .length = 2,  .fromRight = true },
   {.name = "return",     .tokenType = TOKEN_RETURN,            .length = 6,  .fromRight = false},
   {.name = NULL,         .tokenType = -1,                      .length = 0,  .fromRight = false},
 };

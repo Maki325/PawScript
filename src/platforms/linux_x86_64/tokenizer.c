@@ -6,11 +6,12 @@ size_t getTypeByteSize_linux_x86_64(Type type) {
   // Because of the weird but good CPU thing called
   // Memory Alignment
   switch (type) {
-    case TYPE_INT:  return 8; // Actual size: 8
-    case TYPE_BOOL: return 8; // Actual size: 1
+    case TYPE_INT:      return 8; // Actual size: 8
+    case TYPE_BOOL:     return 8; // Actual size: 1
+    case TYPE_FUNCTION: return 0;
   
     default: {
-      ASSERT(true, "Unreachable in `getTypeByteSize`!");
+      ASSERT(false, "Unreachable in `getTypeByteSize`!");
       break;
     }
   }
