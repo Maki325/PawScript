@@ -77,22 +77,40 @@ void prepareFileForCompile(FILE *out) {
   fputs("section .text\n", out);
   addPrintFunction(out);
 }
-void postCompile(FILE *out) {
-  fputs("global _start\n", out);
-  fputs("_start:\n", out);
-  fputs("call main\n", out);
+void postCompile(CompilerOptions *compilerOptions) {
+  fputs("global _start\n", compilerOptions->output);
+  fputs("_start:\n", compilerOptions->output);
+
+  char *mainFunctioName = NULL;
+  HashTable *functions = compilerOptions->program->functions;
+  for(size_t i = 0;i < functions->capacity;i++) {
+    if(functions->elements[i].key == NULL) {
+      continue;
+    }
+    FunctionDefinition *data = functions->elements[i].value;
+    if(data->isMain) {
+      if(mainFunctioName) {
+        exitError(ERROR_MULTIPLE_MAIN_FUNCTIONS);
+      }
+      mainFunctioName = (char*) data->name;
+    }
+  }
+  if(!mainFunctioName) {
+    exitError(ERROR_NO_MAIN_FUNCTION);
+  }
+
+  fprintf(compilerOptions->output, "call %s\n", mainFunctioName);
   // RDI is the return code of the program
   // Which is returned from the main function in the RAX register
-  fputs("mov rdi, rax\n", out);
+  fputs("mov rdi, rax\n", compilerOptions->output);
   // RAX is the syscall code for exiting the program
-  fputs("mov rax, 60\n", out);
-  fputs("syscall\n", out);
+  fputs("mov rax, 60\n", compilerOptions->output);
+  fputs("syscall\n", compilerOptions->output);
 }
 
 void generateFunctionAsm(CompilerOptions *compilerOptions, FunctionDefinition *functionData, int offset, HashTable *parentVariables) {
   // Optimize to use register for some fields instead of stack because faster 👍
   HashTable *variables = createHashTableFrom(parentVariables);
-  // TODO: Change to use "code" name
   fprintf(compilerOptions->output, "%s:\n", functionData->name);
   fputs("push rbp\n", compilerOptions->output);
   fputs("mov rbp, rsp\n", compilerOptions->output);
@@ -1035,7 +1053,7 @@ void generateAsm(CompilerOptions *compilerOptions) {
   HashTable *globalVariables = createHashTable(256);
 
   generateProgramAsm(compilerOptions, compilerOptions->program, 0, NULL, globalVariables);
-  postCompile(out);
+  postCompile(compilerOptions);
 
   bool data = false, bss = false;
 

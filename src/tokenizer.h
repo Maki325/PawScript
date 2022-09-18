@@ -177,6 +177,7 @@ typedef struct FunctionDefinition {
   TokenPriorityData *parameters;
   Program *body;
   Type returnType;
+  bool isMain;
 } FunctionDefinition;
 
 typedef struct GoDeeperData {

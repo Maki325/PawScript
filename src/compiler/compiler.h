@@ -27,7 +27,7 @@ CompileVariable *createVariable(NameData *nameData, int offset);
 
 void addPrintFunction(FILE *out);
 void prepareFileForCompile(FILE *out);
-void postCompile(FILE *out);
+void postCompile(CompilerOptions *compilerOptions);
 
 /**
  * @brief Generated the asm code of the operation

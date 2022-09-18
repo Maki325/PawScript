@@ -3,7 +3,7 @@
 #include "tokenizer.h"
 
 const char *getPawscriptErrorName(PawscriptError error) {
-  ASSERT(ERROR_COUNT == 26, "Not all errors are implemented in getPawscriptErrorName!");
+  ASSERT(ERROR_COUNT == 27, "Not all errors are implemented in getPawscriptErrorName!");
   switch (error) {
     case ERROR_OPEN_FILE:                               return "Couldn't open file!";
     case ERROR_PARENTHESES_NOT_BALANCED:                return "Parentheses are not balanced!";
@@ -30,6 +30,8 @@ const char *getPawscriptErrorName(PawscriptError error) {
     case ERROR_FUNCTION_CALL_ARGUMENTS_MISMATCH:        return "Argument type doesn't match!";
     case ERROR_PLATFORM_NOT_SUPPORTED:                  return "Platform not supported!";
     case ERROR_UNSUPPORTED_TYPE:                        return "Type not supported!";
+    case ERROR_MULTIPLE_MAIN_FUNCTIONS:                 return "There can only be one `main` function!";
+    case ERROR_NO_MAIN_FUNCTION:                        return "There must be a `main` function!";
     default:                                            return "Unknown Error!!!";
   }
 }

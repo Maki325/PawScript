@@ -115,3 +115,23 @@ void setElementInHashTable(HashTable *hashTable, const char *key, void *value) {
   hashTable->elements[index].key = key;
   hashTable->elements[index].value = value;
 }
+
+void *removeElementFromHashTable(HashTable *hashTable, const char *key) {
+  uint64_t hash = hashKey(key);
+  size_t index = hash & (hashTable->capacity - 1);
+  
+  while(hashTable->elements[index].key != NULL) {
+    if(strcmp(hashTable->elements[index].key, key) == 0) {
+      void *value = hashTable->elements[index].value;
+
+      hashTable->elements[index].key = NULL;
+      hashTable->elements[index].value = NULL;
+
+      return value;
+    }
+    index++;
+    if(index >= hashTable->capacity) index = 0;
+  }
+
+  return NULL;
+}

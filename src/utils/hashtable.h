@@ -29,6 +29,7 @@ void *getElementFromHashTableLength(HashTable *hashTable, const char *key, size_
 void expandHashTable(HashTable *hashTable);
 void setElementInHashTable(HashTable *hashTable, const char *key, void *value);
 bool existsElementInHashTable(HashTable *hashTable, const char *key);
+void *removeElementFromHashTable(HashTable *hashTable, const char *key);
 
 
 #endif

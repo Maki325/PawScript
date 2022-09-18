@@ -695,6 +695,7 @@ void crossreferenceFunctions(Program *program) {
       function->body = functionBody->data;
       function->parameters = functionParams->data;
       function->returnType = TYPE_VOID;
+      function->isMain = strncmp(name, "main", 5) == 0;
 
       instruction->data = function;
       setElementInHashTable(program->functions, name, function);
@@ -720,6 +721,7 @@ void crossreferenceFunctions(Program *program) {
     function->body = functionBody->data;
     function->parameters = functionParams->data;
     function->returnType = (Type) functionReturnType->data;
+    function->isMain = strncmp(name, "main", 5) == 0;
 
     instruction->data = function;
     setElementInHashTable(program->functions, name, function);
@@ -811,6 +813,11 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
       functionName->type    = functionElement->type;
       functionName->offset  = functionElement->offset;
       functionName->mutable = functionElement->mutable;
+
+      // TIP: Moving the function from variable name to generated name
+      FunctionDefinition *function = removeElementFromHashTable(program->functions, functionName->variableName);
+      function->name = functionName->name;
+      setElementInHashTable(program->functions, functionName->name, function);
 
       continue;
     } else if(shouldGoDeeper(instruction->type)) {
@@ -1349,7 +1356,7 @@ void createFunctionCalls(Program *program) {
     }
 
     FunctionCallData *functionCallData = malloc(sizeof(FunctionCallData));
-    functionCallData->function = getFunctionFromProgram(program, data->variableName);
+    functionCallData->function = getFunctionFromProgram(program, data->name);
     if(next->type == TOKEN_PRIORITY) {
       TokenPriorityData *priorityData = next->data;
       if(functionCallData->function->parameters->count != priorityData->count) {
