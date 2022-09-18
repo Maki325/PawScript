@@ -3,7 +3,7 @@
 #include "tokenizer.h"
 
 const char *getPawscriptErrorName(PawscriptError error) {
-  ASSERT(ERROR_COUNT == 25, "Not all errors are implemented in getPawscriptErrorName!");
+  ASSERT(ERROR_COUNT == 26, "Not all errors are implemented in getPawscriptErrorName!");
   switch (error) {
     case ERROR_OPEN_FILE:                               return "Couldn't open file!";
     case ERROR_PARENTHESES_NOT_BALANCED:                return "Parentheses are not balanced!";
@@ -20,6 +20,7 @@ const char *getPawscriptErrorName(PawscriptError error) {
     case ERROR_VARIABLE_NO_TYPE:                        return "The variable doesn't have a type!";
     case ERROR_CANT_REASSIGN_VARIABLE_TYPE:             return "Can't reassign type of the variable!";
     case ERROR_NO_ARGUMENT_AFTER_ASSIGN:                return "An argument is needed after the assign(`=`) symbol!";
+    case ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN:           return "An unknown argument is set after the assign(`=`) symbol!";
     case ERROR_UNINITIALIZED_VARIABLE:                  return "The variable must be initialized!";
     case ERROR_OPERATION_DOESNT_HAVE_BOTH_OPERANDS:     return "Operation doesn't have all the operands!";
     case ERROR_OPERATION_NOT_ENOUGH_OPERANDS:           return "Not enought operands for operation!";

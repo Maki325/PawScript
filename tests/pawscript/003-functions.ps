@@ -1,0 +1,24 @@
+getNumberA => (): int {
+  return 4;
+}
+
+getNumberA2 => (): int {
+  return getNumberA();
+}
+
+getNumber => (): int {
+  const a = getNumberA2();
+  const b = 47;
+  const c = 33;
+
+  beta_print a;
+
+  return a + b + c - 6;
+}
+
+main => (): int {
+  const a = getNumber();
+  beta_print a;
+
+  return 0;
+}

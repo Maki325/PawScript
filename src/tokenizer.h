@@ -160,6 +160,7 @@ typedef struct NameData {
 } NameData;
 
 typedef struct TokenPriorityData {
+  struct Program *parent;
   Token **instructions;
   size_t count;
 } TokenPriorityData;

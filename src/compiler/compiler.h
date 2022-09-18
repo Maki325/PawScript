@@ -47,6 +47,9 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operati
  */
 void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program *program, size_t *i);
 
+void generateValueAsm(CompilerOptions *compilerOptions, Token *token);
+void generateNameAsm(CompilerOptions *compilerOptions, Token *token);
+
 /**
  * @brief Generates the asm code of the function
  * 

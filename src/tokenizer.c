@@ -234,6 +234,7 @@ int crossreferenceBlocks(Program *program) {
         token.column = startToken->column;
         token.type = TOKEN_PRIORITY;
         TokenPriorityData *value = malloc(sizeof(TokenPriorityData));
+        value->parent = program;
         value->instructions = tokens;
         value->count = length;
         token.data = value;
@@ -460,6 +461,7 @@ bool shouldGoDeeperBase(TokenType type) {
     case TOKEN_ELSE:
     case TOKEN_DECLARE_FUNCTION:
     case TOKEN_FUNCTION_CALL:
+    case TOKEN_RETURN:
       return true;
 
     default:
@@ -489,6 +491,7 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
       prog.count = priorityData->count;
       prog.capacity = priorityData->count;
       prog.instructions = priorityData->instructions;
+      prog.parent = priorityData->parent;
       program = &prog;
       p_count = &priorityData->count;
       break;
@@ -533,11 +536,26 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
       prog.count = priorityData->count;
       prog.capacity = priorityData->count;
       prog.instructions = priorityData->instructions;
+      prog.parent = priorityData->parent;
       program = &prog;
       p_count = &priorityData->count;
       break;
     }
-    
+    case TOKEN_RETURN: {
+      TokenPriorityData *priorityData = token->data;
+      if(priorityData == NULL) {
+        return;
+      }
+
+      prog.count = priorityData->count;
+      prog.capacity = priorityData->count;
+      prog.instructions = priorityData->instructions;
+      prog.parent = priorityData->parent;
+      program = &prog;
+      p_count = &priorityData->count;
+      break;
+    }
+
     case TOKEN_ADD:
     case TOKEN_SUBTRACT:
     case TOKEN_GREATER_THAN:
@@ -1006,9 +1024,23 @@ void typesetProgram(Program *program) {
             break;
           }
           
+          case TOKEN_FUNCTION_CALL: {
+            FunctionCallData *nextData = next->data;
+            if(*value->type == TYPE_NONE) {
+              // TODO: Add multiple types support for function token
+              *value->type = nextData->function->returnType;
+              break;
+            } else if(*value->type != nextData->function->returnType) {
+              // TODO: Add multiple types support for function token
+              typesetProgramReassignError(value->variableName, token, *value->type, nextData->function->returnType);
+              return;
+            }
+            break;
+          }
+
           default: {
             printToken(next, 0, i);
-            typesetProgramError(ERROR_NO_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+            typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
             return;
           }
         }
@@ -1215,6 +1247,7 @@ void crossreferenceOperations(Program *program) {
           j++;
         }
         TokenPriorityData *data = malloc(sizeof(TokenPriorityData));
+        data->parent = program;
         data->instructions = calloc(valueCount, sizeof(Token *));
         data->count = valueCount;
 
@@ -1268,21 +1301,12 @@ void crossreferenceOperations(Program *program) {
 
 void removeFunctionTokens(Program *program) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
-  bool resetToZero = false;
   for(size_t i = 0;i < program->count;i++) {
-    if(resetToZero) {
-      i = 0;
-      resetToZero = false;
-    }
     Token *token = program->instructions[i];
     if(token->type == TOKEN_DECLARE_FUNCTION) {
       goDeeper(token, (goDeeperFunction) removeFunctionTokens, 0);
       free(getProgramInstruction(program, i, true));
-      if(i == 0) {
-        resetToZero = true;
-      } else {
-        i--;
-      }
+      i--;
       continue;
     } else if(shouldGoDeeper(token->type)) {
       goDeeper(token, (goDeeperFunction) removeFunctionTokens, 0);
@@ -1292,7 +1316,7 @@ void removeFunctionTokens(Program *program) {
 }
 
 FunctionDefinition *getFunctionFromProgram(Program *program, const char *name) {
-  if(existsElementInHashTable(program->functions, name)) {
+  if(program->functions && existsElementInHashTable(program->functions, name)) {
     FunctionDefinition *data = getElementFromHashTable(program->functions, name);
     if(data) return data;
   }
@@ -1306,7 +1330,7 @@ void createFunctionCalls(Program *program) {
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(shouldGoDeeper(token->type)) {
-      goDeeper(token, (goDeeperFunction) removeUnneededPriorities, 0);
+      goDeeper(token, (goDeeperFunction) createFunctionCalls, 0);
       continue;
     }
     if(token->type != TOKEN_NAME) {
@@ -1348,6 +1372,7 @@ void createFunctionCalls(Program *program) {
       return;
     }
     TokenPriorityData *priorityData = functionCallData->arguments = calloc(1, sizeof(TokenPriorityData));
+    priorityData->parent = program;
     priorityData->count = 1;
     priorityData->instructions = calloc(1, sizeof(Token*));
     priorityData->instructions[0] = getProgramInstruction(program, i + 1, true);
@@ -1358,6 +1383,16 @@ void createFunctionCalls(Program *program) {
     program->instructions[i]->data = functionCallData;
 
     free(data);
+  }
+
+  HashTable *functions = program->functions;
+  if(!functions) return;
+  for(size_t i = 0;i < functions->capacity;i++) {
+    if(functions->elements[i].key == NULL) continue;
+    FunctionDefinition *data = functions->elements[i].value;
+    if(data->body) {
+      createFunctionCalls(data->body);
+    }
   }
 }
 
@@ -1471,6 +1506,11 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   printf("[LOG]: Removing Unneeded Priorities : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
+  createFunctionCalls(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: Creating function calls      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
   typesetProgram(program);
   startClock = clock() - startClock;
   printf("[LOG]: Typeseting                   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
@@ -1480,15 +1520,10 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   startClock = clock() - startClock;
   printf("[LOG]: Calculating offsets          : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
-  
+
   removeFunctionTokens(program);
   startClock = clock() - startClock;
   printf("[LOG]: Removing function tokens     : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  startClock = clock();
-  
-  createFunctionCalls(program);
-  startClock = clock() - startClock;
-  printf("[LOG]: Creating function calls      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   return program;

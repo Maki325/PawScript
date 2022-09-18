@@ -92,6 +92,7 @@ void postCompile(FILE *out) {
 void generateFunctionAsm(CompilerOptions *compilerOptions, FunctionDefinition *functionData, int offset, HashTable *parentVariables) {
   // Optimize to use register for some fields instead of stack because faster 👍
   HashTable *variables = createHashTableFrom(parentVariables);
+  // TODO: Change to use "code" name
   fprintf(compilerOptions->output, "%s:\n", functionData->name);
   fputs("push rbp\n", compilerOptions->output);
   fputs("mov rbp, rsp\n", compilerOptions->output);
@@ -373,6 +374,55 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operati
     getTokenTypeName(operationToken->type),
     getTypeName(data->type)
   );
+}
+
+void generateFunctionCallAsm(CompilerOptions *compilerOptions, Token *token) {
+  FunctionCallData *data = token->data;
+  TokenPriorityData *arguments = data->arguments;
+  FunctionDefinition *functionDefinition = data->function;
+  TokenPriorityData *parameters = functionDefinition->parameters;
+
+  fputs("push rbp\n", compilerOptions->output);
+  fputs("mov rbp, rsp\n", compilerOptions->output);
+  size_t bytes = 0;
+  for(size_t i = 0;i < arguments->count;i++) {
+    Token *arg = arguments->instructions[i];
+    if(arg->type == TOKEN_NAME) {
+      NameData *nameData = arg->data;
+      bytes += getTypeByteSize(*nameData->type);
+    } else if(arg->type == TOKEN_VALUE) {
+      ValueData *valueData = arg->data;
+      bytes += getTypeByteSize(valueData->type);
+    } else {
+      ASSERT(false, "Type not supported!");
+    }
+  }
+  fprintf(compilerOptions->output, "sub rsp, %zu\n", bytes);
+
+  bytes = 8;
+  for(size_t i = 0;i < parameters->count;i++) {
+    Token *arg = parameters->instructions[i];
+    
+    if(arg->type == TOKEN_NAME) {
+      generateNameAsm(compilerOptions, arg);
+      fprintf(compilerOptions->output, "mov [rbp - %zu], rax\n", bytes);
+
+      NameData *nameData = arg->data;
+      bytes += getTypeByteSize(*nameData->type);
+    } else if(arg->type == TOKEN_VALUE) {
+      generateValueAsm(compilerOptions, arg);
+      fprintf(compilerOptions->output, "mov [rbp - %zu], rax\n", bytes);
+
+      ValueData *valueData = arg->data;
+      bytes += getTypeByteSize(valueData->type);
+    } else {
+      ASSERT(false, "Type not supported!");
+    }
+  }
+  fprintf(compilerOptions->output, "call %s\n", functionDefinition->name);
+
+  fputs("mov rsp, rbp\n", compilerOptions->output);
+  fputs("pop rbp\n", compilerOptions->output);
 }
 
 void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program *program, size_t *i) {
@@ -678,6 +728,104 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
 
       break;
     }
+    case TOKEN_FUNCTION_CALL: {
+      FunctionCallData *functionCallData = next->data;
+      FunctionDefinition *functionDefinition = functionCallData->function;
+      const char *name = functionDefinition->name;
+      Type returnType = functionDefinition->returnType;
+      
+      generateFunctionCallAsm(compilerOptions, next);
+
+      switch(*data->type) {
+        case TYPE_INT: {
+          switch(returnType) {
+            case TYPE_INT: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN INT FUNCTION %s -> INT %s ---\n",
+                name,
+                data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %s %" PRIi32 "], rax\n",
+                getSign(*data->offset),
+                abs(*data->offset)
+              );
+              break;
+            }
+            case TYPE_BOOL: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN BOOL FUNCTION %s -> INT %s ---\n",
+                name,
+                data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %s %" PRIi32 "], rax\n",
+                getSign(*data->offset),
+                abs(*data->offset)
+              );
+              break;
+            }
+            default: {
+              ASSERT(false, "Type not supported!");
+            }
+          }
+          break;
+        }
+        case TYPE_BOOL: {
+          switch(returnType) {
+            case TYPE_BOOL: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN BOOL FUNCTION %s -> BOOL %s ---\n",
+                name,
+                data->variableName
+              );
+
+              fputs("and rax, 1\n", compilerOptions->output);
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %s %" PRIi32 "], rax\n",
+                getSign(*data->offset),
+                abs(*data->offset)
+              );
+              break;
+            }
+            case TYPE_INT: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN BOOL FUNCTION %s -> BOOL %s ---\n",
+                name,
+                data->variableName
+              );
+
+              fputs("and rax, 1\n", compilerOptions->output);
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %s %" PRIi32 "], rax\n",
+                getSign(*data->offset),
+                abs(*data->offset)
+              );
+              break;
+            }
+            default: {
+              ASSERT(false, "Type not supported!");
+            }
+          }
+          break;
+        }
+        default: {
+          ASSERT(false, "Type not supported!");
+          break;
+        }
+      }
+      break;
+    }
     default: {
       fprintf(stderr, "Error: Token type `%s` not implemented in generateAssignAsm!\n", getTokenTypeName(next->type));
       exit(-1);
@@ -696,6 +844,72 @@ NameData *getProgramVariable(Program *program, const char* name) {
   return getElementFromHashTable(program->variables, name);
 }
 
+void generateValueAsm(CompilerOptions *compilerOptions, Token *token) {
+  ValueData *data = token->data;
+  switch(data->type) {
+    case TYPE_BOOL: {
+      fprintf(
+        compilerOptions->output,
+        "; --- TOKEN VALUE BOOL %" PRIu8 " ---\n",
+        *((uint8_t*) data->data)
+      );
+
+      fprintf(
+        compilerOptions->output,
+        "mov eax, %" PRIu8 "\n",
+        // Setting EAX clears RAX
+        *((uint8_t*) data->data)
+      );
+      break;
+    }
+    case TYPE_INT: {
+      fprintf(
+        compilerOptions->output,
+        "; --- TOKEN VALUE INT %" PRIu64 " ---\n",
+        *((uint64_t*) data->data)
+      );
+
+      fprintf(
+        compilerOptions->output,
+        "mov rax, %" PRIu64 "\n",
+        *((uint64_t*) data->data)
+      );
+      break;
+    }
+    default: {
+      ASSERT(false, "Type not supported!");
+    }
+  }
+}
+
+void generateNameAsm(CompilerOptions *compilerOptions, Token *token) {
+  NameData *data = token->data;
+  switch(*data->type) {
+    case TYPE_INT: {
+      fprintf(
+        compilerOptions->output,
+        "mov rax, [rbp %s %" PRIi32 "]\n",
+        getSign(*data->offset),
+        abs(*data->offset)
+      );
+      break;
+    }
+    case TYPE_BOOL: {
+      fprintf(
+        compilerOptions->output,
+        "movzx eax, BYTE [rbp %s %" PRIi32 "]\n",
+        // We can use EAX, as it zeroes out the whole RAX for some reason
+        getSign(*data->offset),
+        abs(*data->offset)
+      );
+      break;
+    }
+    default: {
+      ASSERT(false, "Type not supported!");
+    }
+  }
+}
+
 void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int offset, HashTable *parentVariables, HashTable *globalVariables) {
   HashTable *variables = createHashTableFrom(parentVariables);
   const char *name = NULL;
@@ -712,6 +926,12 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
 
   for(size_t i = 0;i < program->count;i++) {
     Token *token = nextToken(program, &i);
+
+    if(isOperationTokenType(token->type)) {
+      generateBinaryOperationAsm(compilerOptions, token);
+      continue;
+    }
+
     switch(token->type) {
       case TOKEN_NAME: {
         NameData *data = token->data;
@@ -725,46 +945,13 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
         if(next->type == TOKEN_ASSIGN) {
           generateAssignAsm(compilerOptions, data, program, &i);
         } else {
+          generateNameAsm(compilerOptions, token);
           i--;
         }
         break;
       }
       case TOKEN_VALUE: {
-        ValueData *data = token->data;
-        switch(data->type) {
-          case TYPE_BOOL: {
-            fprintf(
-              compilerOptions->output,
-              "; --- TOKEN VALUE BOOL %" PRIu8 " ---\n",
-              *((uint8_t*) data->data)
-            );
-
-            fprintf(
-              compilerOptions->output,
-              "mov eax, %" PRIu8 "\n",
-              // Setting EAX clears RAX
-              *((uint8_t*) data->data)
-            );
-            break;
-          }
-          case TYPE_INT: {
-            fprintf(
-              compilerOptions->output,
-              "; --- TOKEN VALUE INT %" PRIu64 " ---\n",
-              *((uint64_t*) data->data)
-            );
-
-            fprintf(
-              compilerOptions->output,
-              "mov rax, %" PRIu64 "\n",
-              *((uint64_t*) data->data)
-            );
-            break;
-          }
-          default: {
-            ASSERT(false, "Type not supported!");
-          }
-        }
+        generateValueAsm(compilerOptions, token);
         break;
       }
       case TOKEN_PRINT: {
@@ -818,8 +1005,14 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
         // What should it do?
         break;
       }
+      case TOKEN_FUNCTION_CALL: {
+        generateFunctionCallAsm(compilerOptions, token);
+        break;
+      }
       default: {
         fprintf(stderr, "Error: Token type `%s` not implemented in compilation!\n", getTokenTypeName(token->type));
+        fprintf(stderr, "ERROR at: %s:%zu:%zu\n",
+          token->file, token->line, token->column);
         exit(1);
         break;
       }
