@@ -84,6 +84,7 @@ void createVariableToken(CreateTokenFromString *createOptions, Token *token) {
   data->variableName = name;
   data->name = name;
   data->mutable = false;
+  data->functionType = NULL;
 
   token->type = TOKEN_NAME;
   token->data = data;
@@ -691,11 +692,31 @@ void crossreferenceFunctions(Program *program) {
     if(functionBody->type == TOKEN_SCOPE) {
       goDeeper(functionBody, (goDeeperFunction) crossreferenceFunctions, 0);
       FunctionDefinition *function = malloc(sizeof(FunctionDefinition));
+      function->variableName = name;
       function->name = name;
       function->body = functionBody->data;
       function->parameters = functionParams->data;
       function->returnType = TYPE_VOID;
       function->isMain = strncmp(name, "main", 5) == 0;
+
+      function->functionType = malloc(sizeof(FunctionType));
+
+      function->functionType->outputSize = 1;
+      function->functionType->output = calloc(1, sizeof(Type));
+      function->functionType->output[0] = TYPE_VOID;
+
+      function->functionType->inputSize = 0;
+      for(size_t inc = 0;inc < function->parameters->count;inc++) {
+        Token *tok = function->parameters->instructions[inc];
+        if(tok->type != TOKEN_TYPE) continue;
+        function->functionType->inputSize++;
+      }
+      function->functionType->input = calloc(function->functionType->inputSize, sizeof(Type));
+      for(size_t inc = 0, it = 0;inc < function->parameters->count;inc++) {
+        Token *tok = function->parameters->instructions[inc];
+        if(tok->type != TOKEN_TYPE) continue;
+        function->functionType->input[it++] = (Type) tok->data;
+      }
 
       instruction->data = function;
       setElementInHashTable(program->functions, name, function);
@@ -717,18 +738,38 @@ void crossreferenceFunctions(Program *program) {
     }
     goDeeper(functionBody, (goDeeperFunction) crossreferenceFunctions, 0);
     FunctionDefinition *function = malloc(sizeof(FunctionDefinition));
+    function->variableName = name;
     function->name = name;
     function->body = functionBody->data;
     function->parameters = functionParams->data;
     function->returnType = (Type) functionReturnType->data;
     function->isMain = strncmp(name, "main", 5) == 0;
 
+    function->functionType = malloc(sizeof(FunctionType));
+
+    function->functionType->outputSize = 1;
+    function->functionType->output = calloc(1, sizeof(Type));
+    function->functionType->output[0] = function->returnType;
+
+    function->functionType->inputSize = 0;
+    for(size_t inc = 0;inc < function->parameters->count;inc++) {
+      Token *tok = function->parameters->instructions[inc];
+      if(tok->type != TOKEN_TYPE) continue;
+      function->functionType->inputSize++;
+    }
+    function->functionType->input = calloc(function->functionType->inputSize, sizeof(Type));
+    for(size_t inc = 0, it = 0;inc < function->parameters->count;inc++) {
+      Token *tok = function->parameters->instructions[inc];
+      if(tok->type != TOKEN_TYPE) continue;
+      function->functionType->input[it++] = (Type) tok->data;
+    }
+
     instruction->data = function;
     setElementInHashTable(program->functions, name, function);
   }
 }
 
-NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData, Program *program, size_t i) {
+NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData, FunctionType *functionType, Program *program, size_t i) {
   NameMapValue *element = malloc(sizeof(NameMapValue));
   element->program = program;
 
@@ -741,6 +782,8 @@ NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData
   int32_t *offset = malloc(sizeof(int32_t));
   *offset = 0;
   element->offset = offset;
+
+  element->functionType = functionType;
 
   const size_t newNameLength = 4 +
         (program->id == 0 ? 1 : ((int) log10(program->id) + 1)) +
@@ -795,24 +838,27 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
           }
         }
 
-        NameMapValue *element = createAndAddNameMapVariable(nameMap, inputName, body, j);
-        inputName->name    = element->name;
-        inputName->type    = element->type;
-        inputName->mutable = element->mutable;
-        inputName->offset  = element->offset;
+        NameMapValue *element = createAndAddNameMapVariable(nameMap, inputName, calloc(1, sizeof(FunctionType)), body, j);
+        inputName->name               = element->name;
+        inputName->type               = element->type;
+        inputName->mutable            = element->mutable;
+        inputName->offset             = element->offset;
+        inputName->functionType       = element->functionType;
       }
 
       crossreferenceVariables(body, nameMap);
       NameData *functionName = malloc(sizeof(NameData));
       functionName->mutable = false;
       functionName->name = data->name;
-      functionName->variableName = data->name;
-      NameMapValue *functionElement = createAndAddNameMapVariable(nameMap, functionName, program, i);
+      functionName->variableName = data->variableName;
+      functionName->functionType = NULL;
+      NameMapValue *functionElement = createAndAddNameMapVariable(nameMap, functionName, data->functionType, program, i);
       *functionElement->type = TYPE_FUNCTION;
-      functionName->name    = functionElement->name;
-      functionName->type    = functionElement->type;
-      functionName->offset  = functionElement->offset;
-      functionName->mutable = functionElement->mutable;
+      functionName->name         = functionElement->name;
+      functionName->type         = functionElement->type;
+      functionName->offset       = functionElement->offset;
+      functionName->mutable      = functionElement->mutable;
+      functionName->functionType = functionElement->functionType;
 
       // TIP: Moving the function from variable name to generated name
       FunctionDefinition *function = removeElementFromHashTable(program->functions, functionName->variableName);
@@ -842,10 +888,11 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
     if(existsElementInHashTable(nameMap, name)) {
       NameMapValue *element = getElementFromHashTable(nameMap, name);
       if(!isMutConst && (!assignType || element->program == program)) {
-        value->name    = element->name;
-        value->type    = element->type;
-        value->mutable = element->mutable;
-        value->offset  = element->offset;
+        value->name          = element->name;
+        value->type          = element->type;
+        value->mutable       = element->mutable;
+        value->offset        = element->offset;
+        value->functionType  = element->functionType;
         continue;
       }
     }
@@ -863,12 +910,12 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
     free(getProgramInstruction(program, i - 1, true));
     i--;
 
-
-    NameMapValue *element = createAndAddNameMapVariable(nameMap, value, program, i);
-    value->name    = element->name;
-    value->type    = element->type;
-    value->mutable = element->mutable;
-    value->offset  = element->offset;
+    NameMapValue *element = createAndAddNameMapVariable(nameMap, value, calloc(1, sizeof(FunctionType)), program, i);
+    value->name               = element->name;
+    value->type               = element->type;
+    value->mutable            = element->mutable;
+    value->offset             = element->offset;
+    value->functionType       = element->functionType;
   }
 
   deleteHashTable(nameMap);
@@ -986,11 +1033,46 @@ void typesetProgram(Program *program) {
             if(*value->type == TYPE_NONE) {
               // TODO: Add multiple types support for value token
               *value->type = data->type;
+              if(*value->type != TYPE_FUNCTION) {
+                break;
+              }
+              FunctionTypeData *functionTypeData = data->data;
+              ASSERT(value->functionType, "Unreachable!");
+              value->functionType->inputSize  = functionTypeData->functionType->inputSize;
+              value->functionType->input      = functionTypeData->functionType->input;
+              value->functionType->outputSize = functionTypeData->functionType->outputSize;
+              value->functionType->output     = functionTypeData->functionType->output;
               break;
             } else if(*value->type != data->type) {
               // TODO: Add multiple types support for value token
               typesetProgramReassignError(value->variableName, token, *value->type, data->type);
               return;
+            } else if(*value->type == TYPE_FUNCTION) {
+              FunctionTypeData *ftd = data->data;
+              if(value->functionType == ftd->functionType) {
+                break;
+              }
+              if(
+                !value->functionType || !ftd->functionType ||
+                value->functionType->inputSize != ftd->functionType->inputSize ||
+                value->functionType->outputSize != ftd->functionType->outputSize
+              ) {
+                typesetProgramReassignError(value->variableName, token, *value->type, data->type);
+                return;
+              }
+              for(size_t index = 0;index < value->functionType->inputSize;index++) {
+                if(value->functionType->input[index] != ftd->functionType->input[index]) {
+                  typesetProgramReassignError(value->variableName, token, *value->type, data->type);
+                  return;
+                }
+              }
+              for(size_t index = 0;index < value->functionType->outputSize;index++) {
+                if(value->functionType->output[index] != ftd->functionType->output[index]) {
+                  typesetProgramReassignError(value->variableName, token, *value->type, data->type);
+                  return;
+                }
+              }
+              break;
             }
             break;
           }
@@ -1035,7 +1117,7 @@ void typesetProgram(Program *program) {
             FunctionCallData *nextData = next->data;
             if(*value->type == TYPE_NONE) {
               // TODO: Add multiple types support for function token
-              *value->type = nextData->function->returnType;
+              *value->type = nextData->nameData->functionType->output[0];
               break;
             } else if(*value->type != nextData->function->returnType) {
               // TODO: Add multiple types support for function token
@@ -1344,9 +1426,6 @@ void createFunctionCalls(Program *program) {
       continue;
     }
     NameData *data = token->data;
-    if(*data->type != TYPE_FUNCTION) {
-      continue;
-    }
     if(i + 1 == program->count) {
       continue;
     }
@@ -1355,28 +1434,55 @@ void createFunctionCalls(Program *program) {
       continue;
     }
 
-    FunctionCallData *functionCallData = malloc(sizeof(FunctionCallData));
-    functionCallData->function = getFunctionFromProgram(program, data->name);
-    if(next->type == TOKEN_PRIORITY) {
-      TokenPriorityData *priorityData = next->data;
-      if(functionCallData->function->parameters->count != priorityData->count) {
+    FunctionDefinition* function = getFunctionFromProgram(program, data->name);
+    if(function) {
+      FunctionCallData *functionCallData = malloc(sizeof(FunctionCallData));
+      functionCallData->function = function;
+      functionCallData->nameData = data;
+      if(next->type == TOKEN_PRIORITY) {
+        TokenPriorityData *priorityData = next->data;
+        if(functionCallData->function->parameters->count != priorityData->count) {
+          exitTokenError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
+          return;
+        }
+        functionCallData->arguments = priorityData;
+        for(size_t j = 0;j < priorityData->count;j++) {
+          // TODO: check types of all the arguments
+        }
+        free(getProgramInstruction(program, i + 1, true));
+        program->instructions[i]->type = TOKEN_FUNCTION_CALL;
+        program->instructions[i]->data = functionCallData;
+
+        continue;
+      }
+      if(functionCallData->function->parameters->count != 1) {
         exitTokenError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
         return;
       }
-      functionCallData->arguments = priorityData;
-      for(size_t j = 0;j < priorityData->count;j++) {
-        // TODO: check types of all the arguments
-      }
-      free(getProgramInstruction(program, i + 1, true));
+      TokenPriorityData *priorityData = functionCallData->arguments = calloc(1, sizeof(TokenPriorityData));
+      priorityData->parent = program;
+      priorityData->count = 1;
+      priorityData->instructions = calloc(1, sizeof(Token*));
+      priorityData->instructions[0] = getProgramInstruction(program, i + 1, true);
+
+      // TODO: check types of the single argument
+      
       program->instructions[i]->type = TOKEN_FUNCTION_CALL;
       program->instructions[i]->data = functionCallData;
 
-      free(data);
       continue;
     }
-    if(functionCallData->function->parameters->count != 1) {
-      exitTokenError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
-      return;
+  
+    FunctionCallData *functionCallData = malloc(sizeof(FunctionCallData));
+    functionCallData->function = NULL;
+    functionCallData->nameData = data;
+    if(next->type == TOKEN_PRIORITY) {
+      TokenPriorityData *priorityData = next->data;
+      functionCallData->arguments = priorityData;
+      free(getProgramInstruction(program, i + 1, true));
+      program->instructions[i]->type = TOKEN_FUNCTION_CALL;
+      program->instructions[i]->data = functionCallData;
+      continue;
     }
     TokenPriorityData *priorityData = functionCallData->arguments = calloc(1, sizeof(TokenPriorityData));
     priorityData->parent = program;
@@ -1385,11 +1491,10 @@ void createFunctionCalls(Program *program) {
     priorityData->instructions[0] = getProgramInstruction(program, i + 1, true);
 
     // TODO: check types of the single argument
-    
     program->instructions[i]->type = TOKEN_FUNCTION_CALL;
     program->instructions[i]->data = functionCallData;
 
-    free(data);
+    continue;
   }
 
   HashTable *functions = program->functions;
@@ -1400,6 +1505,30 @@ void createFunctionCalls(Program *program) {
     if(data->body) {
       createFunctionCalls(data->body);
     }
+  }
+}
+
+void fixFunctionVariables(Program *program) {
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in fixFunctionVariables!");
+  for(size_t i = 0;i < program->count;i++) {
+    Token *token = program->instructions[i];
+    if(shouldGoDeeper(token->type)) {
+      goDeeper(token, (goDeeperFunction) fixFunctionVariables, 0);
+      continue;
+    }
+    if(token->type != TOKEN_NAME) continue;
+    NameData *nameData = token->data;
+    if(*nameData->type != TYPE_FUNCTION) continue;
+
+    program->instructions[i]->type = TOKEN_VALUE;
+    ValueData *valueData = malloc(sizeof(ValueData));
+    valueData->type = TYPE_FUNCTION;
+    FunctionTypeData *functionTypeData = valueData->data = malloc(sizeof(FunctionTypeData));
+    functionTypeData->name = nameData->name;
+    functionTypeData->functionType = nameData->functionType;
+    program->instructions[i]->data = valueData;
+
+    free(nameData);
   }
 }
 
@@ -1506,6 +1635,11 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   crossreferenceOperations(program);
   startClock = clock() - startClock;
   printf("[LOG]: Crossreferencing operations  : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
+  fixFunctionVariables(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: Fixing Function Variables    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   removeUnneededPriorities(program);

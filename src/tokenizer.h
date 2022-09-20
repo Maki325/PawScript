@@ -83,6 +83,13 @@ typedef enum Type {
   TYPES_COUNT
 } Type;
 
+typedef struct FunctionType {
+  Type *input;
+  size_t inputSize;
+  Type *output;
+  size_t outputSize;
+} FunctionType;
+
 static inline const char *getTypeName(Type type) {
   ASSERT(TYPES_COUNT == 5, "Not all types are implemented in getTypeName!");
   switch (type) {
@@ -90,6 +97,7 @@ static inline const char *getTypeName(Type type) {
     case TYPE_BOOL:     return "bool";
     case TYPE_VOID:     return "void";
     case TYPE_FUNCTION: return "function";
+    // TODO: Create a better function type such thats it can have actuall input and output types!
     case TYPE_NONE:     return "NONE!!!";
     default:            return "Unknown Token!!!";
   }
@@ -155,6 +163,7 @@ typedef struct NameData {
   const char *variableName;
   const char *name;
   Type *type;
+  FunctionType *functionType;
   bool mutable;
   int32_t *offset;
 } NameData;
@@ -173,11 +182,13 @@ typedef struct ControlFlowBlock {
 } ControlFlowBlock;
 
 typedef struct FunctionDefinition {
+  const char *variableName;
   const char *name;
   TokenPriorityData *parameters;
   Program *body;
   Type returnType;
   bool isMain;
+  FunctionType *functionType;
 } FunctionDefinition;
 
 typedef struct GoDeeperData {
@@ -190,6 +201,7 @@ typedef struct NameMapValue {
   Program *program;
   const char *name;
   Type *type;
+  FunctionType *functionType;
   bool mutable;
   int32_t *offset;
 } NameMapValue;
@@ -203,7 +215,13 @@ typedef struct BinaryOperationData {
 typedef struct FunctionCallData {
   FunctionDefinition* function;
   TokenPriorityData *arguments;
+  NameData *nameData;
 } FunctionCallData;
+
+typedef struct FunctionTypeData {
+  const char *name;
+  FunctionType *functionType;
+} FunctionTypeData;
 
 typedef void (*goDeeperFunction)(Program*, ...);
 
@@ -226,7 +244,7 @@ bool shouldGoDeeperBase(TokenType type);
 bool shouldGoDeeper(TokenType type);
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...);
 
-NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData, Program *program, size_t i);
+NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData, FunctionType *functionType, Program *program, size_t i);
 bool isOperationTokenType(TokenType type);
 void crossreferenceVariables(Program *program, HashTable *parentNameMap);
 
@@ -241,6 +259,8 @@ void calculateOffsets(Program *program);
 
 void crossreferenceOperations(Program *program);
 void removeFunctionTokens(Program *program);
+
+void fixFunctionVariables(Program *program);
 
 FunctionDefinition *getFunctionFromProgram(Program *program, const char *name);
 void createFunctionCalls(Program *program);
