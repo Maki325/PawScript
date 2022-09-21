@@ -18,6 +18,7 @@ Program *createProgram() {
   program->functions = createHashTable(256);
   program->variables = createHashTable(256);
   program->variableOffset = 0;
+  program->useInOffsetCalculations = true;
 
   return program;
 }
@@ -825,6 +826,10 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
       };
       for(size_t j = 0;j < inputs->count;j++) {
         Token *input = inputs->instructions[j];
+        if(input->type == TOKEN_COMMA) {
+          free(getProgramInstruction(&inputsProgram, j, true));
+          continue;
+        }
         if(input->type != TOKEN_NAME) continue;
         NameData *inputName = input->data;
 
@@ -844,6 +849,21 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
         inputName->mutable            = element->mutable;
         inputName->offset             = element->offset;
         inputName->functionType       = element->functionType;
+
+        if(j != inputs->count - 1) {
+          Token *next = inputs->instructions[j + 1];
+          if(next->type != TOKEN_ASSIGN_TYPE) {
+            exitTokenError(ERROR_VARIABLE_NO_TYPE, input);
+          }
+          next = inputs->instructions[j + 2];
+          if(next->type != TOKEN_TYPE) {
+            exitTokenError(ERROR_VARIABLE_NO_TYPE, input);
+          }
+          *element->type = (Type) next->data;
+          free(getProgramInstruction(&inputsProgram, j + 2, true));
+          free(getProgramInstruction(&inputsProgram, j + 1, true));
+          inputs->count = inputsProgram.count;
+        }
       }
 
       crossreferenceVariables(body, nameMap);
@@ -1117,12 +1137,25 @@ void typesetProgram(Program *program) {
             FunctionCallData *nextData = next->data;
             if(*value->type == TYPE_NONE) {
               // TODO: Add multiple types support for function token
-              *value->type = nextData->nameData->functionType->output[0];
+              if(nextData->function) {
+                *value->type = nextData->function->returnType;
+              } else if(nextData->nameData) {
+                *value->type = nextData->nameData->functionType->output[0];
+              }
               break;
-            } else if(*value->type != nextData->function->returnType) {
-              // TODO: Add multiple types support for function token
-              typesetProgramReassignError(value->variableName, token, *value->type, nextData->function->returnType);
-              return;
+            }
+            if(nextData->function) {
+              if(*value->type != nextData->function->returnType) {
+                // TODO: Add multiple types support for function token
+                typesetProgramReassignError(value->variableName, token, *value->type, nextData->function->returnType);
+                return;
+              }
+            } else if(nextData->nameData) {
+              if(*value->type != nextData->nameData->functionType->output[0]) {
+                // TODO: Add multiple types support for function token
+                typesetProgramReassignError(value->variableName, token, *value->type, nextData->nameData->functionType->output[0]);
+                return;
+              }
             }
             break;
           }
@@ -1422,10 +1455,13 @@ void createFunctionCalls(Program *program) {
       goDeeper(token, (goDeeperFunction) createFunctionCalls, 0);
       continue;
     }
-    if(token->type != TOKEN_NAME) {
+    if(token->type != TOKEN_VALUE && token->type != TOKEN_NAME) {
       continue;
     }
-    NameData *data = token->data;
+    if(token->type == TOKEN_VALUE) {
+      ValueData *valueData = token->data;
+      if(valueData->type != TYPE_FUNCTION) continue;
+    }
     if(i + 1 == program->count) {
       continue;
     }
@@ -1434,18 +1470,46 @@ void createFunctionCalls(Program *program) {
       continue;
     }
 
-    FunctionDefinition* function = getFunctionFromProgram(program, data->name);
-    if(function) {
+    if(token->type == TOKEN_VALUE) {
+      ValueData *valueData = token->data;
+      FunctionTypeData *functionTypeData = valueData->data;
+      FunctionDefinition* function = getFunctionFromProgram(program, functionTypeData->name);
+
       FunctionCallData *functionCallData = malloc(sizeof(FunctionCallData));
       functionCallData->function = function;
-      functionCallData->nameData = data;
+      functionCallData->nameData = NULL;
       if(next->type == TOKEN_PRIORITY) {
         TokenPriorityData *priorityData = next->data;
+        for(size_t arg = 0;arg < priorityData->count;arg++) {
+          Token *argument = priorityData->instructions[arg];
+          if(argument->type == TOKEN_COMMA) {
+            Program p = {
+              .capacity = priorityData->count,
+              .count = priorityData->count,
+              .instructions = priorityData->instructions,
+            };
+            free(getProgramInstruction(&p, arg--, true));
+            priorityData->count--;
+            continue;
+          } else if(isOperationTokenType(argument->type)) {
+            continue;
+          }
+          switch(argument->type) {
+            case TOKEN_VALUE: continue;
+            case TOKEN_NAME: continue;
+            default: {
+              exitTokenError(ERROR_UNKNOWN_TOKEN_IN_FUNCTION_CALL, argument);
+              return;
+            }
+          }
+          return;
+        }
+
+        functionCallData->arguments = priorityData;
         if(functionCallData->function->parameters->count != priorityData->count) {
           exitTokenError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
           return;
         }
-        functionCallData->arguments = priorityData;
         for(size_t j = 0;j < priorityData->count;j++) {
           // TODO: check types of all the arguments
         }
@@ -1472,13 +1536,41 @@ void createFunctionCalls(Program *program) {
 
       continue;
     }
-  
+
+    NameData *nameData = token->data;
+
     FunctionCallData *functionCallData = malloc(sizeof(FunctionCallData));
     functionCallData->function = NULL;
-    functionCallData->nameData = data;
+    functionCallData->nameData = nameData;
     if(next->type == TOKEN_PRIORITY) {
       TokenPriorityData *priorityData = next->data;
+      for(size_t arg = 0;arg < priorityData->count;arg++) {
+        Token *argument = priorityData->instructions[arg];
+        if(argument->type == TOKEN_COMMA) {
+          Program p = {
+            .capacity = priorityData->count,
+            .count = priorityData->count,
+            .instructions = priorityData->instructions,
+          };
+          free(getProgramInstruction(&p, arg--, true));
+          priorityData->count--;
+          continue;
+        } else if(isOperationTokenType(argument->type)) {
+          continue;
+        }
+        switch(argument->type) {
+          case TOKEN_VALUE: continue;
+          case TOKEN_NAME: continue;
+          default: {
+            exitTokenError(ERROR_UNKNOWN_TOKEN_IN_FUNCTION_CALL, argument);
+            return;
+          }
+        }
+        return;
+      }
+
       functionCallData->arguments = priorityData;
+      // TODO: check lenght, and types of all the arguments
       free(getProgramInstruction(program, i + 1, true));
       program->instructions[i]->type = TOKEN_FUNCTION_CALL;
       program->instructions[i]->data = functionCallData;

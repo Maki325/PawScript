@@ -23,7 +23,6 @@ typedef struct CompileVariable {
 
 char *getInitializedType(Type type);
 char *getUninitializedType(Type type);
-CompileVariable *createVariable(NameData *nameData, int offset);
 
 void addPrintFunction(FILE *out);
 void prepareFileForCompile(FILE *out);
@@ -35,7 +34,7 @@ void postCompile(CompilerOptions *compilerOptions);
  * @param compilerOptions The pointer to CompilerOptions struct
  * @param operationToken The pointer to the Token with one of the binary operations types (See isOperationTokenType)
  */
-void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operationToken);
+void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *program, Token *operationToken);
 
 /**
  * @brief Generates the asm code of the assign token
@@ -48,7 +47,9 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operati
 void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program *program, size_t *i);
 
 void generateValueAsm(CompilerOptions *compilerOptions, Token *token);
-void generateNameAsm(CompilerOptions *compilerOptions, Token *token);
+void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *token, const char *destination);
+
+void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program, Token *token);
 
 /**
  * @brief Generates the asm code of the function

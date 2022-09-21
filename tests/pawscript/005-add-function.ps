@@ -1,0 +1,24 @@
+add => (const a: int, const b: int): int {
+  return a + b;
+}
+
+main => (): int {
+  const a = 8;
+  beta_print a; // 8
+
+  const b = add(a, 5); // 8 + 5 = 13
+  beta_print b; // 13
+
+  const c = a + 4; // 8 + 4 = 12
+  beta_print c; // 12
+
+  const d = add(a, b); // 8 + 13 = 21
+  beta_print d; // 21
+  
+  const e = add(a + 2, 4); // (8 + 2) + 4 = 14
+  beta_print e; // 14
+  
+  const add2 = add;
+  const f = add2(a + 2, 4 + 6); // (8 + 2) + (4 + 6) = 20
+  beta_print f; // 20
+}

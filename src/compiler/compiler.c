@@ -28,15 +28,6 @@ char *getUninitializedType(Type type) {
   return bytes[type];
 }
 
-CompileVariable *createVariable(NameData *nameData, int offset) {
-  CompileVariable *value = malloc(sizeof(CompileVariable));
-  value->nameData = nameData;
-  value->type = *nameData->type;
-  value->offset = offset;
-
-  return value;
-}
-
 void addPrintFunction(FILE *out) {
   fputs("print64:\n", out);
   fputs("  mov   r9, -3689348814741910323\n", out);
@@ -133,7 +124,7 @@ Token *nextToken(Program *program, size_t *i) {
   return token;
 }
 
-void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operationToken) {
+void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *program, Token *operationToken) {
   BinaryOperationData *data = operationToken->data;
   Token *left = data->operandOne, *right = data->operandTwo;
   fprintf(
@@ -182,41 +173,7 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operati
       break;
     }
     case TOKEN_NAME: {
-      NameData *nameData = left->data;
-      switch(*nameData->type) {
-        case TYPE_INT: {
-          fprintf(
-            compilerOptions->output,
-            "; --- BINARY OPERATION LEFT NAME INT %s ---\n",
-            nameData->variableName
-          );
-          fprintf(
-            compilerOptions->output,
-            "mov rax, [rbp %s %" PRIi32 "]\n",
-            getSign(*nameData->offset),
-            abs(*nameData->offset)
-          );
-          break;
-        }
-        case TYPE_BOOL: {
-          fprintf(
-            compilerOptions->output,
-            "; --- BINARY OPERATION LEFT NAME BOOL %s ---\n",
-            nameData->variableName
-          );
-
-          fprintf(
-            compilerOptions->output,
-            "movzx eax, BYTE [rbp %s %" PRIi32 "]\n",
-            getSign(*nameData->offset),
-            abs(*nameData->offset)
-          );
-          break;
-        }
-        default: {
-          ASSERT(false, "Type not supported!");
-        }
-      }
+      generateNameAsm(compilerOptions, program, left, "rax");
       break;
     }
     default: {
@@ -237,7 +194,7 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operati
         compilerOptions->output,
         "; --- BINARY OPERATION LEFT | BINARY OPERATION ---\n"
       );
-      generateBinaryOperationAsm(compilerOptions, left);
+      generateBinaryOperationAsm(compilerOptions, program, left);
       break;
     }
   }
@@ -281,41 +238,7 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operati
       break;
     }
     case TOKEN_NAME: {
-      NameData *nameData = right->data;
-      switch(*nameData->type) {
-        case TYPE_INT: {
-          fprintf(
-            compilerOptions->output,
-            "; --- BINARY OPERATION RIGHT NAME INT %s ---\n",
-            nameData->variableName
-          );
-          fprintf(
-            compilerOptions->output,
-            "mov rbx, [rbp %s %" PRIi32 "]\n",
-            getSign(*nameData->offset),
-            abs(*nameData->offset)
-          );
-          break;
-        }
-        case TYPE_BOOL: {
-          fprintf(
-            compilerOptions->output,
-            "; --- BINARY OPERATION RIGHT NAME BOOL %s ---\n",
-            nameData->variableName
-          );
-
-          fprintf(
-            compilerOptions->output,
-            "movzx ebx, BYTE [rbp %s %" PRIi32 "]\n",
-            getSign(*nameData->offset),
-            abs(*nameData->offset)
-          );
-          break;
-        }
-        default: {
-          ASSERT(false, "Type not supported!");
-        }
-      }
+      generateNameAsm(compilerOptions, program, right, "rbx");
       break;
     }
     default: {
@@ -338,7 +261,19 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operati
         "; --- BINARY OPERATION RIGHT | BINARY OPERATION ---\n"
       );
       fputs("push rax\n", compilerOptions->output);
-      generateBinaryOperationAsm(compilerOptions, right);
+
+      Program p = {
+        .parent = program,
+        .capacity = 0,
+        .count = 0,
+        .variables = NULL,
+        .variableOffset = 8,
+        .functions = NULL,
+        .id = 0,
+        .instructions = NULL,
+        .useInOffsetCalculations = true,
+      };
+      generateBinaryOperationAsm(compilerOptions, &p, right);
       fputs("mov rbx, rax\n", compilerOptions->output);
       fputs("pop rax\n", compilerOptions->output);
       break;
@@ -399,7 +334,37 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Token *operati
   );
 }
 
-void generateFunctionCallAsm(CompilerOptions *compilerOptions, Token *token) {
+const char *getFunctionNameFromCall(FunctionCallData *data) {
+  if(data->function) return data->function->name;
+  return data->nameData->variableName;
+}
+
+Type getFunctionReturnTypeFromCall(FunctionCallData *data) {
+  if(data->function) return data->function->returnType;
+  return data->nameData->functionType->output[0];
+}
+
+int32_t calculateOffset(Program *program, NameData *nameData) {
+  if(!program->variables) {
+    if(program->parent) {
+      if(!program->useInOffsetCalculations) {
+        return calculateOffset(program->parent, nameData);
+      }
+      return abs(program->parent->variableOffset) + 8 + calculateOffset(program->parent, nameData);
+    }
+    ASSERT(false, "Can't find variable offset!");
+  }
+  if(existsElementInHashTable(program->variables, nameData->name)) {
+    return *nameData->offset;
+  }
+  
+  if(!program->useInOffsetCalculations) {
+    return calculateOffset(program->parent, nameData);
+  }
+  return abs(program->parent->variableOffset) + 8 + calculateOffset(program->parent, nameData);
+}
+
+void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program, Token *token) {
   FunctionCallData *data = token->data;
   NameData *nameData = data->nameData;
   TokenPriorityData *arguments = data->arguments;
@@ -407,9 +372,8 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Token *token) {
   fprintf(
     compilerOptions->output,
     "; --- FUNCTION CALL %s ---\n",
-    nameData->variableName
+    getFunctionNameFromCall(data)
   );
-
 
   size_t bytes = 0;
   for(size_t i = 0;i < arguments->count;i++) {
@@ -420,22 +384,38 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Token *token) {
     } else if(arg->type == TOKEN_VALUE) {
       ValueData *valueData = arg->data;
       bytes += getTypeByteSize(valueData->type);
+    } else if(isOperationTokenType(arg->type)) {
+      BinaryOperationData *data = arg->data;
+      bytes += getTypeByteSize(data->type);
     } else {
+      printf("arg->type: %d %s\n", arg->type, getTokenTypeName(arg->type));
       ASSERT(false, "Type not supported!");
     }
   }
   
-  if(bytes != 0) {
+  size_t byteSize = bytes;
+  if(byteSize != 0) {
     fputs("push rbp\n", compilerOptions->output);
     fputs("mov rbp, rsp\n", compilerOptions->output);
-    fprintf(compilerOptions->output, "sub rsp, %zu\n", bytes);
+    fprintf(compilerOptions->output, "sub rsp, %zu\n", byteSize);
+    Program p = {
+      .parent = program,
+      .capacity = 0,
+      .count = 0,
+      .variables = NULL,
+      .variableOffset = byteSize,
+      .functions = NULL,
+      .id = 0,
+      .instructions = NULL,
+      .useInOffsetCalculations = true,
+    };
 
     bytes = 8;
     for(size_t i = 0;i < arguments->count;i++) {
       Token *arg = arguments->instructions[i];
       
       if(arg->type == TOKEN_NAME) {
-        generateNameAsm(compilerOptions, arg);
+        generateNameAsm(compilerOptions, &p, arg, "rax");
         fprintf(compilerOptions->output, "mov [rbp - %zu], rax\n", bytes);
 
         NameData *nameData = arg->data;
@@ -446,6 +426,12 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Token *token) {
 
         ValueData *valueData = arg->data;
         bytes += getTypeByteSize(valueData->type);
+      } else if(isOperationTokenType(arg->type)) {
+        generateBinaryOperationAsm(compilerOptions, &p, arg);
+        fprintf(compilerOptions->output, "mov [rbp - %zu], rax\n", bytes);
+
+        BinaryOperationData *data = arg->data;
+        bytes += getTypeByteSize(data->type);
       } else {
         ASSERT(false, "Type not supported!");
       }
@@ -455,11 +441,23 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Token *token) {
   if(data->function) {
     fprintf(compilerOptions->output, "call %s\n", data->function->name);
   } else {
+    Program p = {
+      .parent = program,
+      .capacity = 0,
+      .count = 0,
+      .variables = NULL,
+      .variableOffset = byteSize,
+      .functions = NULL,
+      .id = 0,
+      .instructions = NULL,
+      .useInOffsetCalculations = true,
+    };
+    int32_t offset = calculateOffset(byteSize == 0 ? program : &p, nameData);
     fprintf(
       compilerOptions->output,
       "mov rax, [rbp %s %" PRIi32 "]\n",
-      getSign(*nameData->offset),
-      abs(*nameData->offset)
+      getSign(offset),
+      abs(offset)
     );
     fputs("call rax\n", compilerOptions->output);
   }
@@ -472,9 +470,12 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Token *token) {
 
 void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program *program, size_t *i) {
   Token *next = nextToken(program, i);
+  int32_t offset = calculateOffset(program, data);
+  const char *offsetSign = getSign(offset);
+  int32_t offsetValue = abs(offset);
 
   if(isOperationTokenType(next->type)) {
-    generateBinaryOperationAsm(compilerOptions, next);
+    generateBinaryOperationAsm(compilerOptions, program, next);
     BinaryOperationData *binaryOperationData = next->data;
     Type operationType = binaryOperationData->type;
 
@@ -490,8 +491,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
             fprintf(
               compilerOptions->output,
               "mov [rbp %s %" PRIi32 "], rax\n",
-              getSign(*data->offset),
-              abs(*data->offset)
+              offsetSign,
+              offsetValue
             );
             break;
           }
@@ -505,8 +506,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
             fprintf(
               compilerOptions->output,
               "mov [rbp %s %" PRIi32 "], rax\n",
-              getSign(*data->offset),
-              abs(*data->offset)
+              offsetSign,
+              offsetValue
             );
             break;
           }
@@ -529,8 +530,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
             fprintf(
               compilerOptions->output,
               "mov [rbp %s %" PRIi32 "], rax\n",
-              getSign(*data->offset),
-              abs(*data->offset)
+              offsetSign,
+              offsetValue
             );
             break;
           }
@@ -544,8 +545,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
             fprintf(
               compilerOptions->output,
               "mov [rbp %s %" PRIi32 "], rax\n",
-              getSign(*data->offset),
-              abs(*data->offset)
+              offsetSign,
+              offsetValue
             );
             break;
           }
@@ -582,8 +583,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov QWORD [rbp %s %" PRIi32 "], %" PRIu64 "\n",
-                getSign(*data->offset),
-                abs(*data->offset),
+                offsetSign,
+                offsetValue,
                 *((uint64_t*) valueData->data)
               );
               break;
@@ -599,8 +600,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov BYTE [rbp %s %" PRIi32 "], %" PRIu8 "\n",
-                getSign(*data->offset),
-                abs(*data->offset),
+                offsetSign,
+                offsetValue,
                 *((uint8_t*) valueData->data)
               );
               break;
@@ -624,8 +625,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov BYTE [rbp %s %" PRIi32 "], %" PRIu8 "\n",
-                getSign(*data->offset),
-                abs(*data->offset),
+                offsetSign,
+                offsetValue,
                 *((uint8_t*) valueData->data)
               );
               break;
@@ -642,8 +643,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov BYTE [rbp %s %" PRIi32 "], %" PRIu8 "\n",
-                getSign(*data->offset),
-                abs(*data->offset),
+                offsetSign,
+                offsetValue,
                 getNormalizedBoolValueFromInt64(valueData->data)
               );
               break;
@@ -673,8 +674,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %s %" PRIi32 "], rax\n",
-                getSign(*data->offset),
-                abs(*data->offset)
+                offsetSign,
+                offsetValue
               );
               break;
             }
@@ -693,6 +694,9 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
     }
     case TOKEN_NAME: {
       NameData *nextData = next->data;
+      int32_t nextOffset = calculateOffset(program, nextData);
+      const char *nextOffsetSign = getSign(nextOffset);
+      int32_t nextOffsetValue = abs(nextOffset);
 
       switch(*data->type) {
         case TYPE_INT: {
@@ -706,14 +710,14 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov rax, [rbp %s %" PRIi32 "]\n",
-                getSign(*nextData->offset),
-                abs(*nextData->offset)
+                nextOffsetSign,
+                nextOffsetValue
               );
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %s %" PRIi32 "], rax\n",
-                getSign(*data->offset),
-                abs(*data->offset)
+                offsetSign,
+                offsetValue
               );
               break;
             }
@@ -728,14 +732,14 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "movzx eax, BYTE [rbp %s %" PRIi32 "]\n",
                 // We can use EAX, as it zeroes out the whole RAX for some reason
-                getSign(*nextData->offset),
-                abs(*nextData->offset)
+                nextOffsetSign,
+                nextOffsetValue
               );
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %s %" PRIi32 "], rax\n",
-                getSign(*data->offset),
-                abs(*data->offset)
+                offsetSign,
+                offsetValue
               );
               break;
             }
@@ -757,14 +761,14 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov al, [rbp %s %" PRIi32 "]\n",
-                getSign(*nextData->offset),
-                abs(*nextData->offset)
+                nextOffsetSign,
+                nextOffsetValue
               );
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %s %" PRIi32 "], al\n",
-                getSign(*data->offset),
-                abs(*data->offset)
+                offsetSign,
+                offsetValue
               );
               break;
             }
@@ -777,15 +781,15 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov rax, [rbp %s %" PRIi32 "]\n",
-                getSign(*nextData->offset),
-                abs(*nextData->offset)
+                nextOffsetSign,
+                nextOffsetValue
               );
               fputs("and rax, 1\n", compilerOptions->output);
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %s %" PRIi32 "], rax\n",
-                getSign(*data->offset),
-                abs(*data->offset)
+                offsetSign,
+                offsetValue
               );
               break;
             }
@@ -807,14 +811,14 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov rax, [rbp %s %" PRIi32 "]\n",
-                getSign(*nextData->offset),
-                abs(*nextData->offset)
+                nextOffsetSign,
+                nextOffsetValue
               );
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %s %" PRIi32 "], rax\n",
-                getSign(*data->offset),
-                abs(*data->offset)
+                offsetSign,
+                offsetValue
               );
               break;
             }
@@ -833,13 +837,11 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
       break;
     }
     case TOKEN_FUNCTION_CALL: {
-      generateFunctionCallAsm(compilerOptions, next);
+      generateFunctionCallAsm(compilerOptions, program, next);
 
       FunctionCallData *functionCallData = next->data;
-      NameData *nameData = functionCallData->nameData;
-      FunctionType *functionType = nameData->functionType;
-      const char *name = nameData->variableName;
-      Type returnType = functionType->output[0];
+      const char *name = getFunctionNameFromCall(functionCallData);
+      Type returnType = getFunctionReturnTypeFromCall(functionCallData);
 
       switch(*data->type) {
         case TYPE_INT: {
@@ -855,8 +857,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %s %" PRIi32 "], rax\n",
-                getSign(*data->offset),
-                abs(*data->offset)
+                offsetSign,
+                offsetValue
               );
               break;
             }
@@ -871,8 +873,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %s %" PRIi32 "], rax\n",
-                getSign(*data->offset),
-                abs(*data->offset)
+                offsetSign,
+                offsetValue
               );
               break;
             }
@@ -896,8 +898,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %s %" PRIi32 "], rax\n",
-                getSign(*data->offset),
-                abs(*data->offset)
+                offsetSign,
+                offsetValue
               );
               break;
             }
@@ -913,8 +915,8 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %s %" PRIi32 "], rax\n",
-                getSign(*data->offset),
-                abs(*data->offset)
+                offsetSign,
+                offsetValue
               );
               break;
             }
@@ -987,25 +989,44 @@ void generateValueAsm(CompilerOptions *compilerOptions, Token *token) {
   }
 }
 
-void generateNameAsm(CompilerOptions *compilerOptions, Token *token) {
+void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *token, const char *destination) {
   NameData *data = token->data;
+  int32_t offset = calculateOffset(program, data);
+
+  fprintf(
+    compilerOptions->output,
+    "; --- TOKEN NAME %s ---\n",
+    data->variableName
+  );
   switch(*data->type) {
     case TYPE_INT: {
       fprintf(
         compilerOptions->output,
-        "mov rax, [rbp %s %" PRIi32 "]\n",
-        getSign(*data->offset),
-        abs(*data->offset)
+        "mov %s, [rbp %s %" PRIi32 "]\n",
+        destination,
+        getSign(offset),
+        abs(offset)
       );
       break;
     }
     case TYPE_BOOL: {
       fprintf(
         compilerOptions->output,
-        "movzx eax, BYTE [rbp %s %" PRIi32 "]\n",
+        "movzx %s, BYTE [rbp %s %" PRIi32 "]\n",
+        destination,
         // We can use EAX, as it zeroes out the whole RAX for some reason
-        getSign(*data->offset),
-        abs(*data->offset)
+        getSign(offset),
+        abs(offset)
+      );
+      break;
+    }
+    case TYPE_FUNCTION: {
+      fprintf(
+        compilerOptions->output,
+        "mov %s, [rbp %s %" PRIi32 "]\n",
+        destination,
+        getSign(offset),
+        abs(offset)
       );
       break;
     }
@@ -1033,7 +1054,7 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
     Token *token = nextToken(program, &i);
 
     if(isOperationTokenType(token->type)) {
-      generateBinaryOperationAsm(compilerOptions, token);
+      generateBinaryOperationAsm(compilerOptions, program, token);
       continue;
     }
 
@@ -1050,7 +1071,7 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
         if(next->type == TOKEN_ASSIGN) {
           generateAssignAsm(compilerOptions, data, program, &i);
         } else {
-          generateNameAsm(compilerOptions, token);
+          generateNameAsm(compilerOptions, program, token, "rax");
           i--;
         }
         break;
@@ -1067,12 +1088,15 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
           "; --- TOKEN PRINT %s ---\n",
           data->variableName
         );
+        int32_t offset = calculateOffset(program, data);
+        const char *offsetSign = getSign(offset);
+        int32_t offsetValue = abs(offset);
 
         fprintf(
           compilerOptions->output,
           "mov rdi, [rbp %s %" PRIi32 "]\n",
-          getSign(*data->offset),
-          abs(*data->offset)
+          offsetSign,
+          offsetValue
         );
         fputs("call print64\n", compilerOptions->output);
 
@@ -1094,7 +1118,9 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
             .id = 0,
             .parent = program,
             .variableOffset = 0,
+            // .variables = program->variables,
             .variables = NULL,
+            .useInOffsetCalculations = false
           };
           generateProgramAsm(compilerOptions, &p, offset, parentVariables, globalVariables);
         } else {
@@ -1111,7 +1137,7 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
         break;
       }
       case TOKEN_FUNCTION_CALL: {
-        generateFunctionCallAsm(compilerOptions, token);
+        generateFunctionCallAsm(compilerOptions, program, token);
         break;
       }
       default: {

@@ -123,6 +123,7 @@ typedef struct Program {
   size_t count;
   size_t capacity;
   int32_t variableOffset;
+  bool useInOffsetCalculations;
 
   HashTable *functions;
   HashTable *variables;
