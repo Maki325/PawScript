@@ -190,6 +190,7 @@ typedef struct FunctionDefinition {
   Type returnType;
   bool isMain;
   FunctionType *functionType;
+  bool doesReturn;
 } FunctionDefinition;
 
 typedef struct GoDeeperData {
@@ -254,6 +255,7 @@ void removeUnneededPriorities(Program *program);
 void typesetProgramError(PawscriptError pawscriptError, const char *variableName, Token *token);
 void typesetProgramReassignError(const char *variableName, Token *token, Type expected, Type got);
 void typesetProgram(Program *program);
+void checkReturns(Program *program, FunctionDefinition *functionDefinition);
 
 size_t getTypeByteSize(Type type);
 void calculateOffsets(Program *program);

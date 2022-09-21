@@ -36,6 +36,10 @@ const char *getSign(int32_t value);
 uint64_t getIntValue(void *data);
 uint8_t getBoolValue(void *data);
 
+const char *getFunctionNameFromCall(FunctionCallData *data);
+
+Type getFunctionReturnTypeFromCall(FunctionCallData *data);
+
 FILE *openFile(const char *filePath, const char *modes);
 
 #endif

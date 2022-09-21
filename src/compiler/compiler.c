@@ -334,16 +334,6 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *progr
   );
 }
 
-const char *getFunctionNameFromCall(FunctionCallData *data) {
-  if(data->function) return data->function->name;
-  return data->nameData->variableName;
-}
-
-Type getFunctionReturnTypeFromCall(FunctionCallData *data) {
-  if(data->function) return data->function->returnType;
-  return data->nameData->functionType->output[0];
-}
-
 int32_t calculateOffset(Program *program, NameData *nameData) {
   if(!program->variables) {
     if(program->parent) {

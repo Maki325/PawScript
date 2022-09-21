@@ -272,6 +272,16 @@ uint8_t getBoolValue(void *data) {
   return *((uint8_t*) data);
 }
 
+const char *getFunctionNameFromCall(FunctionCallData *data) {
+  if(data->function) return data->function->name;
+  return data->nameData->variableName;
+}
+
+Type getFunctionReturnTypeFromCall(FunctionCallData *data) {
+  if(data->function) return data->function->returnType;
+  return data->nameData->functionType->output[0];
+}
+
 FILE *openFile(const char *filePath, const char *modes) {
   FILE *file = fopen(filePath, modes);
   if(!file) {

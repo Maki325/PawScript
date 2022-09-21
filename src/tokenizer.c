@@ -699,6 +699,7 @@ void crossreferenceFunctions(Program *program) {
       function->parameters = functionParams->data;
       function->returnType = TYPE_VOID;
       function->isMain = strncmp(name, "main", 5) == 0;
+      function->doesReturn = false;
 
       function->functionType = malloc(sizeof(FunctionType));
 
@@ -745,6 +746,7 @@ void crossreferenceFunctions(Program *program) {
     function->parameters = functionParams->data;
     function->returnType = (Type) functionReturnType->data;
     function->isMain = strncmp(name, "main", 5) == 0;
+    function->doesReturn = false;
 
     function->functionType = malloc(sizeof(FunctionType));
 
@@ -983,6 +985,35 @@ void typesetProgramReassignError(const char *variableName, Token *token, Type ex
   return;
 }
 
+void typesetProgramReturnTypeError(Token *returnToken, Type expected, Type returnType) {
+  fprintf(stderr, "ERROR: %s: Return type not matching! Function type: `%s`, return type `%s` at %s:%zu:%zu\n",
+    getPawscriptErrorName(ERROR_CANT_REASSIGN_VARIABLE_TYPE),
+    getTypeName(expected), getTypeName(returnType),
+    returnToken->file, returnToken->line, returnToken->column);
+  exit(ERROR_RETURN_TYPE_NOT_MATCHING);
+  return;
+}
+
+void typesetProgramReturnTypeVoidFunctionError(Token *returnToken) {
+  TokenPriorityData *priorityData = returnToken->data;
+  Token *instruction = priorityData->instructions[0];
+  switch(instruction->type) {
+    case TOKEN_NAME: {
+      NameData *nameData = instruction->data;
+      typesetProgramReturnTypeError(returnToken, TYPE_VOID, *nameData->type);
+      return;
+    }
+    case TOKEN_VALUE: {
+      ValueData *valueData = instruction->data;
+      typesetProgramReturnTypeError(returnToken, TYPE_VOID, valueData->type);
+      return;
+    }
+    default: {
+      ASSERT(false, "Unknown type!");
+    }
+  }
+}
+
 void typesetProgram(Program *program) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
   ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in typesetProgram!");
@@ -1177,6 +1208,83 @@ void typesetProgram(Program *program) {
         }
       }
     }
+  }
+}
+
+void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
+  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in typesetProgram!");
+  for(size_t i = 0;i < program->count;i++) {
+    Token *token = program->instructions[i], *next;
+    if(token->type == TOKEN_DECLARE_FUNCTION) {
+      goDeeper(token, (goDeeperFunction) checkReturns, 1, token->data);
+      continue;
+    }
+    if(token->type != TOKEN_RETURN && shouldGoDeeper(token->type)) {
+      goDeeper(token, (goDeeperFunction) checkReturns, 1, functionDefinition, 0);
+      continue;
+    }
+    if(token->type != TOKEN_RETURN) {
+      continue;
+    }
+    
+    TokenPriorityData *priorityData = token->data;
+    if(!functionDefinition) {
+      if(priorityData->count == 0) {
+        goDeeper(token, (goDeeperFunction) typesetProgram, 1, NULL);
+        continue;
+      }
+
+      typesetProgramReturnTypeVoidFunctionError(token);
+
+      return;
+    }
+    Type returnType = functionDefinition->returnType;
+    if(returnType == TYPE_VOID && priorityData->count != 0) {
+      typesetProgramReturnTypeVoidFunctionError(token);
+      return;
+    }
+    if(priorityData->count != 1) {
+      ASSERT(false, "Add multi-type return!");
+    }
+    Token *instruction = priorityData->instructions[0];
+    if(isOperationTokenType(instruction->type)) {
+      BinaryOperationData *bod = instruction->data;
+      if(bod->type == returnType) {
+        goDeeper(token, (goDeeperFunction) typesetProgram, 1, NULL);
+        continue;
+      }
+      exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
+      return;
+    }
+    switch(instruction->type) {
+      case TOKEN_NAME: {
+        NameData *nameData = instruction->data;
+        if(*nameData->type == returnType) {
+          break;
+        }
+        exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
+        return;
+      }
+      case TOKEN_VALUE: {
+        ValueData *valueData = instruction->data;
+        if(valueData->type == returnType) {
+          break;
+        }
+        exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
+        return;
+      }
+      default: {
+        ASSERT(false, "Unknown type!");
+      }
+    }
+    
+    goDeeper(token, (goDeeperFunction) checkReturns, 1, NULL);
+    continue;
+  }
+
+  if(!functionDefinition->doesReturn) {
+
   }
 }
 
@@ -1744,9 +1852,16 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   printf("[LOG]: Creating function calls      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
+  // printProgram(program, 0);
+
   typesetProgram(program);
   startClock = clock() - startClock;
   printf("[LOG]: Typeseting                   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
+  checkReturns(program, NULL);
+  startClock = clock() - startClock;
+  printf("[LOG]: Checking returns             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   calculateOffsets(program);
