@@ -1,0 +1,22 @@
+main => (): int {
+
+  const a = 5;
+
+  {
+    beta_print a;
+
+    // Different scopes can have a variable with the same name
+    // And they won't interfere with each other
+    const a = 7;
+    beta_print a;
+    const b = a + 5;
+    beta_print a;
+    beta_print b;
+
+    return 0;
+  }
+
+  beta_print a;
+
+  return 0;
+}

@@ -1284,6 +1284,14 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
         exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
         return;
       }
+      case TOKEN_FUNCTION_CALL: {
+        FunctionCallData *fcd = instruction->data;
+        if(getFunctionReturnTypeFromCall(fcd) == returnType) {
+          break;
+        }
+        exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
+        return;
+      }
       default: {
         ASSERT(false, "Unknown type!");
       }
@@ -1869,8 +1877,6 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   startClock = clock() - startClock;
   printf("[LOG]: Creating function calls      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
-
-  // printProgram(program, 0);
 
   typesetProgram(program);
   startClock = clock() - startClock;

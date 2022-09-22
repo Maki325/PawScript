@@ -120,7 +120,7 @@ void generateFunctionAsm(CompilerOptions *compilerOptions, FunctionDefinition *f
 }
 
 Token *nextToken(Program *program, size_t *i) {
-  Token *token = program->instructions[(*i)++];
+  Token *token = program->instructions[++(*i)];
   return token;
 }
 
@@ -1026,6 +1026,24 @@ void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *
   }
 }
 
+void generateScopeAsm(CompilerOptions *compilerOptions, Token *token) {
+  Program *program = token->data;
+
+  fprintf(
+    compilerOptions->output,
+    "; --- SCOPE ---\n"
+  );
+  fputs("push rbp\n", compilerOptions->output);
+  fputs("mov rbp, rsp\n", compilerOptions->output);
+  fprintf(compilerOptions->output, "sub rsp, %" PRIi32 "\n", -program->variableOffset);
+
+  generateProgramAsm(compilerOptions, program, 0, NULL, NULL);
+
+  fputs("mov rsp, rbp\n", compilerOptions->output);
+  fputs("pop rbp\n", compilerOptions->output);
+}
+
+
 void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int offset, HashTable *parentVariables, HashTable *globalVariables) {
   HashTable *variables = createHashTableFrom(parentVariables);
   const char *name = NULL;
@@ -1041,7 +1059,7 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
   }
 
   for(size_t i = 0;i < program->count;i++) {
-    Token *token = nextToken(program, &i);
+    Token *token = program->instructions[i];
 
     if(isOperationTokenType(token->type)) {
       generateBinaryOperationAsm(compilerOptions, program, token);
@@ -1057,7 +1075,7 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
           data->variableName
         );
 
-        Token *next = nextToken(program, &i);
+        Token *next = program->instructions[++i];
         if(next->type == TOKEN_ASSIGN) {
           generateAssignAsm(compilerOptions, data, program, &i);
         } else {
@@ -1117,8 +1135,25 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
           ASSERT(false, "Not implemented yet");
         }
         
-        fputs("mov rsp, rbp\n", compilerOptions->output);
-        fputs("pop rbp\n", compilerOptions->output);
+        size_t numberOfParents = 0;
+        for(Program *p = program, *last = NULL;p != NULL;last = p, p = p->parent, numberOfParents++) {
+          if(!p->functions) continue;
+          for(size_t fnci = 0;fnci < p->functions->capacity;fnci++) {
+            if(!p->functions->elements[fnci].key) continue;
+            FunctionDefinition *fd = p->functions->elements[fnci].value;
+            if(fd->body == last) {
+              goto parentCounterLoopEnd;
+            }
+          }
+          continue;
+          parentCounterLoopEnd:
+          break;
+        }
+
+        for(int i = 0;i < numberOfParents;i++) {
+          fputs("mov rsp, rbp\n", compilerOptions->output);
+          fputs("pop rbp\n", compilerOptions->output);
+        }
         fputs("ret\n", compilerOptions->output);
         break;
       }
@@ -1128,6 +1163,10 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
       }
       case TOKEN_FUNCTION_CALL: {
         generateFunctionCallAsm(compilerOptions, program, token);
+        break;
+      }
+      case TOKEN_SCOPE: {
+        generateScopeAsm(compilerOptions, token);
         break;
       }
       default: {
