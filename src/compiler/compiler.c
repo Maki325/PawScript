@@ -1150,7 +1150,7 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
           break;
         }
 
-        for(int i = 0;i < numberOfParents;i++) {
+        for(size_t i = 0;i < numberOfParents;i++) {
           fputs("mov rsp, rbp\n", compilerOptions->output);
           fputs("pop rbp\n", compilerOptions->output);
         }

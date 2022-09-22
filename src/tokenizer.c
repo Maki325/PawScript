@@ -1758,6 +1758,32 @@ void fixFunctionVariables(Program *program) {
   }
 }
 
+void checkConstVariables(Program *program, HashTable *table) {
+  // Check for unary operators if added
+  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in checkConstVariables!");
+  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in checkConstVariables!");
+  table = createHashTableFrom(table);
+  for(size_t i = 0;i < program->count;i++) {
+    Token *token = program->instructions[i];
+    if(shouldGoDeeper(token->type)) {
+      goDeeper(token, (goDeeperFunction) checkConstVariables, 1, table);
+      continue;
+    }
+    if(i == program->count - 1) continue;
+    if(token->type != TOKEN_NAME) continue;
+    if(program->instructions[i + 1]->type != TOKEN_ASSIGN) continue;
+    i++;
+    NameData *data = token->data;
+    if(data->mutable) continue;
+    if(existsElementInHashTable(table, data->name)) {
+      exitTokenError(ERROR_CANT_REASSIGN_CONST_VARIABLE, token);
+      return;
+    }
+    setElementInHashTable(table, data->name, 0);
+  }
+  free(table);
+}
+
 Program *createProgramFromFile(const char *filePath, char *error) {
   clock_t startClock = clock();
 
@@ -1886,6 +1912,11 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   checkReturns(program, NULL);
   startClock = clock() - startClock;
   printf("[LOG]: Checking returns             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
+  checkConstVariables(program, NULL);
+  startClock = clock() - startClock;
+  printf("[LOG]: Checking const variables     : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   calculateOffsets(program);

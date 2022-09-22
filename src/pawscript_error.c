@@ -3,7 +3,7 @@
 #include "tokenizer.h"
 
 const char *getPawscriptErrorName(PawscriptError error) {
-  ASSERT(ERROR_COUNT == 31, "Not all errors are implemented in getPawscriptErrorName!");
+  ASSERT(ERROR_COUNT == 32, "Not all errors are implemented in getPawscriptErrorName!");
   switch (error) {
     case ERROR_OPEN_FILE:                               return "Couldn't open file!";
     case ERROR_PARENTHESES_NOT_BALANCED:                return "Parentheses are not balanced!";
@@ -35,6 +35,7 @@ const char *getPawscriptErrorName(PawscriptError error) {
     case ERROR_UNKNOWN_TOKEN_IN_FUNCTION_CALL:          return "Unknown token type in function call!";
     case ERROR_RETURN_TYPE_NOT_MATCHING:                return "Return type not matching!";
     case ERROR_NO_RETURN:                               return "No return in function!";
+    case ERROR_CANT_REASSIGN_CONST_VARIABLE:            return "Can't reassign const variable!";
     default:                                            return "Unknown Error!!!";
   }
 }
