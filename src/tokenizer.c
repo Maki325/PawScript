@@ -986,8 +986,8 @@ void typesetProgramReassignError(const char *variableName, Token *token, Type ex
 }
 
 void typesetProgramReturnTypeError(Token *returnToken, Type expected, Type returnType) {
-  fprintf(stderr, "ERROR: %s: Return type not matching! Function type: `%s`, return type `%s` at %s:%zu:%zu\n",
-    getPawscriptErrorName(ERROR_CANT_REASSIGN_VARIABLE_TYPE),
+  fprintf(stderr, "ERROR: %s: Function type: `%s`, return type `%s` at %s:%zu:%zu\n",
+    getPawscriptErrorName(ERROR_RETURN_TYPE_NOT_MATCHING),
     getTypeName(expected), getTypeName(returnType),
     returnToken->file, returnToken->line, returnToken->column);
   exit(ERROR_RETURN_TYPE_NOT_MATCHING);
@@ -1215,7 +1215,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
   ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
-    Token *token = program->instructions[i], *next;
+    Token *token = program->instructions[i];
     if(token->type == TOKEN_DECLARE_FUNCTION) {
       goDeeper(token, (goDeeperFunction) checkReturns, 1, token->data);
       continue;
@@ -1244,6 +1244,15 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
       typesetProgramReturnTypeVoidFunctionError(token);
       return;
     }
+    if(priorityData->count == 0) {
+      if(returnType != TYPE_VOID) {
+        typesetProgramReturnTypeError(token, returnType, TYPE_VOID);
+      } else {
+        functionDefinition->doesReturn = true;
+        goDeeper(token, (goDeeperFunction) typesetProgram, 1, functionDefinition);
+        continue;
+      }
+    }
     if(priorityData->count != 1) {
       ASSERT(false, "Add multi-type return!");
     }
@@ -1251,7 +1260,8 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
     if(isOperationTokenType(instruction->type)) {
       BinaryOperationData *bod = instruction->data;
       if(bod->type == returnType) {
-        goDeeper(token, (goDeeperFunction) typesetProgram, 1, NULL);
+        functionDefinition->doesReturn = true;
+        goDeeper(token, (goDeeperFunction) typesetProgram, 1, functionDefinition);
         continue;
       }
       exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
@@ -1279,12 +1289,20 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
       }
     }
     
-    goDeeper(token, (goDeeperFunction) checkReturns, 1, NULL);
+    functionDefinition->doesReturn = true;
+    goDeeper(token, (goDeeperFunction) checkReturns, 1, functionDefinition);
     continue;
   }
 
-  if(!functionDefinition->doesReturn) {
-
+  if(functionDefinition &&
+    program == functionDefinition->body &&
+    functionDefinition->returnType != TYPE_VOID &&
+    !functionDefinition->doesReturn) {
+    if(program->count != 0) {
+      exitTokenError(ERROR_NO_RETURN, program->instructions[program->count - 1]);
+    } else {
+      exitError(ERROR_NO_RETURN);
+    }
   }
 }
 
