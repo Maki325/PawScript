@@ -145,7 +145,6 @@ typedef struct CreateTokenFromString {
   const char *file;
   size_t line;
   size_t column;
-  char *error;
 } CreateTokenFromString;
 
 typedef struct ValueData {
@@ -268,7 +267,7 @@ void fixFunctionVariables(Program *program);
 FunctionDefinition *getFunctionFromProgram(Program *program, const char *name);
 void createFunctionCalls(Program *program);
 
-Program *createProgramFromFile(const char *filePath, char *error);
+Program *createProgramFromFile(const char *filePath);
 
 extern InstructionType INSTRUCTION_TYPES[];
 

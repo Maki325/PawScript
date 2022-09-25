@@ -167,10 +167,6 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     }
     createVariableToken(createOptions, token);
     createOptions->length = 0;
-    if(createOptions->error[0] != 0) {
-      free(token);
-      return NULL;
-    }
     return token;
   } else if(createOptions->last != NULL) {
     if(isDigit(createOptions->string[0])) {
@@ -1784,8 +1780,8 @@ void checkConstVariables(Program *program, HashTable *table) {
   free(table);
 }
 
-Program *createProgramFromFile(const char *filePath, char *error) {
-  clock_t startClock = clock();
+Program *createProgramFromFile(const char *filePath) {
+  clock_t startClock = clock(), tokenizerStart = startClock;
 
   Program *program = createProgram();
   FILE *in = openFile(filePath, "r");
@@ -1798,7 +1794,6 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   Token *last = NULL;
   createOptions.program = program;
   createOptions.file = filePath;
-  createOptions.error = error;
   while((lineLength = getline(&lineStart, &length, in)) != -1) {
     size_t column = 0;
     row++;
@@ -1928,6 +1923,9 @@ Program *createProgramFromFile(const char *filePath, char *error) {
   startClock = clock() - startClock;
   printf("[LOG]: Removing function tokens     : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
+
+  startClock = clock() - tokenizerStart;
+  printf("[LOG]: Tokenizer                    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
 
   return program;
 }

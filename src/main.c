@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
       return 0;
     }
     char *fileName = popArgument(&args);
-    Program *program = createProgramFromFile(fileName, error);
+    Program *program = createProgramFromFile(fileName);
     if(error[0] != 0) {
       printf("Error: %s\n", error);
       return 0;
@@ -74,11 +74,7 @@ int main(int argc, char *argv[]) {
     
     char *basename = getBasenameWithDirectory(outputFile ? outputFile : fileName);
 
-    Program *program = createProgramFromFile(fileName, error);
-    if(error[0] != 0) {
-      fprintf(stderr, "ERROR: Program creation failed: %s\n", error);
-      return 0;
-    }
+    Program *program = createProgramFromFile(fileName);
 
     CompilerOptions compilerOptions = {
       .program = program,
