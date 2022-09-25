@@ -24,7 +24,6 @@ int main(int argc, char *argv[]) {
     return 0;
   }
   char *mode = popArgument(&args);
-  char error[512] = {0};
   if(strcmp(mode, "int") == 0) {
     if(args.count == 0) {
       usage(programName);
@@ -32,11 +31,7 @@ int main(int argc, char *argv[]) {
     }
     char *fileName = popArgument(&args);
     Program *program = createProgramFromFile(fileName);
-    if(error[0] != 0) {
-      printf("Error: %s\n", error);
-      return 0;
-    }
-    interpret(program, error);
+    interpret(program);
   } else if(strcmp(mode, "com") == 0) {
     if(args.count == 0) {
       usage(programName);
@@ -92,8 +87,6 @@ int main(int argc, char *argv[]) {
     usage(programName);
     return 0;
   }
-  if(error[0] != 0)
-    printf("Error: %s\n", error);
 
   return 0;
 }

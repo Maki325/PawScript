@@ -1,12 +1,11 @@
 #include "interpreter.h"
 
-bool interpretToken(Program *program, void **eax, size_t i, size_t *iPtr, HashTable *table, const char *name, const char **namePtr, char *error) {
+bool interpretToken(Program *program, void **eax, size_t i, size_t *iPtr, HashTable *table, const char *name, const char **namePtr) {
   (void) eax;
   (void) iPtr;
   (void) table;
   (void) name;
   (void) namePtr;
-  (void) error;
 
   Token *token = program->instructions[i];
   switch(token->type) {
@@ -18,23 +17,20 @@ bool interpretToken(Program *program, void **eax, size_t i, size_t *iPtr, HashTa
   return true;
 }
 
-void interpretScope(Program *program, void** eax, char *error, HashTable *table) {
+void interpretScope(Program *program, void** eax, HashTable *table) {
   ASSERT(TOKEN_COUNT == 20, "Not all operations are implemented in interpret!");
   const char *name = NULL;
 
   (void) name;
 
   for(size_t i = 0;i < program->count;i++) {
-    interpretToken(program, eax, i, &i, table, name, &name, error);
-    if(error[0] != '\0') {
-      return;
-    }
+    interpretToken(program, eax, i, &i, table, name, &name);
   }
 }
 
-void interpret(Program *program, char *error) {
+void interpret(Program *program) {
   HashTable *table = createHashTable(256);
   void *eax = NULL;
-  interpretScope(program, &eax, error, table);
+  interpretScope(program, &eax, table);
   deleteHashTable(table);
 }
