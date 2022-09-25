@@ -4,6 +4,7 @@
 #include "tokenizer.h"
 #include "compiler/compiler.h"
 #include "interpreter/interpreter.h"
+#include "optimizer/optimizer.h"
 #include "config.h"
 
 Config config = {
@@ -70,6 +71,7 @@ int main(int argc, char *argv[]) {
     char *basename = getBasenameWithDirectory(outputFile ? outputFile : fileName);
 
     Program *program = createProgramFromFile(fileName);
+    optimizeProgram(program);
 
     CompilerOptions compilerOptions = {
       .program = program,
