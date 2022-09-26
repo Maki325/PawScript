@@ -1,20 +1,39 @@
 #include "optimizer.h"
+#include "../utils/utils.h"
 #include <time.h>
 
 void optimizeConstVariables(Program *program, HashTable *constValues) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in optimizeConstVariables!");
   ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in optimizeConstVariables!");
-
   constValues = createHashTableFrom(constValues);
 
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i], *next;
-    if(shouldGoDeeper(token->type)) {
-      goDeeper(token, optimizeConstVariables, 1, constValues);
+    if(token->type == TOKEN_PRINT) {
+      Token *child = token->data;
+      if(child->type != TOKEN_NAME) continue;
+      NameData *nameData = child->data;
+      if(!existsElementInHashTable(constValues, nameData->name)) {
+        break;
+      }
+      child->type = TOKEN_VALUE;
+      child->data = getElementFromHashTable(constValues, nameData->name);
+      free(nameData);
+    } else if(shouldGoDeeper(token->type)) {
+      goDeeper(token, (goDeeperFunction) optimizeConstVariables, 1, constValues);
       continue;
     }
     if(token->type != TOKEN_NAME) continue;
     NameData *nameData = token->data;
+
+    if(existsElementInHashTable(constValues, nameData->name)) {
+      program->instructions[i]->type = TOKEN_VALUE;
+      program->instructions[i]->data = getElementFromHashTable(constValues, nameData->name);
+
+      free(nameData);
+      continue;
+    }
+
     if(nameData->mutable) continue;
     next = program->instructions[i + 1];
     if(next->type != TOKEN_ASSIGN) continue;
@@ -61,9 +80,14 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
         break;
       }
     }
-    if(!isOperationTokenType(next->type)) {
-      continue;
-    }
+  }
+
+  if(!program->functions) return;
+  HashTable *functions = program->functions;
+  for(size_t i = 0;i < functions->capacity;i++) {
+    if(!functions->elements[i].key) continue;
+    FunctionDefinition *fd = functions->elements[i].value;
+    optimizeConstVariables(fd->body, constValues);
   }
 }
 
@@ -74,7 +98,6 @@ void optimizeProgram(Program *program) {
   startClock = clock() - startClock;
   printf("[LOG]: Optimizing const variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
-
 
   startClock = clock() - optimizerStart;
   printf("[LOG]: Optimizer                    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);

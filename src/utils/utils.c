@@ -163,7 +163,8 @@ void printToken(Token *token, unsigned int depth, size_t index) {
       break;
     }
     case TOKEN_PRINT: {
-      printf("PRINT: %s\n", (char*) token->data);
+      printf("PRINT\n");
+      printToken(token->data, depth + 1 * TAB_SPACES, 0);
       break;
     }
     case TOKEN_FUNCTION_CALL: {

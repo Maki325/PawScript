@@ -10,16 +10,28 @@ typedef struct CompilerOptions {
   const char *basename;
 } CompilerOptions;
 
-/**
- * 
- * @param type The type of the variable
- * @param offset The offset of the variable in bytes
- */
-typedef struct CompileVariable {
-  NameData *nameData;
-  Type type;
-  int offset;
-} CompileVariable;
+typedef enum Register {
+  REGISTER_A = 0,
+  REGISTER_B,
+  REGISTER_C,
+  REGISTER_D,
+  REGISTER_SI,
+  REGISTER_DI,
+  REGISTER_BP,
+  REGISTER_SP,
+  REGISTER_8,
+  REGISTER_9,
+  REGISTER_10,
+  REGISTER_11,
+  REGISTER_12,
+  REGISTER_13,
+  REGISTER_14,
+  REGISTER_15,
+  REGISTER_COUNT
+} Register;
+
+const char *get64BitRegister(Register reg);
+const char *get32BitRegister(Register reg);
 
 char *getInitializedType(Type type);
 char *getUninitializedType(Type type);
@@ -46,8 +58,8 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *progr
  */
 void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program *program, size_t *i);
 
-void generateValueAsm(CompilerOptions *compilerOptions, Token *token);
-void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *token, const char *destination);
+void generateValueAsm(CompilerOptions *compilerOptions, Token *token, Register destination);
+void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *token, Register destination);
 
 void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program, Token *token);
 

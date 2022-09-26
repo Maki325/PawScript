@@ -1,6 +1,53 @@
 #include "compiler.h"
 #include "../utils/utils.h"
 
+const char *get64BitRegister(Register reg) {
+  ASSERT(REGISTER_COUNT == 16, "Not all registers are implemented in get64BitRegister!");
+  switch(reg) {
+    case REGISTER_A:      return "rax";
+    case REGISTER_B:      return "rbx";
+    case REGISTER_C:      return "rcx";
+    case REGISTER_D:      return "rdx";
+    case REGISTER_SI:     return "rsi";
+    case REGISTER_DI:     return "rdi";
+    case REGISTER_BP:     return "rbp";
+    case REGISTER_SP:     return "rsp";
+    case REGISTER_8:      return "r8";
+    case REGISTER_9:      return "r9";
+    case REGISTER_10:     return "r10";
+    case REGISTER_11:     return "r11";
+    case REGISTER_12:     return "r12";
+    case REGISTER_13:     return "r13";
+    case REGISTER_14:     return "r14";
+    case REGISTER_15:     return "r15";
+    case REGISTER_COUNT:  ASSERT(false, "REGISTER ERROR!");
+  }
+  return "REGISTER ERROR!";
+}
+const char *get32BitRegister(Register reg) {
+  ASSERT(REGISTER_COUNT == 16, "Not all registers are implemented in get64BitRegister!");
+  switch(reg) {
+    case REGISTER_A:      return "eax";
+    case REGISTER_B:      return "ebx";
+    case REGISTER_C:      return "ecx";
+    case REGISTER_D:      return "edx";
+    case REGISTER_SI:     return "esi";
+    case REGISTER_DI:     return "edi";
+    case REGISTER_BP:     return "ebp";
+    case REGISTER_SP:     return "esp";
+    case REGISTER_8:      return "r8d";
+    case REGISTER_9:      return "r9d";
+    case REGISTER_10:     return "r10d";
+    case REGISTER_11:     return "r11d";
+    case REGISTER_12:     return "r12d";
+    case REGISTER_13:     return "r13d";
+    case REGISTER_14:     return "r14d";
+    case REGISTER_15:     return "r15d";
+    case REGISTER_COUNT:  ASSERT(false, "REGISTER ERROR!");
+  }
+  return "REGISTER ERROR!";
+}
+
 char *getInitializedType(Type type) {
   ASSERT(TYPES_COUNT == 5, "Not all types are implemented in getInitializedType!");
   static char* bytes[TYPES_COUNT + 1] = {
@@ -173,7 +220,7 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *progr
       break;
     }
     case TOKEN_NAME: {
-      generateNameAsm(compilerOptions, program, left, "rax");
+      generateNameAsm(compilerOptions, program, left, REGISTER_A);
       break;
     }
     default: {
@@ -238,7 +285,7 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *progr
       break;
     }
     case TOKEN_NAME: {
-      generateNameAsm(compilerOptions, program, right, "rbx");
+      generateNameAsm(compilerOptions, program, right, REGISTER_B);
       break;
     }
     default: {
@@ -405,13 +452,13 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program,
       Token *arg = arguments->instructions[i];
       
       if(arg->type == TOKEN_NAME) {
-        generateNameAsm(compilerOptions, &p, arg, "rax");
+        generateNameAsm(compilerOptions, &p, arg, REGISTER_A);
         fprintf(compilerOptions->output, "mov [rbp - %zu], rax\n", bytes);
 
         NameData *nameData = arg->data;
         bytes += getTypeByteSize(*nameData->type);
       } else if(arg->type == TOKEN_VALUE) {
-        generateValueAsm(compilerOptions, arg);
+        generateValueAsm(compilerOptions, arg, REGISTER_A);
         fprintf(compilerOptions->output, "mov [rbp - %zu], rax\n", bytes);
 
         ValueData *valueData = arg->data;
@@ -941,7 +988,7 @@ NameData *getProgramVariable(Program *program, const char* name) {
   return getElementFromHashTable(program->variables, name);
 }
 
-void generateValueAsm(CompilerOptions *compilerOptions, Token *token) {
+void generateValueAsm(CompilerOptions *compilerOptions, Token *token, Register destination) {
   ValueData *data = token->data;
   switch(data->type) {
     case TYPE_BOOL: {
@@ -953,7 +1000,8 @@ void generateValueAsm(CompilerOptions *compilerOptions, Token *token) {
 
       fprintf(
         compilerOptions->output,
-        "mov eax, %" PRIu8 "\n",
+        "mov %s, %" PRIu8 "\n",
+        get32BitRegister(destination),
         // Setting EAX clears RAX
         *((uint8_t*) data->data)
       );
@@ -968,7 +1016,8 @@ void generateValueAsm(CompilerOptions *compilerOptions, Token *token) {
 
       fprintf(
         compilerOptions->output,
-        "mov rax, %" PRIu64 "\n",
+        "mov %s, %" PRIu64 "\n",
+        get64BitRegister(destination),
         *((uint64_t*) data->data)
       );
       break;
@@ -979,7 +1028,7 @@ void generateValueAsm(CompilerOptions *compilerOptions, Token *token) {
   }
 }
 
-void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *token, const char *destination) {
+void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *token, Register destination) {
   NameData *data = token->data;
   int32_t offset = calculateOffset(program, data);
 
@@ -993,7 +1042,7 @@ void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *
       fprintf(
         compilerOptions->output,
         "mov %s, [rbp %s %" PRIi32 "]\n",
-        destination,
+        get64BitRegister(destination),
         getSign(offset),
         abs(offset)
       );
@@ -1003,7 +1052,7 @@ void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *
       fprintf(
         compilerOptions->output,
         "movzx %s, BYTE [rbp %s %" PRIi32 "]\n",
-        destination,
+        get32BitRegister(destination),
         // We can use EAX, as it zeroes out the whole RAX for some reason
         getSign(offset),
         abs(offset)
@@ -1014,7 +1063,7 @@ void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *
       fprintf(
         compilerOptions->output,
         "mov %s, [rbp %s %" PRIi32 "]\n",
-        destination,
+        get64BitRegister(destination),
         getSign(offset),
         abs(offset)
       );
@@ -1042,7 +1091,6 @@ void generateScopeAsm(CompilerOptions *compilerOptions, Token *token) {
   fputs("mov rsp, rbp\n", compilerOptions->output);
   fputs("pop rbp\n", compilerOptions->output);
 }
-
 
 void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int offset, HashTable *parentVariables, HashTable *globalVariables) {
   HashTable *variables = createHashTableFrom(parentVariables);
@@ -1079,34 +1127,52 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
         if(next->type == TOKEN_ASSIGN) {
           generateAssignAsm(compilerOptions, data, program, &i);
         } else {
-          generateNameAsm(compilerOptions, program, token, "rax");
+          generateNameAsm(compilerOptions, program, token, REGISTER_A);
           i--;
         }
         break;
       }
       case TOKEN_VALUE: {
-        generateValueAsm(compilerOptions, token);
+        generateValueAsm(compilerOptions, token, REGISTER_A);
         break;
       }
       case TOKEN_PRINT: {
-        NameData *data = getProgramVariable(program, token->data);
-        ASSERT(data, "Unreachable!");
-        fprintf(
-          compilerOptions->output,
-          "; --- TOKEN PRINT %s ---\n",
-          data->variableName
-        );
-        int32_t offset = calculateOffset(program, data);
-        const char *offsetSign = getSign(offset);
-        int32_t offsetValue = abs(offset);
+        Token *child = token->data;
+        switch(child->type) {
+          case TOKEN_NAME: {
+            NameData *data = child->data;
+            ASSERT(data, "Unreachable!");
+            fprintf(
+              compilerOptions->output,
+              "; --- TOKEN PRINT NAME %s ---\n",
+              data->variableName
+            );
+            int32_t offset = calculateOffset(program, data);
+            const char *offsetSign = getSign(offset);
+            int32_t offsetValue = abs(offset);
 
-        fprintf(
-          compilerOptions->output,
-          "mov rdi, [rbp %s %" PRIi32 "]\n",
-          offsetSign,
-          offsetValue
-        );
-        fputs("call print64\n", compilerOptions->output);
+            fprintf(
+              compilerOptions->output,
+              "mov rdi, [rbp %s %" PRIi32 "]\n",
+              offsetSign,
+              offsetValue
+            );
+            fputs("call print64\n", compilerOptions->output);
+            break;
+          }
+          case TOKEN_VALUE: {
+            fprintf(
+              compilerOptions->output,
+              "; --- TOKEN PRINT VALUE ---\n"
+            );
+            generateValueAsm(compilerOptions, child, REGISTER_DI);
+            fputs("call print64\n", compilerOptions->output);
+            break;
+          }
+          default: {
+            ASSERT(false, "Type not supported!");
+          }
+        }
 
         break;
       }
@@ -1207,37 +1273,12 @@ void generateAsm(CompilerOptions *compilerOptions) {
     const char* name = globalVariables->elements[i].key;
 
     (void) name;
-    // CompileVariable *variable = table->elements[i].value;
-    // if(variable->initialValue == NULL) continue;
-    // if(!data) {
-    //   fputs("\n", out);
-    //   fputs("section .data\n", out);
-    //   data = true;
-    // }
-    // fprintf(
-    //   out, "%s %s %d\n",
-    //   name,
-    //   getInitializedType(variable->type),
-    //   *((int*)variable->initialValue)
-    // );
   }
   for(size_t i = 0;i < globalVariables->capacity;i++) {
     if(globalVariables->elements[i].key == NULL) continue;
     const char* name = globalVariables->elements[i].key;
 
     (void) name;
-    // CompileVariable *variable = table->elements[i].value;
-    // if(variable->initialValue != NULL) continue;
-    // if(!bss) {
-    //   fputs("\n", out);
-    //   fputs("section .bss\n", out);
-    //   bss = true;
-    // }
-    // fprintf(
-    //   out, "%s %s 1\n",
-    //   name,
-    //   getUninitializedType(variable->type)
-    // );
   }
 
   fclose(out);

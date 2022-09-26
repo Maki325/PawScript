@@ -561,7 +561,6 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
     case TOKEN_EQUALS:
     case TOKEN_NOT_EQUALS: {
       BinaryOperationData *data = token->data;
-      return;
       if(!data) return;
       if(data->operandOne) {
         if(shouldGoDeeper(data->operandOne->type)) {
@@ -1479,10 +1478,11 @@ void crossreferenceOperations(Program *program) {
         }
 
         Token *right = getProgramInstruction(program, i + 1, true);
-        NameData *value = right->data;
-        free(right);
-        instruction->data = (void*) value->name;
-        free(value);
+
+        if(right->type != TOKEN_NAME && right->type != TOKEN_VALUE) {
+          ASSERT(false, "Beta print token type not supported!");
+        }
+        instruction->data = right;
 
         break;
       }
