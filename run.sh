@@ -2,9 +2,9 @@
 
 if [ "$1" = "r" ]
 then
-  nasm -g -felf64 ./tests/pawscript/out/006-scopes.asm
-  ld -o ./tests/pawscript/out/006-scopes ./tests/pawscript/out/006-scopes.o
-  ././tests/pawscript/out/006-scopes
+  nasm -g -felf64 ./tests/pawscript/out/007-if.asm
+  ld -o ./tests/pawscript/out/007-if ./tests/pawscript/out/007-if.o
+  ././tests/pawscript/out/007-if
 elif [ "$1" = "s" ]
 then
   # ./build/pawscript int ./tests/pawscript/start.ps
@@ -18,7 +18,8 @@ then
   # ./build/pawscript com ./tests/pawscript/003-functions.ps -r -s -o ./tests/pawscript/out/003-functions
   # ./build/pawscript com ./tests/pawscript/004-function-variables.ps -r -s -o ./tests/pawscript/out/004-function-variables
   # ./build/pawscript com ./tests/pawscript/005-add-function.ps -r -s -o ./tests/pawscript/out/005-add-function
-  ./build/pawscript com ./tests/pawscript/006-scopes.ps -r -s -o ./tests/pawscript/out/006-scopes
+  # ./build/pawscript com ./tests/pawscript/006-scopes.ps -r -s -o ./tests/pawscript/out/006-scopes
+  ./build/pawscript com ./tests/pawscript/007-if.ps -r -s -o ./tests/pawscript/out/007-if
 else
   ./build/pawscript "$@"
 fi

@@ -73,7 +73,7 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program,
  * 
  * @throw Exits the program if there's an error
  */
-void generateFunctionAsm(CompilerOptions *compilerOptions, FunctionDefinition *functionData, int offset, HashTable *parentVariables);
+void generateFunctionAsm(CompilerOptions *compilerOptions, FunctionDefinition *functionData);
 
 /**
  * Generates the asm code of the program
@@ -87,7 +87,7 @@ void generateFunctionAsm(CompilerOptions *compilerOptions, FunctionDefinition *f
  * 
  * @throw Exits the program if there's an error
  */
-void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int offset, HashTable *parentVariables, HashTable *globalVariables);
+void generateProgramAsm(CompilerOptions *compilerOptions, Program *program);
 void generateAsm(CompilerOptions *compilerOptions);
 void compile(CompilerOptions *compilerOptions);
 void runProgram(CompilerOptions *compilerOptions);

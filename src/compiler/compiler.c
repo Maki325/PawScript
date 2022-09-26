@@ -146,9 +146,8 @@ void postCompile(CompilerOptions *compilerOptions) {
   fputs("syscall\n", compilerOptions->output);
 }
 
-void generateFunctionAsm(CompilerOptions *compilerOptions, FunctionDefinition *functionData, int offset, HashTable *parentVariables) {
+void generateFunctionAsm(CompilerOptions *compilerOptions, FunctionDefinition *functionData) {
   // Optimize to use register for some fields instead of stack because faster 👍
-  HashTable *variables = createHashTableFrom(parentVariables);
   fprintf(
     compilerOptions->output,
     "; --- FUNCTION %s ---\n",
@@ -159,7 +158,7 @@ void generateFunctionAsm(CompilerOptions *compilerOptions, FunctionDefinition *f
   fputs("mov rbp, rsp\n", compilerOptions->output);
   fprintf(compilerOptions->output, "sub rsp, %" PRIi32 "\n", -functionData->body->variableOffset);
 
-  generateProgramAsm(compilerOptions, functionData->body, offset, variables, NULL);
+  generateProgramAsm(compilerOptions, functionData->body);
 
   fputs("mov rsp, rbp\n", compilerOptions->output);
   fputs("pop rbp\n", compilerOptions->output);
@@ -972,7 +971,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
     }
     default: {
       fprintf(stderr, "Error: Token type `%s` not implemented in generateAssignAsm!\n", getTokenTypeName(next->type));
-      exit(-1);
+      ASSERT(false, "Error: Token not implemented in generateAssignAsm!\n");
       break;
     }
   }
@@ -1075,9 +1074,7 @@ void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *
   }
 }
 
-void generateScopeAsm(CompilerOptions *compilerOptions, Token *token) {
-  Program *program = token->data;
-
+void generateScopeAsm(CompilerOptions *compilerOptions, Program *program) {
   fprintf(
     compilerOptions->output,
     "; --- SCOPE ---\n"
@@ -1086,23 +1083,41 @@ void generateScopeAsm(CompilerOptions *compilerOptions, Token *token) {
   fputs("mov rbp, rsp\n", compilerOptions->output);
   fprintf(compilerOptions->output, "sub rsp, %" PRIi32 "\n", -program->variableOffset);
 
-  generateProgramAsm(compilerOptions, program, 0, NULL, NULL);
+  generateProgramAsm(compilerOptions, program);
 
   fputs("mov rsp, rbp\n", compilerOptions->output);
   fputs("pop rbp\n", compilerOptions->output);
 }
 
-void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int offset, HashTable *parentVariables, HashTable *globalVariables) {
-  HashTable *variables = createHashTableFrom(parentVariables);
-  const char *name = NULL;
-  (void) name;
+void generateIfAsm(CompilerOptions *compilerOptions, Program *program, size_t i, ControlFlowBlock *data) {
+  Program p = {
+    .capacity = 1,
+    .count = 1,
+    .instructions = &data->condition,
+    .parent = program,
+    .id = PROGRAM_COUNT++,
+  };
+  generateProgramAsm(compilerOptions, &p);
+  fprintf(compilerOptions->output, "cmp rax, 0\n");
+  fprintf(compilerOptions->output, "jz point_%zu_%zu\n", program->id, i + 1);
 
+  generateScopeAsm(compilerOptions, data->program);
+  fprintf(compilerOptions->output, "jmp point_%zu_%zu\n", program->id, i + data->endInstruction);
+  fprintf(compilerOptions->output, "point_%zu_%zu:\n", program->id, i + 1);
+}
+
+void generateElseAsm(CompilerOptions *compilerOptions, Program *program, size_t i, ControlFlowBlock *data) {
+  generateScopeAsm(compilerOptions, data->program);
+  fprintf(compilerOptions->output, "point_%zu_%zu:\n", program->id, i + 1);
+}
+
+void generateProgramAsm(CompilerOptions *compilerOptions, Program *program) {
   if(program->functions && program->functions->size) {
     for(size_t i = 0; i < program->functions->capacity;i++) {
       const char *functionName = program->functions->elements[i].key;
       if(!functionName) continue;
       FunctionDefinition *data = program->functions->elements[i].value;
-      generateFunctionAsm(compilerOptions, data, offset, variables);
+      generateFunctionAsm(compilerOptions, data);
     }
   }
 
@@ -1196,7 +1211,7 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
             .variables = NULL,
             .useInOffsetCalculations = false
           };
-          generateProgramAsm(compilerOptions, &p, offset, parentVariables, globalVariables);
+          generateProgramAsm(compilerOptions, &p);
         } else {
           ASSERT(false, "Not implemented yet");
         }
@@ -1232,20 +1247,27 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program, int 
         break;
       }
       case TOKEN_SCOPE: {
-        generateScopeAsm(compilerOptions, token);
+        generateScopeAsm(compilerOptions, token->data);
+        break;
+      }
+      case TOKEN_IF: {
+        generateIfAsm(compilerOptions, program, i, token->data);
+        break;
+      }
+      case TOKEN_ELSE: {
+        generateElseAsm(compilerOptions, program, i, token->data);
         break;
       }
       default: {
         fprintf(stderr, "Error: Token type `%s` not implemented in compilation!\n", getTokenTypeName(token->type));
         fprintf(stderr, "ERROR at: %s:%zu:%zu\n",
           token->file, token->line, token->column);
+        ASSERT(false, "Error: Token not implemented in generateAssignAsm!\n");
         exit(1);
         break;
       }
     }
   }
-
-  free(variables);
 }
 
 void generateAsm(CompilerOptions *compilerOptions) {
@@ -1260,7 +1282,7 @@ void generateAsm(CompilerOptions *compilerOptions) {
   prepareFileForCompile(out);
   HashTable *globalVariables = createHashTable(256);
 
-  generateProgramAsm(compilerOptions, compilerOptions->program, 0, NULL, globalVariables);
+  generateProgramAsm(compilerOptions, compilerOptions->program);
   postCompile(compilerOptions);
 
   bool data = false, bss = false;
