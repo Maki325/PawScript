@@ -474,13 +474,13 @@ bool shouldGoDeeper(TokenType type) {
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in goDeeper!");
   Program *program = NULL, *program2 = NULL;
-  Program prog;
-  prog.id = 0;
-  prog.parent = NULL;
-  prog.variables = NULL;
-  prog.functions = NULL;
+  Program prog, prog2;
+  prog.id = prog2.id = 0;
+  prog.parent = prog2.parent = NULL;
+  prog.variables = prog2.variables = NULL;
+  prog.functions = prog2.functions = NULL;
 
-  size_t *p_count = NULL;
+  size_t *p_count = NULL, *p2_count = NULL;
   switch (token->type) {
     case TOKEN_PRIORITY: {
       TokenPriorityData *priorityData = token->data;
@@ -581,7 +581,6 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
           prog.instructions = &data->operandOne;
           program = &prog;
           p_count = &prog.count;
-          break;
         }
       }
       if(data->operandTwo) {
@@ -599,14 +598,15 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
             exit(-1);
           }
         } else {
-          prog.count = 1;
-          prog.capacity = 1;
-          prog.instructions = &data->operandTwo;
-          p_count = &prog.count;
+          prog2.count = 1;
+          prog2.capacity = 1;
+          prog2.instructions = &data->operandTwo;
           if(program) {
-            program2 = &prog;
+            p2_count = &prog2.count;
+            program2 = &prog2;
           } else {
-            program = &prog;
+            p_count = &prog2.count;
+            program = &prog2;
           }
           break;
         }
@@ -645,7 +645,9 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
     }
     if(program2) {
       program = program2;
+      p_count = p2_count;
       program2 = NULL;
+      p2_count = NULL;
       continue;
     }
     break;

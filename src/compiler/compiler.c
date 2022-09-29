@@ -309,14 +309,14 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *progr
       fputs("push rax\n", compilerOptions->output);
 
       Program p = {
-        .parent = program,
-        .capacity = 0,
-        .count = 0,
-        .variables = NULL,
-        .variableOffset = 8,
-        .functions = NULL,
-        .id = 0,
-        .instructions = NULL,
+        .parent = program->parent,
+        .capacity = program->capacity,
+        .count = program->count,
+        .variables = program->variables,
+        .variableOffset = program->variableOffset + 8,
+        .functions = program->functions,
+        .id = program->id,
+        .instructions = program->instructions,
         .useInOffsetCalculations = true,
       };
       generateBinaryOperationAsm(compilerOptions, &p, right);
