@@ -1806,71 +1806,71 @@ Program *createProgramFromFile(const char *filePath) {
 
   fclose(in);
   startClock = clock() - startClock;
-  printf("[LOG]: File reading & tokenizing    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] File reading & tokenizing    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   crossreferenceBlocks(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Crossreferencing blocks      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Crossreferencing blocks      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   crossreferenceFunctions(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Crossreferencing functions   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Crossreferencing functions   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   crossreferenceVariables(program, NULL);
   startClock = clock() - startClock;
-  printf("[LOG]: Crossreferencing variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Crossreferencing variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   crossreferenceOperations(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Crossreferencing operations  : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Crossreferencing operations  : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   fixFunctionVariables(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Fixing Function Variables    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Fixing Function Variables    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   removeUnneededPriorities(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Removing Unneeded Priorities : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Removing Unneeded Priorities : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   createFunctionCalls(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Creating function calls      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Creating function calls      : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   typesetProgram(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Typeseting                   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Typeseting                   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   checkReturns(program, NULL);
   startClock = clock() - startClock;
-  printf("[LOG]: Checking returns             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Checking returns             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   checkConstVariables(program, NULL);
   startClock = clock() - startClock;
-  printf("[LOG]: Checking const variables     : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Checking const variables     : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   calculateOffsets(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Calculating offsets          : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Calculating offsets          : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   removeFunctionTokens(program);
   startClock = clock() - startClock;
-  printf("[LOG]: Removing function tokens     : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Removing function tokens     : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   startClock = clock() - tokenizerStart;
-  printf("[LOG]: Tokenizer                    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [TOKENIZER] Tokenizer                    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
 
   return program;
 }

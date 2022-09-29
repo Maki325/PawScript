@@ -126,6 +126,7 @@ void *removeElementFromHashTable(HashTable *hashTable, const char *key) {
 
       hashTable->elements[index].key = NULL;
       hashTable->elements[index].value = NULL;
+      hashTable->size--;
 
       return value;
     }

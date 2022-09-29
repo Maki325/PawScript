@@ -14,11 +14,12 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
       if(child->type != TOKEN_NAME) continue;
       NameData *nameData = child->data;
       if(!existsElementInHashTable(constValues, nameData->name)) {
-        break;
+        continue;
       }
       child->type = TOKEN_VALUE;
       child->data = getElementFromHashTable(constValues, nameData->name);
       free(nameData);
+      continue;
     } else if(token->type == TOKEN_FUNCTION_CALL) {
       FunctionCallData *callData = token->data;
       if(!callData || !callData->nameData) continue;
@@ -47,8 +48,10 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
     }
 
     if(nameData->mutable) continue;
+    if(i == program->count - 1) continue;
     next = program->instructions[i + 1];
     if(next->type != TOKEN_ASSIGN) continue;
+    if(i == program->count - 2) continue;
     next = program->instructions[i + 2];
     switch (next->type) {
       case TOKEN_VALUE: {
@@ -59,12 +62,13 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
           case BASIC_TYPE_FUNCTION: {
             setElementInHashTable(constValues, nameData->name, valueData);
 
+            removeElementFromHashTable(program->variables, nameData->name);
+
             free(getProgramInstruction(program, i, true));
             free(getProgramInstruction(program, i, true));
             free(getProgramInstruction(program, i, true));
             i--;
             free(nameData);
-            removeElementFromHashTable(program->variables, nameData->name);
             break;
           }
           default: {
@@ -79,13 +83,14 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
           break;
         }
         setElementInHashTable(constValues, nameData->name, getElementFromHashTable(constValues, nextNameData->name));
+
+        removeElementFromHashTable(program->variables, nameData->name);
+
         free(getProgramInstruction(program, i, true));
         free(getProgramInstruction(program, i, true));
         free(getProgramInstruction(program, i, true));
         i--;
         free(nameData);
-        removeElementFromHashTable(program->variables, nameData->name);
-
         break;
       }
       default: {
@@ -103,14 +108,77 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
   }
 }
 
+
+void cleanOffsets(Program *program) {
+  program->variableOffset = 0;
+  for(size_t i = 0;i < program->count;i++) {
+    Token *token = program->instructions[i];
+    if(token->type == TOKEN_DECLARE_FUNCTION) {
+      FunctionDefinition *data = token->data;
+      ASSERT(data, "Unreachable!");
+      TokenPriorityData *inputs = data->parameters;
+      for(size_t j = 0;j < inputs->count;j++) {
+        Token *input = inputs->instructions[j];
+        if(input->type != TOKEN_NAME) continue;
+        NameData *inputName = input->data;
+        ASSERT(inputName->offset != NULL, "Unreachable");
+        *inputName->offset = 0;
+      }
+
+      cleanOffsets(data->body);
+      continue;
+    } else if(shouldGoDeeper(token->type)) {
+      goDeeper(token, (goDeeperFunction) cleanOffsets, 0);
+      continue;
+    }
+  }
+  HashTable *variables = program->variables;
+  if(!variables) return;
+  for(size_t i = 0;i < variables->capacity;i++) {
+    if(variables->elements[i].key == NULL) continue;
+    NameData *variable = variables->elements[i].value;
+    *variable->offset = 0;
+  }
+
+  if(!program->functions) return;
+  HashTable *functions = program->functions;
+  for(size_t i = 0;i < functions->capacity;i++) {
+    if(!functions->elements[i].key) continue;
+    FunctionDefinition *fd = functions->elements[i].value;
+    cleanOffsets(fd->body);
+  }
+}
+
+void recalculateOffsets(Program *program) {
+  calculateOffsets(program);
+
+  if(!program->functions) return;
+  HashTable *functions = program->functions;
+  for(size_t i = 0;i < functions->capacity;i++) {
+    if(!functions->elements[i].key) continue;
+    FunctionDefinition *fd = functions->elements[i].value;
+    recalculateOffsets(fd->body);
+  }
+}
+
 void optimizeProgram(Program *program) {
   clock_t startClock = clock(), optimizerStart = startClock;
 
   optimizeConstVariables(program, NULL);
   startClock = clock() - startClock;
-  printf("[LOG]: Optimizing const variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [OPTIMIZER] Optimizing const variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
+  cleanOffsets(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: [OPTIMIZER] Cleaning offsets             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
+  recalculateOffsets(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: [OPTIMIZER] Recalculating offsets        : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   startClock = clock() - optimizerStart;
-  printf("[LOG]: Optimizer                    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  printf("[LOG]: [OPTIMIZER] Optimizer                    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
 }

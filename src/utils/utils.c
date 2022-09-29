@@ -184,9 +184,25 @@ void printToken(Token *token, unsigned int depth, size_t index) {
       }
       break;
     }
-    case TOKEN_ADD: {
+    case TOKEN_ADD:
+      printf("ADD: %p\n", token->data);
+      goto printToken_binaryOperation;
+    case TOKEN_SUBTRACT:
+      printf("SUBTRACT: %p\n", token->data);
+      goto printToken_binaryOperation;
+    case TOKEN_GREATER_THAN:
+      printf("GREATER THAN: %p\n", token->data);
+      goto printToken_binaryOperation;
+    case TOKEN_LESS_THAN:
+      printf("LESS THAN: %p\n", token->data);
+      goto printToken_binaryOperation;
+    case TOKEN_EQUALS:
+      printf("EQUALS: %p\n", token->data);
+      goto printToken_binaryOperation;
+    case TOKEN_NOT_EQUALS: printToken_binaryOperation: {
+      printf("NOT EQUALS: %p\n", token->data);
+
       BinaryOperationData *data = token->data;
-      printf("ADD: %p\n", data);
       if(!data) {
         break;
       }
@@ -312,7 +328,7 @@ const char *getTypeName(Type type) {
     case BASIC_TYPE_BOOL:
     case BASIC_TYPE_VOID: return getBasicTypeName(type.basicType);
     case BASIC_TYPE_FUNCTION: {
-      
+      // TODO
     }
 
     default: return getBasicTypeName(type.basicType);
