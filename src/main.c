@@ -1,7 +1,7 @@
 #include "includes.h"
 #include "utils/hashtable.h"
 #include "utils/utils.h"
-#include "tokenizer.h"
+#include "tokenizer/tokenizer.h"
 #include "compiler/compiler.h"
 #include "interpreter/interpreter.h"
 #include "optimizer/optimizer.h"

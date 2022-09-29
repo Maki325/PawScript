@@ -55,7 +55,7 @@ void printProgram(Program *program, unsigned int depth) {
       if(!functionName) continue;
       FunctionDefinition *data = program->functions->elements[i].value;
       printf("%*s - name: %s (%p)\n", funcDepth, "", functionName, data);
-      printf("%*s - return type: %s\n", funcDepth, "", getTypeName(data->returnType));
+      printf("%*s - return type: %s\n", funcDepth, "", getTypeName(data->functionType->output));
       
       printf("%*s - parameters: %p, count: %zu\n", funcDepth, "", data->parameters, data->parameters->count);
       for(size_t i = 0;i < data->parameters->count;i++) {
@@ -74,13 +74,13 @@ void printProgram(Program *program, unsigned int depth) {
 }
 void printToken(Token *token, unsigned int depth, size_t index) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in createTokenFromString!");
-  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in printToken!");
+  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in printToken!");
 
   printf("%*s - ", depth, "");
   printf("[%02zu]: ", index);
   switch(token->type) {
     case TOKEN_TYPE: {
-      printf("TYPE: %s\n", getTypeName((Type) token->data));
+      printf("TYPE: %s\n", getTypeName(*((Type*) token->data)));
       break;
     }
     case TOKEN_NAME: {
@@ -129,28 +129,28 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     case TOKEN_VALUE: {
       printf("VALUE: {type: ");
       ValueData *data = token->data;
-      switch (data->type) {
-        case TYPE_BOOL: {
+      switch (data->type.basicType) {
+        case BASIC_TYPE_BOOL: {
           printf("BOOL, value: %s}\n", data->data == 0 ? "FALSE" : "TRUE");
           break;
         }
-        case TYPE_INT: {
+        case BASIC_TYPE_INT: {
           printf("INT, value: %" PRIu64 "}\n", *((uint64_t*) data->data));
           break;
         }
-        case TYPE_VOID: {
+        case BASIC_TYPE_VOID: {
           printf("VOID}\n");
           break;
         }
-        case TYPE_FUNCTION: {
+        case BASIC_TYPE_FUNCTION: {
           printf("FUNCTION}\n");
           break;
         }
-        case TYPE_NONE: {
+        case BASIC_TYPE_NONE: {
           printf("NONE}\n");
           break;
         }
-        case TYPES_COUNT: {
+        case BASIC_TYPES_COUNT: {
           printf("COUNT}\n");
           break;
         }
@@ -287,8 +287,36 @@ const char *getFunctionNameFromCall(FunctionCallData *data) {
 }
 
 Type getFunctionReturnTypeFromCall(FunctionCallData *data) {
-  if(data->function) return data->function->returnType;
-  return data->nameData->functionType->output[0];
+  FunctionType *ft =
+    data->function ? data->function->functionType : data->nameData->type->data;
+  return ft->output;
+}
+
+const char *getBasicTypeName(BasicType type) {
+  ASSERT(BASIC_TYPES_COUNT == 5, "Not all types are implemented in getBasicTypeName!");
+  switch (type) {
+    case BASIC_TYPE_INT:      return "int";
+    case BASIC_TYPE_BOOL:     return "bool";
+    case BASIC_TYPE_VOID:     return "void";
+    case BASIC_TYPE_FUNCTION: return "function";
+    // TODO: Create a better function type such thats it can have actuall input and output types!
+    case BASIC_TYPE_NONE:     return "NONE!!!";
+    default:            return "Unknown Token!!!";
+  }
+}
+
+const char *getTypeName(Type type) {
+  ASSERT(BASIC_TYPES_COUNT == 5, "Not all types are implemented in getBasicTypeName!");
+  switch (type.basicType) {
+    case BASIC_TYPE_INT:
+    case BASIC_TYPE_BOOL:
+    case BASIC_TYPE_VOID: return getBasicTypeName(type.basicType);
+    case BASIC_TYPE_FUNCTION: {
+      
+    }
+
+    default: return getBasicTypeName(type.basicType);
+  }
 }
 
 FILE *openFile(const char *filePath, const char *modes) {

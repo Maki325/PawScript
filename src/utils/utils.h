@@ -1,7 +1,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 #include "../includes.h"
-#include "../tokenizer.h"
+#include "../tokenizer/tokenizer.h"
 
 #define TAB_SPACES 2
 
@@ -39,6 +39,9 @@ uint8_t getBoolValue(void *data);
 const char *getFunctionNameFromCall(FunctionCallData *data);
 
 Type getFunctionReturnTypeFromCall(FunctionCallData *data);
+
+const char *getBasicTypeName(BasicType type);
+const char *getTypeName(Type type);
 
 FILE *openFile(const char *filePath, const char *modes);
 

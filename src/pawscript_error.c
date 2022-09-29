@@ -1,6 +1,6 @@
 #include "pawscript_error.h"
 #include "includes.h"
-#include "tokenizer.h"
+#include "tokenizer/tokenizer.h"
 
 const char *getPawscriptErrorName(PawscriptError error) {
   ASSERT(ERROR_COUNT == 32, "Not all errors are implemented in getPawscriptErrorName!");

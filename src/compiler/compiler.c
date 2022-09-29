@@ -49,8 +49,8 @@ const char *get32BitRegister(Register reg) {
 }
 
 char *getInitializedType(Type type) {
-  ASSERT(TYPES_COUNT == 5, "Not all types are implemented in getInitializedType!");
-  static char* bytes[TYPES_COUNT + 1] = {
+  ASSERT(BASIC_TYPES_COUNT == 5, "Not all types are implemented in getInitializedType!");
+  static char* bytes[BASIC_TYPES_COUNT + 1] = {
     /* NONE     */ "ERROR NONE!!!",
     /* INT      */ "DQ",
     /* BOOL     */ "DQ",
@@ -58,12 +58,12 @@ char *getInitializedType(Type type) {
     /* FUNCTION */ "ERROR FUNCTION!!!",
     /* COUNT    */ "ERROR COUNT!!!",
   };
-  if(type > TYPES_COUNT) return "ERROR UNKNOWN!!!";
-  return bytes[type];
+  if(type.basicType > BASIC_TYPES_COUNT) return "ERROR UNKNOWN!!!";
+  return bytes[type.basicType];
 }
 char *getUninitializedType(Type type) {
-  ASSERT(TYPES_COUNT == 5, "Not all types are implemented in getUninitializedType!");
-  static char* bytes[TYPES_COUNT + 1] = {
+  ASSERT(BASIC_TYPES_COUNT == 5, "Not all types are implemented in getUninitializedType!");
+  static char* bytes[BASIC_TYPES_COUNT + 1] = {
     /* NONE     */ "ERROR NONE!!!",
     /* INT      */ "RESQ",
     /* BOOL     */ "RESQ",
@@ -71,8 +71,8 @@ char *getUninitializedType(Type type) {
     /* FUNCTION */ "ERROR FUNCTION!!!",
     /* COUNT    */ "ERROR COUNT!!!",
   };
-  if(type > TYPES_COUNT) return "ERROR UNKNOWN!!!";
-  return bytes[type];
+  if(type.basicType > BASIC_TYPES_COUNT) return "ERROR UNKNOWN!!!";
+  return bytes[type.basicType];
 }
 
 void addPrintFunction(FILE *out) {
@@ -183,8 +183,8 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *progr
   switch (left->type) {
     case TOKEN_VALUE: {
       ValueData *valueData = left->data;
-      switch(valueData->type) {
-        case TYPE_INT: {
+      switch(valueData->type.basicType) {
+        case BASIC_TYPE_INT: {
           fprintf(
             compilerOptions->output,
             "; --- BINARY OPERATION LEFT VALUE INT %" PRIu64 " ---\n",
@@ -197,7 +197,7 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *progr
           );
           break;
         }
-        case TYPE_BOOL: {
+        case BASIC_TYPE_BOOL: {
           fprintf(
             compilerOptions->output,
             "; --- BINARY OPERATION LEFT VALUE BOOL %" PRIu8 " ---\n",
@@ -248,8 +248,8 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *progr
   switch (right->type) {
     case TOKEN_VALUE: {
       ValueData *valueData = right->data;
-      switch(valueData->type) {
-        case TYPE_INT: {
+      switch(valueData->type.basicType) {
+        case BASIC_TYPE_INT: {
           fprintf(
             compilerOptions->output,
             "; --- BINARY OPERATION RIGHT VALUE INT %" PRIu64 " ---\n",
@@ -262,7 +262,7 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *progr
           );
           break;
         }
-        case TYPE_BOOL: {
+        case BASIC_TYPE_BOOL: {
           fprintf(
             compilerOptions->output,
             "; --- BINARY OPERATION RIGHT VALUE BOOL %" PRIu8 " ---\n",
@@ -515,10 +515,10 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
     BinaryOperationData *binaryOperationData = next->data;
     Type operationType = binaryOperationData->type;
 
-    switch(*data->type) {
-      case TYPE_INT: {
-        switch(operationType) {
-          case TYPE_INT: {
+    switch(data->type->basicType) {
+      case BASIC_TYPE_INT: {
+        switch(operationType.basicType) {
+          case BASIC_TYPE_INT: {
             fprintf(
               compilerOptions->output,
               "; --- ASSIGN OPERATION INT -> INT %s ---\n",
@@ -532,7 +532,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
             );
             break;
           }
-          case TYPE_BOOL: {
+          case BASIC_TYPE_BOOL: {
             fprintf(
               compilerOptions->output,
               "; --- ASSIGN OPERATION BOOL -> INT %s ---\n",
@@ -553,9 +553,9 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
         }
         break;
       }
-      case TYPE_BOOL: {
-        switch(operationType) {
-          case TYPE_BOOL: {
+      case BASIC_TYPE_BOOL: {
+        switch(operationType.basicType) {
+          case BASIC_TYPE_BOOL: {
             fprintf(
               compilerOptions->output,
               "; --- ASSIGN OPERATION BOOL -> BOOL %s ---\n",
@@ -571,16 +571,18 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
             );
             break;
           }
-          case TYPE_INT: {
+          case BASIC_TYPE_INT: {
             fprintf(
               compilerOptions->output,
               "; --- ASSIGN OPERATION INT -> BOOL %s ---\n",
               data->variableName
             );
-            fputs("and rax, 1\n", compilerOptions->output);
+            fputs("xor rbx, rbx\n", compilerOptions->output);
+            fputs("cmp rax, 0\n", compilerOptions->output);
+            fputs("setne bl\n", compilerOptions->output);
             fprintf(
               compilerOptions->output,
-              "mov [rbp %s %" PRIi32 "], rax\n",
+              "mov [rbp %s %" PRIi32 "], rbx\n",
               offsetSign,
               offsetValue
             );
@@ -605,10 +607,10 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
     case TOKEN_VALUE: {
       ValueData *valueData = next->data;
 
-      switch(*data->type) {
-        case TYPE_INT: {
-          switch(valueData->type) {
-            case TYPE_INT: {
+      switch(data->type->basicType) {
+        case BASIC_TYPE_INT: {
+          switch(valueData->type.basicType) {
+            case BASIC_TYPE_INT: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN INT VALUE %" PRIu64 " -> INT %s ---\n",
@@ -625,7 +627,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               );
               break;
             }
-            case TYPE_BOOL: {
+            case BASIC_TYPE_BOOL: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN BOOL VALUE %" PRIu8 " -> INT %s ---\n",
@@ -648,9 +650,9 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
           }
           break;
         }
-        case TYPE_BOOL: {
-          switch(valueData->type) {
-            case TYPE_BOOL: {
+        case BASIC_TYPE_BOOL: {
+          switch(valueData->type.basicType) {
+            case BASIC_TYPE_BOOL: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN BOOL VALUE %s -> BOOL %s ---\n",
@@ -667,7 +669,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               );
               break;
             }
-            case TYPE_INT: {
+            case BASIC_TYPE_INT: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN INT VALUE %" PRIu64 " (Normalized: %" PRIu8 ") -> BOOL %s ---\n",
@@ -691,9 +693,9 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
           }
           break;
         }
-        case TYPE_FUNCTION: {
-          switch(valueData->type) {
-            case TYPE_FUNCTION: {
+        case BASIC_TYPE_FUNCTION: {
+          switch(valueData->type.basicType) {
+            case BASIC_TYPE_FUNCTION: {
               FunctionTypeData *ftd = valueData->data;
               fprintf(
                 compilerOptions->output,
@@ -734,10 +736,10 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
       const char *nextOffsetSign = getSign(nextOffset);
       int32_t nextOffsetValue = abs(nextOffset);
 
-      switch(*data->type) {
-        case TYPE_INT: {
-          switch(*nextData->type) {
-            case TYPE_INT: {
+      switch(data->type->basicType) {
+        case BASIC_TYPE_INT: {
+          switch(nextData->type->basicType) {
+            case BASIC_TYPE_INT: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN NAME INT %s -> INT %s ---\n",
@@ -757,7 +759,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               );
               break;
             }
-            case TYPE_BOOL: {
+            case BASIC_TYPE_BOOL: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN NAME BOOL %s -> INT %s ---\n",
@@ -785,9 +787,9 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
           }
           break;
         }
-        case TYPE_BOOL: {
-          switch(*nextData->type) {
-            case TYPE_BOOL: {
+        case BASIC_TYPE_BOOL: {
+          switch(nextData->type->basicType) {
+            case BASIC_TYPE_BOOL: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN NAME BOOL %s -> BOOL %s ---\n",
@@ -808,22 +810,23 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               );
               break;
             }
-            case TYPE_INT: {
+            case BASIC_TYPE_INT: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN NAME INT %s -> BOOL %s ---\n",
                 nextData->variableName, data->variableName
               );
+              fputs("xor rbx, rbx\n", compilerOptions->output);
               fprintf(
                 compilerOptions->output,
-                "mov rax, [rbp %s %" PRIi32 "]\n",
+                "cmp DWORD [rbp %s %" PRIi32 "], 0\n",
                 nextOffsetSign,
                 nextOffsetValue
               );
-              fputs("and rax, 1\n", compilerOptions->output);
+              fputs("setne bl\n", compilerOptions->output);
               fprintf(
                 compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], rax\n",
+                "mov [rbp %s %" PRIi32 "], rbx\n",
                 offsetSign,
                 offsetValue
               );
@@ -835,9 +838,9 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
           }
           break;
         }
-        case TYPE_FUNCTION: {
-          switch(*nextData->type) {
-            case TYPE_FUNCTION: {
+        case BASIC_TYPE_FUNCTION: {
+          switch(nextData->type->basicType) {
+            case BASIC_TYPE_FUNCTION: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN NAME FUNCTION %s -> FUNCTION %s ---\n",
@@ -879,10 +882,10 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
       const char *name = getFunctionNameFromCall(functionCallData);
       Type returnType = getFunctionReturnTypeFromCall(functionCallData);
 
-      switch(*data->type) {
-        case TYPE_INT: {
-          switch(returnType) {
-            case TYPE_INT: {
+      switch(data->type->basicType) {
+        case BASIC_TYPE_INT: {
+          switch(returnType.basicType) {
+            case BASIC_TYPE_INT: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN INT FUNCTION %s -> INT %s ---\n",
@@ -898,7 +901,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               );
               break;
             }
-            case TYPE_BOOL: {
+            case BASIC_TYPE_BOOL: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN BOOL FUNCTION %s -> INT %s ---\n",
@@ -920,9 +923,9 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
           }
           break;
         }
-        case TYPE_BOOL: {
-          switch(returnType) {
-            case TYPE_BOOL: {
+        case BASIC_TYPE_BOOL: {
+          switch(returnType.basicType) {
+            case BASIC_TYPE_BOOL: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN BOOL FUNCTION %s -> BOOL %s ---\n",
@@ -939,7 +942,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               );
               break;
             }
-            case TYPE_INT: {
+            case BASIC_TYPE_INT: {
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN BOOL FUNCTION %s -> BOOL %s ---\n",
@@ -989,8 +992,8 @@ NameData *getProgramVariable(Program *program, const char* name) {
 
 void generateValueAsm(CompilerOptions *compilerOptions, Token *token, Register destination) {
   ValueData *data = token->data;
-  switch(data->type) {
-    case TYPE_BOOL: {
+  switch(data->type.basicType) {
+    case BASIC_TYPE_BOOL: {
       fprintf(
         compilerOptions->output,
         "; --- TOKEN VALUE BOOL %" PRIu8 " ---\n",
@@ -1006,7 +1009,7 @@ void generateValueAsm(CompilerOptions *compilerOptions, Token *token, Register d
       );
       break;
     }
-    case TYPE_INT: {
+    case BASIC_TYPE_INT: {
       fprintf(
         compilerOptions->output,
         "; --- TOKEN VALUE INT %" PRIu64 " ---\n",
@@ -1036,8 +1039,8 @@ void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *
     "; --- TOKEN NAME %s ---\n",
     data->variableName
   );
-  switch(*data->type) {
-    case TYPE_INT: {
+  switch(data->type->basicType) {
+    case BASIC_TYPE_INT: {
       fprintf(
         compilerOptions->output,
         "mov %s, [rbp %s %" PRIi32 "]\n",
@@ -1047,7 +1050,7 @@ void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *
       );
       break;
     }
-    case TYPE_BOOL: {
+    case BASIC_TYPE_BOOL: {
       fprintf(
         compilerOptions->output,
         "movzx %s, BYTE [rbp %s %" PRIi32 "]\n",
@@ -1058,7 +1061,7 @@ void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *
       );
       break;
     }
-    case TYPE_FUNCTION: {
+    case BASIC_TYPE_FUNCTION: {
       fprintf(
         compilerOptions->output,
         "mov %s, [rbp %s %" PRIi32 "]\n",

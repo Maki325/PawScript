@@ -1,8 +1,8 @@
 #include "tokenizer.h"
-#include "pawscript_error.h"
-#include "utils/utils.h"
-#include "config.h"
-#include "platforms/linux_x86_64/tokenizer.h"
+#include "../pawscript_error.h"
+#include "../utils/utils.h"
+#include "../config.h"
+#include "../platforms/linux_x86_64/tokenizer.h"
 #include <stdarg.h>
 #include <time.h>
 
@@ -85,7 +85,6 @@ void createVariableToken(CreateTokenFromString *createOptions, Token *token) {
   data->variableName = name;
   data->name = name;
   data->mutable = false;
-  data->functionType = NULL;
 
   token->type = TOKEN_NAME;
   token->data = data;
@@ -104,7 +103,7 @@ Token *createToken(Token *createToken) {
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in createTokenFromString!");
-  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in createTokenFromString!");
+  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in createTokenFromString!");
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
   token->line = createOptions->line;
@@ -116,23 +115,23 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
   if(strncmp("int", createOptions->string, max(createOptions->length, 3)) == 0) {
     createOptions->length -= 3;
     token->type = TOKEN_TYPE;
-    token->data = (void*) TYPE_INT;
+    token->data = createType(BASIC_TYPE_INT);
     return token;
   } else if(strncmp("bool", createOptions->string, max(createOptions->length, 4)) == 0) {
     createOptions->length -= 4;
     token->type = TOKEN_TYPE;
-    token->data = (void*) TYPE_BOOL;
+    token->data = createType(BASIC_TYPE_BOOL);
     return token;
   } else if(strncmp("void", createOptions->string, max(createOptions->length, 4)) == 0) {
     createOptions->length -= 4;
     token->type = TOKEN_TYPE;
-    token->data = (void*) TYPE_VOID;
+    token->data = createType(BASIC_TYPE_VOID);
     return token;
   } else if(strncmp("true", createOptions->string, max(createOptions->length, 4)) == 0) {
     createOptions->length -= 4;
     token->type = TOKEN_VALUE;
     ValueData *value = malloc(sizeof(ValueData));
-    value->type = TYPE_BOOL;
+    value->type = (Type) {.basicType = BASIC_TYPE_BOOL, .data = NULL};
     value->data = malloc(sizeof(uint8_t));
     *((uint8_t*) value->data) = 1;
     token->data = value;
@@ -141,7 +140,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     createOptions->length -= 5;
     token->type = TOKEN_VALUE;
     ValueData *value = malloc(sizeof(ValueData));
-    value->type = TYPE_BOOL;
+    value->type = (Type) {.basicType = BASIC_TYPE_BOOL, .data = NULL};
     value->data = malloc(sizeof(uint8_t));
     *((uint8_t*) value->data) = 0;
     token->data = value;
@@ -173,7 +172,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
       // TODO: Add multiple types support for value token
       token->type = TOKEN_VALUE;
       ValueData *value = malloc(sizeof(ValueData));
-      value->type = TYPE_INT;
+      value->type = (Type) {.basicType = BASIC_TYPE_INT, .data = NULL};
       value->data = malloc(sizeof(uint64_t));
       *((uint64_t*) value->data) = strnuint64(createOptions->string, createOptions->length);
       token->data = value;
@@ -191,7 +190,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
 
 size_t isStringTokenFromRight(const char *string, size_t length) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in isStringTokenFromRight!");
-  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in isStringTokenFromRight!");
+  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in isStringTokenFromRight!");
   for(size_t i = 0;true;i++) {
     InstructionType *inst = &INSTRUCTION_TYPES[i];
     if(!inst->name) return 0;
@@ -692,15 +691,12 @@ void crossreferenceFunctions(Program *program) {
       function->name = name;
       function->body = functionBody->data;
       function->parameters = functionParams->data;
-      function->returnType = TYPE_VOID;
       function->isMain = strncmp(name, "main", 5) == 0;
       function->doesReturn = false;
 
       function->functionType = malloc(sizeof(FunctionType));
 
-      function->functionType->outputSize = 1;
-      function->functionType->output = calloc(1, sizeof(Type));
-      function->functionType->output[0] = TYPE_VOID;
+      function->functionType->output = (Type) {.basicType = BASIC_TYPE_VOID, .data = NULL};
 
       function->functionType->inputSize = 0;
       for(size_t inc = 0;inc < function->parameters->count;inc++) {
@@ -708,11 +704,11 @@ void crossreferenceFunctions(Program *program) {
         if(tok->type != TOKEN_TYPE) continue;
         function->functionType->inputSize++;
       }
-      function->functionType->input = calloc(function->functionType->inputSize, sizeof(Type));
+      function->functionType->input = calloc(function->functionType->inputSize, sizeof(Type*));
       for(size_t inc = 0, it = 0;inc < function->parameters->count;inc++) {
         Token *tok = function->parameters->instructions[inc];
         if(tok->type != TOKEN_TYPE) continue;
-        function->functionType->input[it++] = (Type) tok->data;
+        function->functionType->input[it++] = (Type*) tok->data;
       }
 
       instruction->data = function;
@@ -739,15 +735,11 @@ void crossreferenceFunctions(Program *program) {
     function->name = name;
     function->body = functionBody->data;
     function->parameters = functionParams->data;
-    function->returnType = (Type) functionReturnType->data;
     function->isMain = strncmp(name, "main", 5) == 0;
     function->doesReturn = false;
 
     function->functionType = malloc(sizeof(FunctionType));
-
-    function->functionType->outputSize = 1;
-    function->functionType->output = calloc(1, sizeof(Type));
-    function->functionType->output[0] = function->returnType;
+    function->functionType->output = *(Type*) functionReturnType->data;
 
     function->functionType->inputSize = 0;
     for(size_t inc = 0;inc < function->parameters->count;inc++) {
@@ -759,7 +751,7 @@ void crossreferenceFunctions(Program *program) {
     for(size_t inc = 0, it = 0;inc < function->parameters->count;inc++) {
       Token *tok = function->parameters->instructions[inc];
       if(tok->type != TOKEN_TYPE) continue;
-      function->functionType->input[it++] = (Type) tok->data;
+      function->functionType->input[it++] = (Type*) tok->data;
     }
 
     instruction->data = function;
@@ -767,21 +759,16 @@ void crossreferenceFunctions(Program *program) {
   }
 }
 
-NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData, FunctionType *functionType, Program *program, size_t i) {
+NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData, Program *program, size_t i) {
   NameMapValue *element = malloc(sizeof(NameMapValue));
   element->program = program;
 
-  Type *type = malloc(sizeof(Type));
-  *type = TYPE_NONE;
-  element->type = type;
-
+  element->type = createNoneType();
   element->mutable = nameData->mutable;
 
   int32_t *offset = malloc(sizeof(int32_t));
   *offset = 0;
   element->offset = offset;
-
-  element->functionType = functionType;
 
   const size_t newNameLength = 4 +
         (program->id == 0 ? 1 : ((int) log10(program->id) + 1)) +
@@ -840,12 +827,11 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
           }
         }
 
-        NameMapValue *element = createAndAddNameMapVariable(nameMap, inputName, calloc(1, sizeof(FunctionType)), body, j);
+        NameMapValue *element = createAndAddNameMapVariable(nameMap, inputName, body, j);
         inputName->name               = element->name;
         inputName->type               = element->type;
         inputName->mutable            = element->mutable;
         inputName->offset             = element->offset;
-        inputName->functionType       = element->functionType;
 
         if(j != inputs->count - 1) {
           Token *next = inputs->instructions[j + 1];
@@ -856,7 +842,11 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
           if(next->type != TOKEN_TYPE) {
             exitTokenError(ERROR_VARIABLE_NO_TYPE, input);
           }
-          *element->type = (Type) next->data;
+          Type *tokenTypeValue = (Type*) next->data;
+          element->type->basicType = tokenTypeValue->basicType;
+          element->type->data = tokenTypeValue->data;
+
+          free(tokenTypeValue);
           free(getProgramInstruction(&inputsProgram, j + 2, true));
           free(getProgramInstruction(&inputsProgram, j + 1, true));
           inputs->count = inputsProgram.count;
@@ -868,14 +858,14 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
       functionName->mutable = false;
       functionName->name = data->name;
       functionName->variableName = data->variableName;
-      functionName->functionType = NULL;
-      NameMapValue *functionElement = createAndAddNameMapVariable(nameMap, functionName, data->functionType, program, i);
-      *functionElement->type = TYPE_FUNCTION;
+      NameMapValue *functionElement = createAndAddNameMapVariable(nameMap, functionName, program, i);
+      functionElement->type->basicType = BASIC_TYPE_FUNCTION;
+      functionElement->type->data = data->functionType;
+
       functionName->name         = functionElement->name;
       functionName->type         = functionElement->type;
       functionName->offset       = functionElement->offset;
       functionName->mutable      = functionElement->mutable;
-      functionName->functionType = functionElement->functionType;
 
       // TIP: Moving the function from variable name to generated name
       FunctionDefinition *function = removeElementFromHashTable(program->functions, functionName->variableName);
@@ -909,7 +899,6 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
         value->type          = element->type;
         value->mutable       = element->mutable;
         value->offset        = element->offset;
-        value->functionType  = element->functionType;
         continue;
       }
     }
@@ -927,12 +916,11 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
     free(getProgramInstruction(program, i - 1, true));
     i--;
 
-    NameMapValue *element = createAndAddNameMapVariable(nameMap, value, calloc(1, sizeof(FunctionType)), program, i);
+    NameMapValue *element = createAndAddNameMapVariable(nameMap, value, program, i);
     value->name               = element->name;
     value->type               = element->type;
     value->mutable            = element->mutable;
     value->offset             = element->offset;
-    value->functionType       = element->functionType;
   }
 
   deleteHashTable(nameMap);
@@ -940,7 +928,7 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
 
 void removeUnneededPriorities(Program *program) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in removeUnneededPriorities!");
-  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in removeUnneededPriorities!");
+  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in removeUnneededPriorities!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(token->type != TOKEN_PRIORITY) {
@@ -995,12 +983,12 @@ void typesetProgramReturnTypeVoidFunctionError(Token *returnToken) {
   switch(instruction->type) {
     case TOKEN_NAME: {
       NameData *nameData = instruction->data;
-      typesetProgramReturnTypeError(returnToken, TYPE_VOID, *nameData->type);
+      typesetProgramReturnTypeError(returnToken, CONST_TYPE_VOID, *nameData->type);
       return;
     }
     case TOKEN_VALUE: {
       ValueData *valueData = instruction->data;
-      typesetProgramReturnTypeError(returnToken, TYPE_VOID, valueData->type);
+      typesetProgramReturnTypeError(returnToken, CONST_TYPE_VOID, valueData->type);
       return;
     }
     default: {
@@ -1011,7 +999,7 @@ void typesetProgramReturnTypeVoidFunctionError(Token *returnToken) {
 
 void typesetProgram(Program *program) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
-  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in typesetProgram!");
+  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i], *next;
     if(shouldGoDeeper(token->type)) {
@@ -1029,7 +1017,7 @@ void typesetProgram(Program *program) {
     }
 
     if(i == program->count - 1) {
-      if(value->type == TYPE_NONE) {
+      if(value->type == BASIC_TYPE_NONE) {
         typesetProgramError(ERROR_VARIABLE_NO_TYPE, value->variableName, token);
         return;
       } else {
@@ -1046,10 +1034,11 @@ void typesetProgram(Program *program) {
         next = program->instructions[i + 2];
         switch (next->type) {
           case TOKEN_TYPE: {
-            Type type = (Type) next->data;
-            if(*value->type == TYPE_NONE) {
-              *value->type = type;
-            } else if(*value->type != type) {
+            Type *type = (Type*) next->data;
+            if(value->type->basicType == BASIC_TYPE_NONE) {
+              value->type->basicType = type->basicType;
+              value->type->data = type->data;
+            } else if(!areTypesEqual(*value->type, *type)) {
               typesetProgramError(ERROR_CANT_REASSIGN_VARIABLE_TYPE, value->variableName, token);
               return;
             }
@@ -1076,61 +1065,26 @@ void typesetProgram(Program *program) {
         switch (next->type) {
           case TOKEN_VALUE: {
             ValueData *data = next->data;
-            if(*value->type == TYPE_NONE) {
-              // TODO: Add multiple types support for value token
-              *value->type = data->type;
-              if(*value->type != TYPE_FUNCTION) {
-                break;
-              }
-              FunctionTypeData *functionTypeData = data->data;
-              ASSERT(value->functionType, "Unreachable!");
-              value->functionType->inputSize  = functionTypeData->functionType->inputSize;
-              value->functionType->input      = functionTypeData->functionType->input;
-              value->functionType->outputSize = functionTypeData->functionType->outputSize;
-              value->functionType->output     = functionTypeData->functionType->output;
+            if(value->type->basicType == BASIC_TYPE_NONE) {
+              value->type->basicType = data->type.basicType;
+              value->type->data = data->type.data;
               break;
-            } else if(*value->type != data->type) {
-              // TODO: Add multiple types support for value token
+            } else if(!areTypesEqual(*value->type, data->type)) {
               typesetProgramReassignError(value->variableName, token, *value->type, data->type);
               return;
-            } else if(*value->type == TYPE_FUNCTION) {
-              FunctionTypeData *ftd = data->data;
-              if(value->functionType == ftd->functionType) {
-                break;
-              }
-              if(
-                !value->functionType || !ftd->functionType ||
-                value->functionType->inputSize != ftd->functionType->inputSize ||
-                value->functionType->outputSize != ftd->functionType->outputSize
-              ) {
-                typesetProgramReassignError(value->variableName, token, *value->type, data->type);
-                return;
-              }
-              for(size_t index = 0;index < value->functionType->inputSize;index++) {
-                if(value->functionType->input[index] != ftd->functionType->input[index]) {
-                  typesetProgramReassignError(value->variableName, token, *value->type, data->type);
-                  return;
-                }
-              }
-              for(size_t index = 0;index < value->functionType->outputSize;index++) {
-                if(value->functionType->output[index] != ftd->functionType->output[index]) {
-                  typesetProgramReassignError(value->variableName, token, *value->type, data->type);
-                  return;
-                }
-              }
-              break;
             }
             break;
           }
           case TOKEN_NAME: {
             NameData *nextValue = next->data;
-            if(*nextValue->type == TYPE_NONE) {
+            if(nextValue->type->basicType == BASIC_TYPE_NONE) {
               typesetProgramError(ERROR_VARIABLE_NO_TYPE, nextValue->variableName, next);
               return;
-            } else if(*value->type == TYPE_NONE) {
-              *value->type = *nextValue->type;
+            } else if(value->type->basicType == BASIC_TYPE_NONE) {
+              value->type->basicType = nextValue->type->basicType;
+              value->type->data = nextValue->type->data;
               break;
-            } else if(*value->type != *nextValue->type) {
+            } else if(!areTypesEqual(*value->type, *nextValue->type)) {
               typesetProgramReassignError(value->variableName, token, *value->type, *nextValue->type);
               return;
             }
@@ -1144,14 +1098,15 @@ void typesetProgram(Program *program) {
           case TOKEN_NOT_EQUALS:
           case TOKEN_EQUALS: {
             BinaryOperationData *data = next->data;
-            if(data->type == TYPE_NONE) {
+            if(data->type.basicType == BASIC_TYPE_NONE) {
               exitTokenError(ERROR_OPERATION_NO_TYPE, next);
               return;
-            } else if(*value->type == TYPE_NONE) {
+            } else if(value->type->basicType == BASIC_TYPE_NONE) {
               // TODO: Add multiple types support for value token
-              *value->type = data->type;
+              value->type->basicType = data->type.basicType;
+              value->type->data = data->type.data;
               break;
-            } else if(*value->type != data->type) {
+            } else if(!areTypesEqual(*value->type, data->type)) {
               // TODO: Add multiple types support for value token
               typesetProgramReassignError(value->variableName, token, *value->type, data->type);
               return;
@@ -1161,27 +1116,15 @@ void typesetProgram(Program *program) {
           
           case TOKEN_FUNCTION_CALL: {
             FunctionCallData *nextData = next->data;
-            if(*value->type == TYPE_NONE) {
+            if(value->type->basicType == BASIC_TYPE_NONE) {
               // TODO: Add multiple types support for function token
-              if(nextData->function) {
-                *value->type = nextData->function->returnType;
-              } else if(nextData->nameData) {
-                *value->type = nextData->nameData->functionType->output[0];
-              }
+              Type returnType = getFunctionReturnTypeFromCall(nextData);
+              value->type->basicType = returnType.basicType;
+              value->type->data = returnType.data;
               break;
-            }
-            if(nextData->function) {
-              if(*value->type != nextData->function->returnType) {
-                // TODO: Add multiple types support for function token
-                typesetProgramReassignError(value->variableName, token, *value->type, nextData->function->returnType);
-                return;
-              }
-            } else if(nextData->nameData) {
-              if(*value->type != nextData->nameData->functionType->output[0]) {
-                // TODO: Add multiple types support for function token
-                typesetProgramReassignError(value->variableName, token, *value->type, nextData->nameData->functionType->output[0]);
-                return;
-              }
+            } else if(!areTypesEqual(*value->type, getFunctionReturnTypeFromCall(nextData))) {
+              typesetProgramReassignError(value->variableName, token, *value->type, getFunctionReturnTypeFromCall(nextData));
+              return;
             }
             break;
           }
@@ -1195,7 +1138,7 @@ void typesetProgram(Program *program) {
         break;
       }
       default: {
-        if(value->type == TYPE_NONE) {
+        if(value->type == BASIC_TYPE_NONE) {
           typesetProgramError(ERROR_UNINITIALIZED_VARIABLE, value->variableName, token);
           return;
         } else {
@@ -1208,7 +1151,7 @@ void typesetProgram(Program *program) {
 
 void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
-  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in typesetProgram!");
+  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(token->type == TOKEN_DECLARE_FUNCTION) {
@@ -1234,14 +1177,14 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
 
       return;
     }
-    Type returnType = functionDefinition->returnType;
-    if(returnType == TYPE_VOID && priorityData->count != 0) {
+    Type returnType = functionDefinition->functionType->output;
+    if(returnType.basicType == BASIC_TYPE_VOID && priorityData->count != 0) {
       typesetProgramReturnTypeVoidFunctionError(token);
       return;
     }
     if(priorityData->count == 0) {
-      if(returnType != TYPE_VOID) {
-        typesetProgramReturnTypeError(token, returnType, TYPE_VOID);
+      if(returnType.basicType != BASIC_TYPE_VOID) {
+        typesetProgramReturnTypeError(token, returnType, CONST_TYPE_VOID);
       } else {
         functionDefinition->doesReturn = true;
         goDeeper(token, (goDeeperFunction) typesetProgram, 1, functionDefinition);
@@ -1254,7 +1197,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
     Token *instruction = priorityData->instructions[0];
     if(isOperationTokenType(instruction->type)) {
       BinaryOperationData *bod = instruction->data;
-      if(bod->type == returnType) {
+      if(areTypesEqual(bod->type, returnType)) {
         functionDefinition->doesReturn = true;
         goDeeper(token, (goDeeperFunction) typesetProgram, 1, functionDefinition);
         continue;
@@ -1265,7 +1208,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
     switch(instruction->type) {
       case TOKEN_NAME: {
         NameData *nameData = instruction->data;
-        if(*nameData->type == returnType) {
+        if(areTypesEqual(*nameData->type, returnType)) {
           break;
         }
         exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
@@ -1273,7 +1216,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
       }
       case TOKEN_VALUE: {
         ValueData *valueData = instruction->data;
-        if(valueData->type == returnType) {
+        if(areTypesEqual(valueData->type, returnType)) {
           break;
         }
         exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
@@ -1281,7 +1224,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
       }
       case TOKEN_FUNCTION_CALL: {
         FunctionCallData *fcd = instruction->data;
-        if(getFunctionReturnTypeFromCall(fcd) == returnType) {
+        if(areTypesEqual(getFunctionReturnTypeFromCall(fcd), returnType)) {
           break;
         }
         exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
@@ -1299,7 +1242,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
 
   if(functionDefinition &&
     program == functionDefinition->body &&
-    functionDefinition->returnType != TYPE_VOID &&
+    functionDefinition->functionType->output.basicType != BASIC_TYPE_VOID &&
     !functionDefinition->doesReturn) {
     if(program->count != 0) {
       exitTokenError(ERROR_NO_RETURN, program->instructions[program->count - 1]);
@@ -1415,7 +1358,7 @@ void crossreferenceOperations(Program *program) {
         i -= 1;
 
         // [FUTURE]: Actually check what the data is!!!
-        value->type = TYPE_INT;
+        value->type = CONST_TYPE_INT;
 
         break;
       }
@@ -1458,7 +1401,7 @@ void crossreferenceOperations(Program *program) {
         i -= 1;
 
         // [FUTURE]: Actually check what the data is!!!
-        value->type = TYPE_INT;
+        value->type = CONST_TYPE_INT;
 
         break;
       }
@@ -1541,7 +1484,7 @@ void crossreferenceOperations(Program *program) {
         i -= 1;
 
         // [FUTURE]: Actually check what the data is!!!
-        value->type = TYPE_BOOL;
+        value->type = CONST_TYPE_BOOL;
 
         break;
       }
@@ -1578,7 +1521,7 @@ FunctionDefinition *getFunctionFromProgram(Program *program, const char *name) {
 
 void createFunctionCalls(Program *program) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in removeUnneededPriorities!");
-  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in removeUnneededPriorities!");
+  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in removeUnneededPriorities!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(shouldGoDeeper(token->type)) {
@@ -1590,7 +1533,7 @@ void createFunctionCalls(Program *program) {
     }
     if(token->type == TOKEN_VALUE) {
       ValueData *valueData = token->data;
-      if(valueData->type != TYPE_FUNCTION) continue;
+      if(valueData->type.basicType != BASIC_TYPE_FUNCTION) continue;
     }
     if(i + 1 == program->count) {
       continue;
@@ -1740,14 +1683,14 @@ void fixFunctionVariables(Program *program) {
     }
     if(token->type != TOKEN_NAME) continue;
     NameData *nameData = token->data;
-    if(*nameData->type != TYPE_FUNCTION) continue;
+    if(nameData->type->basicType != BASIC_TYPE_FUNCTION) continue;
 
     program->instructions[i]->type = TOKEN_VALUE;
     ValueData *valueData = malloc(sizeof(ValueData));
-    valueData->type = TYPE_FUNCTION;
+    valueData->type = *nameData->type;
     FunctionTypeData *functionTypeData = valueData->data = malloc(sizeof(FunctionTypeData));
     functionTypeData->name = nameData->name;
-    functionTypeData->functionType = nameData->functionType;
+    functionTypeData->functionType = nameData->type->data;
     program->instructions[i]->data = valueData;
 
     free(nameData);
@@ -1757,7 +1700,7 @@ void fixFunctionVariables(Program *program) {
 void checkConstVariables(Program *program, HashTable *table) {
   // Check for unary operators if added
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in checkConstVariables!");
-  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in checkConstVariables!");
+  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in checkConstVariables!");
   table = createHashTableFrom(table);
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];

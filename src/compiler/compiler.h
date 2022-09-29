@@ -1,7 +1,7 @@
 #ifndef PS_COMPILER_H
 #define PS_COMPILER_H
 #include "../includes.h"
-#include "../tokenizer.h"
+#include "../tokenizer/tokenizer.h"
 
 typedef struct CompilerOptions {
   Program *program;

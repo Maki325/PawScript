@@ -1,8 +1,9 @@
 #ifndef TOKENIZER_H
 #define TOKENIZER_H
-#include "includes.h"
-#include "utils/hashtable.h"
-#include "pawscript_error.h"
+#include "types.h"
+#include "../includes.h"
+#include "../utils/hashtable.h"
+#include "../pawscript_error.h"
 
 typedef enum TokenType {
   TOKEN_TYPE = 0,
@@ -74,35 +75,6 @@ static inline const char *getTokenTypeName(TokenType type) {
   }
 }
 
-typedef enum Type {
-  TYPE_NONE = 0,
-  TYPE_INT,
-  TYPE_BOOL,
-  TYPE_VOID,
-  TYPE_FUNCTION,
-  TYPES_COUNT
-} Type;
-
-typedef struct FunctionType {
-  Type *input;
-  size_t inputSize;
-  Type *output;
-  size_t outputSize;
-} FunctionType;
-
-static inline const char *getTypeName(Type type) {
-  ASSERT(TYPES_COUNT == 5, "Not all types are implemented in getTypeName!");
-  switch (type) {
-    case TYPE_INT:      return "int";
-    case TYPE_BOOL:     return "bool";
-    case TYPE_VOID:     return "void";
-    case TYPE_FUNCTION: return "function";
-    // TODO: Create a better function type such thats it can have actuall input and output types!
-    case TYPE_NONE:     return "NONE!!!";
-    default:            return "Unknown Token!!!";
-  }
-}
-
 typedef struct Token {
   TokenType type;
   void *data;
@@ -163,7 +135,6 @@ typedef struct NameData {
   const char *variableName;
   const char *name;
   Type *type;
-  FunctionType *functionType;
   bool mutable;
   int32_t *offset;
 } NameData;
@@ -186,7 +157,6 @@ typedef struct FunctionDefinition {
   const char *name;
   TokenPriorityData *parameters;
   Program *body;
-  Type returnType;
   bool isMain;
   FunctionType *functionType;
   bool doesReturn;
@@ -202,7 +172,6 @@ typedef struct NameMapValue {
   Program *program;
   const char *name;
   Type *type;
-  FunctionType *functionType;
   bool mutable;
   int32_t *offset;
 } NameMapValue;
@@ -245,7 +214,7 @@ bool shouldGoDeeperBase(TokenType type);
 bool shouldGoDeeper(TokenType type);
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...);
 
-NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData, FunctionType *functionType, Program *program, size_t i);
+NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData, Program *program, size_t i);
 bool isOperationTokenType(TokenType type);
 void crossreferenceVariables(Program *program, HashTable *parentNameMap);
 

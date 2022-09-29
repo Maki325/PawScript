@@ -1,6 +1,6 @@
 #ifndef OPTIMIZER_H_
 #define OPTIMIZER_H_
-#include "../tokenizer.h"
+#include "../tokenizer/tokenizer.h"
 
 void optimizeConstVariables(Program *program, HashTable *constValues);
 

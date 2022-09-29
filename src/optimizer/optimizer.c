@@ -4,7 +4,7 @@
 
 void optimizeConstVariables(Program *program, HashTable *constValues) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in optimizeConstVariables!");
-  ASSERT(TYPES_COUNT ==  5, "Not all types are implemented in optimizeConstVariables!");
+  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in optimizeConstVariables!");
   constValues = createHashTableFrom(constValues);
 
   for(size_t i = 0;i < program->count;i++) {
@@ -19,6 +19,18 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
       child->type = TOKEN_VALUE;
       child->data = getElementFromHashTable(constValues, nameData->name);
       free(nameData);
+    } else if(token->type == TOKEN_FUNCTION_CALL) {
+      FunctionCallData *callData = token->data;
+      if(!callData || !callData->nameData) continue;
+      if(!existsElementInHashTable(constValues, callData->nameData->name)) {
+        continue;
+      }
+      ValueData *vd = getElementFromHashTable(constValues, callData->nameData->name);
+      FunctionTypeData *dat = vd->data;
+
+      callData->function = getFunctionFromProgram(program, dat->name);
+      callData->nameData = NULL;
+      continue;
     } else if(shouldGoDeeper(token->type)) {
       goDeeper(token, (goDeeperFunction) optimizeConstVariables, 1, constValues);
       continue;
@@ -41,10 +53,10 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
     switch (next->type) {
       case TOKEN_VALUE: {
         ValueData *valueData = next->data;
-        switch(valueData->type) {
-          case TYPE_INT:
-          case TYPE_BOOL:
-          case TYPE_FUNCTION: {
+        switch(valueData->type.basicType) {
+          case BASIC_TYPE_INT:
+          case BASIC_TYPE_BOOL:
+          case BASIC_TYPE_FUNCTION: {
             setElementInHashTable(constValues, nameData->name, valueData);
 
             free(getProgramInstruction(program, i, true));
