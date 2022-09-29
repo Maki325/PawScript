@@ -2,6 +2,24 @@
 #include "../utils/utils.h"
 #include <time.h>
 
+void removeVariableFromProgram(Program *program, NameData *variable) {
+  List *variables = program->variables;
+  bool startSwapping = false;
+  for(size_t i = 0;i < variables->size;i++) {
+    NameData *nd = variables->elements[i];
+    if(strcmp(nd->name, variable->name) == 0) {
+      variables->elements[i] = NULL;
+      startSwapping = true;
+      variables->size--;
+    }
+    if(startSwapping) {
+      variables->elements[i] = variables->elements[i + 1];
+    }
+  }
+
+  removeElementFromHashTable(program->variableMap, variable->name);
+}
+
 void optimizeConstVariables(Program *program, HashTable *constValues) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in optimizeConstVariables!");
   ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in optimizeConstVariables!");
@@ -63,7 +81,7 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
           case BASIC_TYPE_FUNCTION: {
             setElementInHashTable(constValues, nameData->name, valueData);
 
-            removeElementFromHashTable(program->variables, nameData->name);
+            removeVariableFromProgram(program, nameData);
 
             free(getProgramInstruction(program, i, true));
             free(getProgramInstruction(program, i, true));
@@ -85,7 +103,7 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
         }
         setElementInHashTable(constValues, nameData->name, getElementFromHashTable(constValues, nextNameData->name));
 
-        removeElementFromHashTable(program->variables, nameData->name);
+        removeVariableFromProgram(program, nameData);
 
         free(getProgramInstruction(program, i, true));
         free(getProgramInstruction(program, i, true));
@@ -132,12 +150,12 @@ void cleanOffsets(Program *program) {
       continue;
     }
   }
-  HashTable *variables = program->variables;
-  if(!variables) return;
-  for(size_t i = 0;i < variables->capacity;i++) {
-    if(variables->elements[i].key == NULL) continue;
-    NameData *variable = variables->elements[i].value;
-    *variable->offset = 0;
+  List *variables = program->variables;
+  if(variables) {
+    for(size_t i = 0;i < variables->size;i++) {
+      NameData *variable = variables->elements[i];
+      *variable->offset = 0;
+    } 
   }
 
   if(!program->functions) return;

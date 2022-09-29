@@ -15,8 +15,9 @@ Program *createProgram() {
   program->capacity = 20;
   program->count = 0;
   program->instructions = calloc(program->capacity, sizeof(Token*));
+  program->variables = createList(256);
   program->functions = createHashTable(256);
-  program->variables = createHashTable(256);
+  program->variableMap = createHashTable(256);
   program->variableOffset = 0;
   program->useInOffsetCalculations = true;
 
@@ -35,8 +36,9 @@ void deleteProgram(Program *program) {
     free(program->instructions[i]);
   }
   free(program->instructions);
+  deleteList(program->variables);
   deleteHashTable(program->functions);
-  deleteHashTable(program->variables);
+  deleteHashTable(program->variableMap);
   free(program);
 }
 
@@ -780,7 +782,8 @@ NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData
   element->name = newName;
 
   setElementInHashTable(nameMap, nameData->name, element);
-  setElementInHashTable(program->variables, newName, nameData);
+  setElementInHashTable(program->variableMap, newName, nameData);
+  addElementToList(program->variables, nameData);
 
   return element;
 }
@@ -1290,11 +1293,11 @@ void calculateOffsets(Program *program) {
       continue;
     }
   }
-  HashTable *variables = program->variables;
+
+  List *variables = program->variables;
   if(!variables) return;
-  for(size_t i = 0;i < variables->capacity;i++) {
-    if(variables->elements[i].key == NULL) continue;
-    NameData *variable = variables->elements[i].value;
+  for(size_t i = 0;i < variables->size;i++) {
+    NameData *variable = variables->elements[i];
     if(*variable->offset != 0) continue;
     *variable->offset = program->variableOffset - getTypeByteSize(*variable->type);
     program->variableOffset = *variable->offset;

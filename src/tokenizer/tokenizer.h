@@ -3,6 +3,7 @@
 #include "types.h"
 #include "../includes.h"
 #include "../utils/hashtable.h"
+#include "../utils/list.h"
 #include "../pawscript_error.h"
 
 typedef enum TokenType {
@@ -97,8 +98,9 @@ typedef struct Program {
   int32_t variableOffset;
   bool useInOffsetCalculations;
 
+  List *variables;
   HashTable *functions;
-  HashTable *variables;
+  HashTable *variableMap;
 } Program;
 
 typedef struct InstructionType {

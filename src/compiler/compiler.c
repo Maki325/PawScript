@@ -390,7 +390,7 @@ int32_t calculateOffset(Program *program, NameData *nameData) {
     }
     ASSERT(false, "Can't find variable offset!");
   }
-  if(existsElementInHashTable(program->variables, nameData->name)) {
+  if(existsElementInHashTable(program->variableMap, nameData->name)) {
     return *nameData->offset;
   }
   
@@ -981,13 +981,13 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
 }
 
 NameData *getProgramVariable(Program *program, const char* name) {
-  if(!existsElementInHashTable(program->variables, name)) {
+  if(!existsElementInHashTable(program->variableMap, name)) {
     if(program->parent) {
       return getProgramVariable(program->parent, name);
     }
     return NULL;
   }
-  return getElementFromHashTable(program->variables, name);
+  return getElementFromHashTable(program->variableMap, name);
 }
 
 void generateValueAsm(CompilerOptions *compilerOptions, Token *token, Register destination) {
