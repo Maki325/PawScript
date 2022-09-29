@@ -21,6 +21,7 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
       free(nameData);
       continue;
     } else if(token->type == TOKEN_FUNCTION_CALL) {
+      goDeeper(token, (goDeeperFunction) optimizeConstVariables, 1, constValues);
       FunctionCallData *callData = token->data;
       if(!callData || !callData->nameData) continue;
       if(!existsElementInHashTable(constValues, callData->nameData->name)) {
@@ -108,7 +109,6 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
   }
 }
 
-
 void cleanOffsets(Program *program) {
   program->variableOffset = 0;
   for(size_t i = 0;i < program->count;i++) {
@@ -156,8 +156,21 @@ void recalculateOffsets(Program *program) {
   HashTable *functions = program->functions;
   for(size_t i = 0;i < functions->capacity;i++) {
     if(!functions->elements[i].key) continue;
-    FunctionDefinition *fd = functions->elements[i].value;
-    recalculateOffsets(fd->body);
+    FunctionDefinition *data = functions->elements[i].value;
+
+    ASSERT(data, "Unreachable!");
+    TokenPriorityData *inputs = data->parameters;
+    int32_t offset = 8;
+    for(size_t j = 0;j < inputs->count;j++) {
+      Token *input = inputs->instructions[j];
+      if(input->type != TOKEN_NAME) continue;
+      NameData *inputName = input->data;
+      ASSERT(inputName->offset != NULL, "Unreachable");
+      *inputName->offset = offset + getTypeByteSize(*inputName->type);
+      offset = *inputName->offset;
+    }
+
+    recalculateOffsets(data->body);
   }
 }
 

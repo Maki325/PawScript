@@ -199,8 +199,9 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     case TOKEN_EQUALS:
       printf("EQUALS: %p\n", token->data);
       goto printToken_binaryOperation;
-    case TOKEN_NOT_EQUALS: printToken_binaryOperation: {
+    case TOKEN_NOT_EQUALS:
       printf("NOT EQUALS: %p\n", token->data);
+    printToken_binaryOperation: {
 
       BinaryOperationData *data = token->data;
       if(!data) {
@@ -322,7 +323,7 @@ const char *getBasicTypeName(BasicType type) {
 }
 
 const char *getTypeName(Type type) {
-  ASSERT(BASIC_TYPES_COUNT == 5, "Not all types are implemented in getBasicTypeName!");
+  ASSERT(BASIC_TYPES_COUNT == 5, "Not all types are implemented in getTypeName!");
   switch (type.basicType) {
     case BASIC_TYPE_INT:
     case BASIC_TYPE_BOOL:

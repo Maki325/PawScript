@@ -3,15 +3,15 @@ main => (): int {
   const a = 5;
 
   {
-    beta_print a;
+    beta_print a; // 5
 
     // Different scopes can have a variable with the same name
     // And they won't interfere with each other
     const a = 7;
-    beta_print a;
+    beta_print a; // 7
     const b = a + 5;
-    beta_print a;
-    beta_print b;
+    beta_print a; // 7
+    beta_print b; // 12
 
     // Exiting before the function end also works!
     return 0;
