@@ -20,6 +20,59 @@ void removeVariableFromProgram(Program *program, NameData *variable) {
   removeElementFromHashTable(program->variableMap, variable->name);
 }
 
+ValueData *convertValueData(ValueData *oldValueData, Type newType) {
+  Type oldType = oldValueData->type;
+  ValueData *valueData = malloc(sizeof(ValueData));
+  valueData->type = newType;
+
+  if(areTypesEqual(oldType, newType)) {
+    valueData->data = oldValueData->data;
+    return valueData;
+  }
+
+  switch (newType.basicType) {
+    case BASIC_TYPE_BOOL: {
+      switch (oldType.basicType) {
+        case BASIC_TYPE_INT: {
+          uint8_t *value = malloc(sizeof(uint8_t));
+          *value = getNormalizedBoolValueFromUInt64(oldValueData->data);
+          valueData->data = value;
+
+          return valueData;
+        }
+        default: {
+          ASSERT(false, "Type not supported!");
+          break;
+        }
+      }
+      break;
+    }
+    case BASIC_TYPE_INT: {
+      switch (oldType.basicType) {
+        case BASIC_TYPE_BOOL: {
+          uint64_t *value = malloc(sizeof(uint64_t));
+          *value = getBoolValue(oldValueData->data);
+          valueData->data = value;
+
+          return valueData;
+        }
+        default: {
+          ASSERT(false, "Type not supported!");
+          break;
+        }
+      }
+      break;
+    }
+    default: {
+      ASSERT(false, "Type not supported!");
+      break;
+    }
+  }
+  
+  ASSERT(false, "Type not supported!");
+  return NULL;
+}
+
 void optimizeConstVariables(Program *program, HashTable *constValues) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in optimizeConstVariables!");
   ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in optimizeConstVariables!");
@@ -79,7 +132,14 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
           case BASIC_TYPE_INT:
           case BASIC_TYPE_BOOL:
           case BASIC_TYPE_FUNCTION: {
-            setElementInHashTable(constValues, nameData->name, valueData);
+            setElementInHashTable(
+              constValues,
+              nameData->name,
+              convertValueData(
+                valueData,
+                *nameData->type
+              )
+            );
 
             removeVariableFromProgram(program, nameData);
 
@@ -101,7 +161,14 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
         if(!existsElementInHashTable(constValues, nextNameData->name)) {
           break;
         }
-        setElementInHashTable(constValues, nameData->name, getElementFromHashTable(constValues, nextNameData->name));
+        setElementInHashTable(
+          constValues,
+          nameData->name,
+          convertValueData(
+            getElementFromHashTable(constValues, nextNameData->name),
+            *nameData->type
+          )
+        );
 
         removeVariableFromProgram(program, nameData);
 

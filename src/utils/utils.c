@@ -283,8 +283,11 @@ const char *getBoolStringFromValue(uint8_t *value) {
   return *value == 0 ? "false" : "true";
 }
 
-uint8_t getNormalizedBoolValueFromInt64(uint64_t *value) {
-  return *value & 1;
+uint8_t getNormalizedBoolValueFromUInt64(uint64_t *value) {
+  return *value != 0;
+}
+uint8_t getNormalizedBoolValueFromUInt8(uint8_t *value) {
+  return *value != 0;
 }
 
 const char *getSign(int32_t value) {

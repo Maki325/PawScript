@@ -674,7 +674,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN INT VALUE %" PRIu64 " (Normalized: %" PRIu8 ") -> BOOL %s ---\n",
                 *((uint64_t*) valueData->data),
-                getNormalizedBoolValueFromInt64(valueData->data),
+                getNormalizedBoolValueFromUInt64(valueData->data),
                 data->variableName
               );
 
@@ -683,7 +683,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 "mov BYTE [rbp %s %" PRIi32 "], %" PRIu8 "\n",
                 offsetSign,
                 offsetValue,
-                getNormalizedBoolValueFromInt64(valueData->data)
+                getNormalizedBoolValueFromUInt64(valueData->data)
               );
               break;
             }
@@ -996,8 +996,9 @@ void generateValueAsm(CompilerOptions *compilerOptions, Token *token, Register d
     case BASIC_TYPE_BOOL: {
       fprintf(
         compilerOptions->output,
-        "; --- TOKEN VALUE BOOL %" PRIu8 " ---\n",
-        *((uint8_t*) data->data)
+        "; --- TOKEN VALUE BOOL %" PRIu8 " (Normalized: %" PRIu8 ") ---\n",
+        *((uint8_t*) data->data),
+        getNormalizedBoolValueFromUInt8(data->data)
       );
 
       fprintf(
@@ -1005,7 +1006,7 @@ void generateValueAsm(CompilerOptions *compilerOptions, Token *token, Register d
         "mov %s, %" PRIu8 "\n",
         get32BitRegister(destination),
         // Setting EAX clears RAX
-        *((uint8_t*) data->data)
+        getNormalizedBoolValueFromUInt8(data->data)
       );
       break;
     }
