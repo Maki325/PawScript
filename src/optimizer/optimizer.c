@@ -185,7 +185,7 @@ void recalculateOffsets(Program *program) {
       NameData *inputName = input->data;
       ASSERT(inputName->offset != NULL, "Unreachable");
       *inputName->offset = offset + getTypeByteSize(*inputName->type);
-      offset = *inputName->offset;
+      offset = offset + getTypeByteOffset(*inputName->type);
     }
 
     recalculateOffsets(data->body);

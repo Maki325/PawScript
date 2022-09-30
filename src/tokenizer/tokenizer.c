@@ -1269,6 +1269,18 @@ size_t getTypeByteSize(Type type) {
   }
 }
 
+size_t getTypeByteOffset(Type type) {
+  switch(config.platform) {
+    case PLATFORM_LINUX_x86_64: {
+      return getTypeByteOffset_linux_x86_64(type);
+    }
+    default: {
+      exitError(ERROR_PLATFORM_NOT_SUPPORTED);
+      return 0;
+    }
+  }
+}
+
 void calculateOffsets(Program *program) {
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
@@ -1283,7 +1295,7 @@ void calculateOffsets(Program *program) {
         NameData *inputName = input->data;
         ASSERT(inputName->offset != NULL, "Unreachable");
         *inputName->offset = offset + getTypeByteSize(*inputName->type);
-        offset = *inputName->offset;
+        offset = offset + getTypeByteOffset(*inputName->type);
       }
 
       calculateOffsets(data->body);
@@ -1300,7 +1312,7 @@ void calculateOffsets(Program *program) {
     NameData *variable = variables->elements[i];
     if(*variable->offset != 0) continue;
     *variable->offset = program->variableOffset - getTypeByteSize(*variable->type);
-    program->variableOffset = *variable->offset;
+    program->variableOffset = program->variableOffset - getTypeByteOffset(*variable->type);
   }
 }
 

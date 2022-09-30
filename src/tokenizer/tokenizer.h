@@ -228,6 +228,7 @@ void typesetProgram(Program *program);
 void checkReturns(Program *program, FunctionDefinition *functionDefinition);
 
 size_t getTypeByteSize(Type type);
+size_t getTypeByteOffset(Type type);
 void calculateOffsets(Program *program);
 
 void crossreferenceOperations(Program *program);

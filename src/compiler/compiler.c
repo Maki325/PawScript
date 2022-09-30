@@ -416,13 +416,13 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program,
     Token *arg = arguments->instructions[i];
     if(arg->type == TOKEN_NAME) {
       NameData *nameData = arg->data;
-      bytes += getTypeByteSize(*nameData->type);
+      bytes += getTypeByteOffset(*nameData->type);
     } else if(arg->type == TOKEN_VALUE) {
       ValueData *valueData = arg->data;
-      bytes += getTypeByteSize(valueData->type);
+      bytes += getTypeByteOffset(valueData->type);
     } else if(isOperationTokenType(arg->type)) {
       BinaryOperationData *data = arg->data;
-      bytes += getTypeByteSize(data->type);
+      bytes += getTypeByteOffset(data->type);
     } else {
       printf("arg->type: %d %s\n", arg->type, getTokenTypeName(arg->type));
       ASSERT(false, "Type not supported!");
@@ -455,19 +455,19 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program,
         fprintf(compilerOptions->output, "mov [rbp - %zu], rax\n", bytes);
 
         NameData *nameData = arg->data;
-        bytes += getTypeByteSize(*nameData->type);
+        bytes += getTypeByteOffset(*nameData->type);
       } else if(arg->type == TOKEN_VALUE) {
         generateValueAsm(compilerOptions, arg, REGISTER_A);
         fprintf(compilerOptions->output, "mov [rbp - %zu], rax\n", bytes);
 
         ValueData *valueData = arg->data;
-        bytes += getTypeByteSize(valueData->type);
+        bytes += getTypeByteOffset(valueData->type);
       } else if(isOperationTokenType(arg->type)) {
         generateBinaryOperationAsm(compilerOptions, &p, arg);
         fprintf(compilerOptions->output, "mov [rbp - %zu], rax\n", bytes);
 
         BinaryOperationData *data = arg->data;
-        bytes += getTypeByteSize(data->type);
+        bytes += getTypeByteOffset(data->type);
       } else {
         ASSERT(false, "Type not supported!");
       }
