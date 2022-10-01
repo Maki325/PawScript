@@ -1,0 +1,13 @@
+printToZero => (const a: int) {
+  beta_print a;
+  if(a == 0) {
+    return;
+  }
+  printToZero(a - 1);
+}
+
+main => (): int {
+  printToZero(10);
+
+  return 0;
+}

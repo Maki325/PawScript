@@ -858,7 +858,6 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
         }
       }
 
-      crossreferenceVariables(body, nameMap);
       NameData *functionName = malloc(sizeof(NameData));
       functionName->mutable = false;
       functionName->name = data->name;
@@ -877,6 +876,7 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
       function->name = functionName->name;
       setElementInHashTable(program->functions, functionName->name, function);
 
+      crossreferenceVariables(body, nameMap);
       continue;
     } else if(shouldGoDeeper(instruction->type)) {
       goDeeper(instruction, (goDeeperFunction) crossreferenceVariables, 1, nameMap);
