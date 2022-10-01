@@ -40,6 +40,13 @@ ValueData *convertValueData(ValueData *oldValueData, Type newType) {
 
           return valueData;
         }
+        case BASIC_TYPE_CHAR: {
+          uint8_t *value = malloc(sizeof(uint8_t));
+          *value = (uint8_t) getNormalizedBoolValueFromChar(oldValueData->data);
+          valueData->data = value;
+
+          return valueData;
+        }
         default: {
           ASSERT(false, "Type not supported!");
           break;
@@ -52,6 +59,13 @@ ValueData *convertValueData(ValueData *oldValueData, Type newType) {
         case BASIC_TYPE_BOOL: {
           uint64_t *value = malloc(sizeof(uint64_t));
           *value = getBoolValue(oldValueData->data);
+          valueData->data = value;
+
+          return valueData;
+        }
+        case BASIC_TYPE_CHAR: {
+          uint64_t *value = malloc(sizeof(uint64_t));
+          *value = (uint64_t) getCharValue(oldValueData->data);
           valueData->data = value;
 
           return valueData;
@@ -75,7 +89,7 @@ ValueData *convertValueData(ValueData *oldValueData, Type newType) {
 
 void optimizeConstVariables(Program *program, HashTable *constValues) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in optimizeConstVariables!");
-  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in optimizeConstVariables!");
+  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in optimizeConstVariables!");
   constValues = createHashTableFrom(constValues);
 
   for(size_t i = 0;i < program->count;i++) {
@@ -131,6 +145,7 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
         switch(valueData->type.basicType) {
           case BASIC_TYPE_INT:
           case BASIC_TYPE_BOOL:
+          case BASIC_TYPE_CHAR:
           case BASIC_TYPE_FUNCTION: {
             setElementInHashTable(
               constValues,
@@ -262,20 +277,20 @@ void recalculateOffsets(Program *program) {
 void optimizeProgram(Program *program) {
   clock_t startClock = clock(), optimizerStart = startClock;
 
-  optimizeConstVariables(program, NULL);
-  startClock = clock() - startClock;
-  printf("[LOG]: [OPTIMIZER] Optimizing const variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  startClock = clock();
+  // optimizeConstVariables(program, NULL);
+  // startClock = clock() - startClock;
+  // printf("[LOG]: [OPTIMIZER] Optimizing const variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  // startClock = clock();
 
-  cleanOffsets(program);
-  startClock = clock() - startClock;
-  printf("[LOG]: [OPTIMIZER] Cleaning offsets             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  startClock = clock();
+  // cleanOffsets(program);
+  // startClock = clock() - startClock;
+  // printf("[LOG]: [OPTIMIZER] Cleaning offsets             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  // startClock = clock();
 
-  recalculateOffsets(program);
-  startClock = clock() - startClock;
-  printf("[LOG]: [OPTIMIZER] Recalculating offsets        : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  startClock = clock();
+  // recalculateOffsets(program);
+  // startClock = clock() - startClock;
+  // printf("[LOG]: [OPTIMIZER] Recalculating offsets        : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  // startClock = clock();
 
   startClock = clock() - optimizerStart;
   printf("[LOG]: [OPTIMIZER] Optimizer                    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);

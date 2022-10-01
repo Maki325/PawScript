@@ -6,6 +6,7 @@ size_t getTypeByteSize_linux_x86_64(Type type) {
   switch (type.basicType) {
     case BASIC_TYPE_INT:      return 8;
     case BASIC_TYPE_BOOL:     return 1;
+    case BASIC_TYPE_CHAR:     return 1;
     case BASIC_TYPE_FUNCTION: return 8;
   
     default: {
@@ -24,6 +25,7 @@ size_t getTypeByteOffset_linux_x86_64(Type type) {
   switch (type.basicType) {
     case BASIC_TYPE_INT:      return 8; // Actual size: 8
     case BASIC_TYPE_BOOL:     return 8; // Actual size: 1
+    case BASIC_TYPE_CHAR:     return 8; // Actual size: 1
     case BASIC_TYPE_FUNCTION: return 8; // Pointer size: 8
   
     default: {

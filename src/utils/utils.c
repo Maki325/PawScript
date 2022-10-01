@@ -138,6 +138,10 @@ void printToken(Token *token, unsigned int depth, size_t index) {
           printf("INT, value: %" PRIu64 "}\n", *((uint64_t*) data->data));
           break;
         }
+        case BASIC_TYPE_CHAR: {
+          printf("CHAR, value: %c}\n", *((char*) data->data));
+          break;
+        }
         case BASIC_TYPE_VOID: {
           printf("VOID}\n");
           break;
@@ -289,6 +293,9 @@ uint8_t getNormalizedBoolValueFromUInt64(uint64_t *value) {
 uint8_t getNormalizedBoolValueFromUInt8(uint8_t *value) {
   return *value != 0;
 }
+uint8_t getNormalizedBoolValueFromChar(char *value) {
+  return *value != 0;
+}
 
 const char *getSign(int32_t value) {
   return value >= 0 ? "+" : "-";
@@ -299,6 +306,9 @@ uint64_t getIntValue(void *data) {
 }
 uint8_t getBoolValue(void *data) {
   return *((uint8_t*) data);
+}
+char getCharValue(void *data) {
+  return *((char*) data);
 }
 
 const char *getFunctionNameFromCall(FunctionCallData *data) {
@@ -313,11 +323,12 @@ Type getFunctionReturnTypeFromCall(FunctionCallData *data) {
 }
 
 const char *getBasicTypeName(BasicType type) {
-  ASSERT(BASIC_TYPES_COUNT == 5, "Not all types are implemented in getBasicTypeName!");
+  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in getBasicTypeName!");
   switch (type) {
     case BASIC_TYPE_INT:      return "int";
     case BASIC_TYPE_BOOL:     return "bool";
     case BASIC_TYPE_VOID:     return "void";
+    case BASIC_TYPE_CHAR:     return "char";
     case BASIC_TYPE_FUNCTION: return "function";
     // TODO: Create a better function type such thats it can have actuall input and output types!
     case BASIC_TYPE_NONE:     return "NONE!!!";
@@ -326,10 +337,11 @@ const char *getBasicTypeName(BasicType type) {
 }
 
 const char *getTypeName(Type type) {
-  ASSERT(BASIC_TYPES_COUNT == 5, "Not all types are implemented in getTypeName!");
+  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in getTypeName!");
   switch (type.basicType) {
     case BASIC_TYPE_INT:
     case BASIC_TYPE_BOOL:
+    case BASIC_TYPE_CHAR:
     case BASIC_TYPE_VOID: return getBasicTypeName(type.basicType);
     case BASIC_TYPE_FUNCTION: {
       // TODO

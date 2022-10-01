@@ -105,7 +105,7 @@ Token *createToken(Token *createToken) {
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in createTokenFromString!");
-  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in createTokenFromString!");
+  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in createTokenFromString!");
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
   token->line = createOptions->line;
@@ -128,6 +128,11 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
     createOptions->length -= 4;
     token->type = TOKEN_TYPE;
     token->data = createType(BASIC_TYPE_VOID);
+    return token;
+  } else if(strncmp("char", createOptions->string, max(createOptions->length, 4)) == 0) {
+    createOptions->length -= 4;
+    token->type = TOKEN_TYPE;
+    token->data = createType(BASIC_TYPE_CHAR);
     return token;
   } else if(strncmp("true", createOptions->string, max(createOptions->length, 4)) == 0) {
     createOptions->length -= 4;
@@ -165,6 +170,20 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
       createOptions->length = 0;
       free(token);
       return NULL;
+    } else if(createOptions->string[0] == '\'') {
+      for(size_t i = 1;i < createOptions->length;i++) {
+        if(createOptions->string[i] == '\'') {
+          if(i == 1) {
+            exitTokenError(ERROR_EMPTY_CHAR, token);
+          } else if(i > 2) {
+            exitTokenError(ERROR_TOO_MANY_CHARS, token);
+          }
+          break;
+        }
+      }
+      createOptions->length -= 3;
+      free(token);
+      return NULL;
     }
     createVariableToken(createOptions, token);
     createOptions->length = 0;
@@ -178,6 +197,26 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
       value->data = malloc(sizeof(uint64_t));
       *((uint64_t*) value->data) = strnuint64(createOptions->string, createOptions->length);
       token->data = value;
+    } else if(createOptions->string[0] == '\'') {
+      for(size_t i = 1;i < createOptions->length;i++) {
+        if(createOptions->string[i] == '\'') {
+          if(i == 1) {
+            exitTokenError(ERROR_EMPTY_CHAR, token);
+          } else if(i > 2) {
+            exitTokenError(ERROR_TOO_MANY_CHARS, token);
+          }
+          break;
+        }
+      }
+      token->type = TOKEN_VALUE;
+      ValueData *value = malloc(sizeof(ValueData));
+      value->type = (Type) {.basicType = BASIC_TYPE_CHAR, .data = NULL};
+      value->data = malloc(sizeof(char));
+      *((char*) value->data) = createOptions->string[1];
+      token->data = value;
+
+      createOptions->length -= 3;
+      return token;
     } else {
       createVariableToken(createOptions, token);
     }
@@ -192,7 +231,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
 
 size_t isStringTokenFromRight(const char *string, size_t length) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in isStringTokenFromRight!");
-  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in isStringTokenFromRight!");
+  ASSERT(BASIC_TYPES_COUNT ==  6, "Not all types are implemented in isStringTokenFromRight!");
   for(size_t i = 0;true;i++) {
     InstructionType *inst = &INSTRUCTION_TYPES[i];
     if(!inst->name) return 0;
@@ -909,11 +948,13 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
     }
 
     if(i == 0) {
+      printProgram(program, 0);
       exitTokenError(ERROR_UNDECLARED_VARIABLE, instruction);
       return;
     }
     Token *last = program->instructions[i - 1];
     if(last->type != TOKEN_MUT && last->type != TOKEN_CONST) {
+      printProgram(program, 0);
       exitTokenError(ERROR_UNDECLARED_VARIABLE, instruction);
       return;
     }
@@ -933,7 +974,7 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
 
 void removeUnneededPriorities(Program *program) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in removeUnneededPriorities!");
-  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in removeUnneededPriorities!");
+  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in removeUnneededPriorities!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(token->type != TOKEN_PRIORITY) {
@@ -1004,7 +1045,7 @@ void typesetProgramReturnTypeVoidFunctionError(Token *returnToken) {
 
 void typesetProgram(Program *program) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
-  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in typesetProgram!");
+  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i], *next;
     if(shouldGoDeeper(token->type)) {
@@ -1156,7 +1197,7 @@ void typesetProgram(Program *program) {
 
 void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
-  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in typesetProgram!");
+  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(token->type == TOKEN_DECLARE_FUNCTION) {
@@ -1538,7 +1579,7 @@ FunctionDefinition *getFunctionFromProgram(Program *program, const char *name) {
 
 void createFunctionCalls(Program *program) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in removeUnneededPriorities!");
-  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in removeUnneededPriorities!");
+  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in removeUnneededPriorities!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(shouldGoDeeper(token->type)) {
@@ -1717,7 +1758,7 @@ void fixFunctionVariables(Program *program) {
 void checkConstVariables(Program *program, HashTable *table) {
   // Check for unary operators if added
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in checkConstVariables!");
-  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in checkConstVariables!");
+  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in checkConstVariables!");
   table = createHashTableFrom(table);
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];

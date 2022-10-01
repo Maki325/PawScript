@@ -11,7 +11,7 @@ Type *createNoneType() {
 }
 
 bool areTypesEqual(Type a, Type b) {
-  ASSERT(BASIC_TYPES_COUNT == 5, "Not all types are implemented in areTypesEqual!");
+  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in areTypesEqual!");
 
   if(a.basicType != b.basicType) return false;
 
@@ -20,6 +20,7 @@ bool areTypesEqual(Type a, Type b) {
     case BASIC_TYPE_BOOL:
     case BASIC_TYPE_VOID:
     case BASIC_TYPE_NONE:
+    case BASIC_TYPE_CHAR:
     case BASIC_TYPES_COUNT: return true;
     case BASIC_TYPE_FUNCTION: {
       if(a.data == b.data) return true;

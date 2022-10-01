@@ -32,10 +32,12 @@ uint64_t strnuint64(const char *str, size_t n);
 const char *getBoolStringFromValue(uint8_t *value);
 uint8_t getNormalizedBoolValueFromUInt64(uint64_t *value);
 uint8_t getNormalizedBoolValueFromUInt8(uint8_t *value);
+uint8_t getNormalizedBoolValueFromChar(char *value);
 const char *getSign(int32_t value);
 
 uint64_t getIntValue(void *data);
 uint8_t getBoolValue(void *data);
+char getCharValue(void *data);
 
 const char *getFunctionNameFromCall(FunctionCallData *data);
 
