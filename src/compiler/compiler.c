@@ -693,49 +693,6 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
           }
           break;
         }
-        case BASIC_TYPE_CHAR: {
-          switch(valueData->type.basicType) {
-            case BASIC_TYPE_BOOL: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN BOOL VALUE %s -> CHAR %s ---\n",
-                getBoolStringFromValue(valueData->data),
-                data->variableName
-              );
-
-              fprintf(
-                compilerOptions->output,
-                "mov BYTE [rbp %s %" PRIi32 "], %" PRIu8 "\n",
-                offsetSign,
-                offsetValue,
-                *((char*) valueData->data)
-              );
-              break;
-            }
-            case BASIC_TYPE_INT: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN INT VALUE %" PRIu64 " (Normalized: %" PRIu8 ") -> BOOL %s ---\n",
-                *((uint64_t*) valueData->data),
-                getNormalizedBoolValueFromUInt64(valueData->data),
-                data->variableName
-              );
-
-              fprintf(
-                compilerOptions->output,
-                "mov BYTE [rbp %s %" PRIi32 "], %" PRIu8 "\n",
-                offsetSign,
-                offsetValue,
-                getNormalizedBoolValueFromUInt64(valueData->data)
-              );
-              break;
-            }
-            default: {
-              ASSERT(false, "Type not supported!");
-            }
-          }
-          break;
-        }
         case BASIC_TYPE_FUNCTION: {
           switch(valueData->type.basicType) {
             case BASIC_TYPE_FUNCTION: {

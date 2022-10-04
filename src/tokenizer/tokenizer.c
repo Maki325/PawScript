@@ -103,6 +103,42 @@ Token *createToken(Token *createToken) {
   return token;
 }
 
+Token *createCharValueFromString(CreateTokenFromString *createOptions, Token *token) {
+  size_t end = 0;
+  for(size_t i = 1;i < createOptions->length;i++) {
+    if(i > 4) {
+      exitTokenError(ERROR_TOO_MANY_CHARS, token);
+    }
+    if(createOptions->string[i] == '\'') {
+      if(i == 1) {
+        exitTokenError(ERROR_EMPTY_CHAR, token);
+      }
+      end = i;
+      break;
+    }
+  }
+  size_t len = end - 1;
+  uint32_t c = turnCharsIntoCodePoint(createOptions->string + 1, &len);
+
+  if(len != 0) {
+    exitTokenError(ERROR_TOO_MANY_CHARS, token);
+  }
+  createOptions->length -= end + 1;
+  if(!createOptions->last) {
+    free(token);
+    return NULL;
+  }
+  token->type = TOKEN_VALUE;
+
+  ValueData *value = malloc(sizeof(ValueData));
+  value->type = (Type) {.basicType = BASIC_TYPE_CHAR, .data = NULL};
+  value->data = malloc(sizeof(uint32_t));
+  *((uint32_t*) value->data) = c;
+  token->data = value;
+
+  return token;
+}
+
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in createTokenFromString!");
   ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in createTokenFromString!");
@@ -171,19 +207,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
       free(token);
       return NULL;
     } else if(createOptions->string[0] == '\'') {
-      for(size_t i = 1;i < createOptions->length;i++) {
-        if(createOptions->string[i] == '\'') {
-          if(i == 1) {
-            exitTokenError(ERROR_EMPTY_CHAR, token);
-          } else if(i > 2) {
-            exitTokenError(ERROR_TOO_MANY_CHARS, token);
-          }
-          break;
-        }
-      }
-      createOptions->length -= 3;
-      free(token);
-      return NULL;
+      return createCharValueFromString(createOptions, token);
     }
     createVariableToken(createOptions, token);
     createOptions->length = 0;
@@ -198,25 +222,7 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
       *((uint64_t*) value->data) = strnuint64(createOptions->string, createOptions->length);
       token->data = value;
     } else if(createOptions->string[0] == '\'') {
-      for(size_t i = 1;i < createOptions->length;i++) {
-        if(createOptions->string[i] == '\'') {
-          if(i == 1) {
-            exitTokenError(ERROR_EMPTY_CHAR, token);
-          } else if(i > 2) {
-            exitTokenError(ERROR_TOO_MANY_CHARS, token);
-          }
-          break;
-        }
-      }
-      token->type = TOKEN_VALUE;
-      ValueData *value = malloc(sizeof(ValueData));
-      value->type = (Type) {.basicType = BASIC_TYPE_CHAR, .data = NULL};
-      value->data = malloc(sizeof(char));
-      *((char*) value->data) = createOptions->string[1];
-      token->data = value;
-
-      createOptions->length -= 3;
-      return token;
+      return createCharValueFromString(createOptions, token);
     } else {
       createVariableToken(createOptions, token);
     }

@@ -42,7 +42,7 @@ ValueData *convertValueData(ValueData *oldValueData, Type newType) {
         }
         case BASIC_TYPE_CHAR: {
           uint8_t *value = malloc(sizeof(uint8_t));
-          *value = (uint8_t) getNormalizedBoolValueFromChar(oldValueData->data);
+          *value = (uint8_t) getNormalizedBoolValueFromUInt32(oldValueData->data);
           valueData->data = value;
 
           return valueData;

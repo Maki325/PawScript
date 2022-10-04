@@ -31,13 +31,13 @@ uint64_t strnuint64(const char *str, size_t n);
 
 const char *getBoolStringFromValue(uint8_t *value);
 uint8_t getNormalizedBoolValueFromUInt64(uint64_t *value);
+uint8_t getNormalizedBoolValueFromUInt32(uint32_t *value);
 uint8_t getNormalizedBoolValueFromUInt8(uint8_t *value);
-uint8_t getNormalizedBoolValueFromChar(char *value);
 const char *getSign(int32_t value);
 
 uint64_t getIntValue(void *data);
+uint32_t getCharValue(void *data);
 uint8_t getBoolValue(void *data);
-char getCharValue(void *data);
 
 const char *getFunctionNameFromCall(FunctionCallData *data);
 
@@ -45,6 +45,23 @@ Type getFunctionReturnTypeFromCall(FunctionCallData *data);
 
 const char *getBasicTypeName(BasicType type);
 const char *getTypeName(Type type);
+
+extern const uint8_t CONT_MASK;
+
+/// Returns the initial codepoint accumulator for the first byte.
+/// The first byte is special, only want bottom 5 bits for width 2, 4 bits
+/// for width 3, and 3 bits for width 4.
+inline static uint32_t utf8_first_byte(uint8_t byte, uint32_t width) {
+  return (byte & (0x7F >> width));
+}
+/// Returns the value of `ch` updated with continuation byte `byte`.
+inline static uint32_t utf8_acc_cont_byte(uint32_t ch, uint8_t byte) {
+  return (ch << 6) | (byte & CONT_MASK);
+}
+
+// Line by line replica of `next_code_point` from the rust compiler
+// Path: library\core\src\str\validations.rs
+uint32_t turnCharsIntoCodePoint(const char *chars, size_t *length);
 
 FILE *openFile(const char *filePath, const char *modes);
 

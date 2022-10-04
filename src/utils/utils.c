@@ -139,7 +139,7 @@ void printToken(Token *token, unsigned int depth, size_t index) {
           break;
         }
         case BASIC_TYPE_CHAR: {
-          printf("CHAR, value: %c}\n", *((char*) data->data));
+          printf("CHAR, value: %" PRIu32 "}\n", getCharValue(data->data));
           break;
         }
         case BASIC_TYPE_VOID: {
@@ -290,10 +290,10 @@ const char *getBoolStringFromValue(uint8_t *value) {
 uint8_t getNormalizedBoolValueFromUInt64(uint64_t *value) {
   return *value != 0;
 }
-uint8_t getNormalizedBoolValueFromUInt8(uint8_t *value) {
+uint8_t getNormalizedBoolValueFromUInt32(uint32_t *value) {
   return *value != 0;
 }
-uint8_t getNormalizedBoolValueFromChar(char *value) {
+uint8_t getNormalizedBoolValueFromUInt8(uint8_t *value) {
   return *value != 0;
 }
 
@@ -307,8 +307,8 @@ uint64_t getIntValue(void *data) {
 uint8_t getBoolValue(void *data) {
   return *((uint8_t*) data);
 }
-char getCharValue(void *data) {
-  return *((char*) data);
+uint32_t getCharValue(void *data) {
+  return *((uint32_t*) data);
 }
 
 const char *getFunctionNameFromCall(FunctionCallData *data) {
@@ -349,6 +349,64 @@ const char *getTypeName(Type type) {
 
     default: return getBasicTypeName(type.basicType);
   }
+}
+
+/// Mask of the value bits of a continuation byte.
+const uint8_t CONT_MASK = 0b00111111;
+
+// Line by line replica of `next_code_point` from the rust compiler
+// Path: library/core/src/str/validations.rs
+uint32_t turnCharsIntoCodePoint(const char *chars, size_t *length) {
+  if(*length == 0) {
+    return 0;
+  }
+  uint8_t x = chars[0];
+  --(*length);
+
+  if((int) x < 128) return (uint32_t) x;
+  if(*length == 0) {
+    return 0;
+  }
+
+  // Multibyte case follows
+  // Decode from a byte combination out of: [[[x y] z] w]
+  // NOTE: Performance is sensitive to the exact formulation here
+  uint32_t init = utf8_first_byte(x, 2);
+
+  uint8_t y = chars[1];
+  --(*length);
+
+  uint32_t ch = utf8_acc_cont_byte(init, y);
+  if(x >= 0xE0) {
+    // [[x y z] w] case
+    // 5th bit in 0xE0 .. 0xEF is always clear, so `init` is still valid
+    // SAFETY: `bytes` produces an UTF-8-like string,
+    // so the iterator must produce a value here.
+    if(*length == 0) {
+      return 0;
+    }
+    uint8_t z = chars[2];
+    --(*length);
+
+    uint32_t y_z = utf8_acc_cont_byte((y & CONT_MASK), z);
+    ch = init << 12 | y_z;
+    
+    if(x >= 0xF0) {
+      // [x y z w] case
+      // use only the lower 3 bits of `init`
+      // SAFETY: `bytes` produces an UTF-8-like string,
+      // so the iterator must produce a value here.
+      if(*length == 0) {
+        return 0;
+      }
+      uint8_t w = chars[3];
+      --(*length);
+
+      ch = (init & 7) << 18 | utf8_acc_cont_byte(y_z, w);
+    }
+  }
+
+  return ch;
 }
 
 FILE *openFile(const char *filePath, const char *modes) {
