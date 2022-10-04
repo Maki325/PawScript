@@ -33,6 +33,9 @@ const char *getBoolStringFromValue(uint8_t *value);
 uint8_t getNormalizedBoolValueFromUInt64(uint64_t *value);
 uint8_t getNormalizedBoolValueFromUInt32(uint32_t *value);
 uint8_t getNormalizedBoolValueFromUInt8(uint8_t *value);
+
+uint32_t getNormalizedCharValueFromUInt64(uint64_t *value);
+
 const char *getSign(int32_t value);
 
 uint64_t getIntValue(void *data);

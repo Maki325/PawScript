@@ -106,15 +106,15 @@ Token *createToken(Token *createToken) {
 Token *createCharValueFromString(CreateTokenFromString *createOptions, Token *token) {
   size_t end = 0;
   for(size_t i = 1;i < createOptions->length;i++) {
-    if(i > 4) {
-      exitTokenError(ERROR_TOO_MANY_CHARS, token);
-    }
     if(createOptions->string[i] == '\'') {
       if(i == 1) {
         exitTokenError(ERROR_EMPTY_CHAR, token);
       }
       end = i;
       break;
+    }
+    if(i > 4) {
+      exitTokenError(ERROR_TOO_MANY_CHARS, token);
     }
   }
   size_t len = end - 1;

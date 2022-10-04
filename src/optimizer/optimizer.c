@@ -77,6 +77,29 @@ ValueData *convertValueData(ValueData *oldValueData, Type newType) {
       }
       break;
     }
+    case BASIC_TYPE_CHAR: {
+      switch (oldType.basicType) {
+        case BASIC_TYPE_BOOL: {
+          uint32_t *value = malloc(sizeof(uint32_t));
+          *value = getBoolValue(oldValueData->data);
+          valueData->data = value;
+
+          return valueData;
+        }
+        case BASIC_TYPE_INT: {
+          uint32_t *value = malloc(sizeof(uint32_t));
+          *value = getNormalizedCharValueFromUInt64(oldValueData->data);
+          valueData->data = value;
+
+          return valueData;
+        }
+        default: {
+          ASSERT(false, "Type not supported!");
+          break;
+        }
+      }
+      break;
+    }
     default: {
       ASSERT(false, "Type not supported!");
       break;
@@ -277,20 +300,20 @@ void recalculateOffsets(Program *program) {
 void optimizeProgram(Program *program) {
   clock_t startClock = clock(), optimizerStart = startClock;
 
-  // optimizeConstVariables(program, NULL);
-  // startClock = clock() - startClock;
-  // printf("[LOG]: [OPTIMIZER] Optimizing const variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  // startClock = clock();
+  optimizeConstVariables(program, NULL);
+  startClock = clock() - startClock;
+  printf("[LOG]: [OPTIMIZER] Optimizing const variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
 
-  // cleanOffsets(program);
-  // startClock = clock() - startClock;
-  // printf("[LOG]: [OPTIMIZER] Cleaning offsets             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  // startClock = clock();
+  cleanOffsets(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: [OPTIMIZER] Cleaning offsets             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
 
-  // recalculateOffsets(program);
-  // startClock = clock() - startClock;
-  // printf("[LOG]: [OPTIMIZER] Recalculating offsets        : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  // startClock = clock();
+  recalculateOffsets(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: [OPTIMIZER] Recalculating offsets        : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
 
   startClock = clock() - optimizerStart;
   printf("[LOG]: [OPTIMIZER] Optimizer                    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);

@@ -74,7 +74,7 @@ void printProgram(Program *program, unsigned int depth) {
 }
 void printToken(Token *token, unsigned int depth, size_t index) {
   ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in createTokenFromString!");
-  ASSERT(BASIC_TYPES_COUNT ==  5, "Not all types are implemented in printToken!");
+  ASSERT(BASIC_TYPES_COUNT ==  6, "Not all types are implemented in printToken!");
 
   printf("%*s - ", depth, "");
   printf("[%02zu]: ", index);
@@ -175,8 +175,10 @@ void printToken(Token *token, unsigned int depth, size_t index) {
       break;
     }
     case TOKEN_PRINT: {
-      printf("PRINT\n");
-      printToken(token->data, depth + 1 * TAB_SPACES, 0);
+      printf("PRINT %p\n", token->data);
+      if(token->data) {
+        printToken(token->data, depth + 1 * TAB_SPACES, 0);
+      }
       break;
     }
     case TOKEN_FUNCTION_CALL: {
@@ -295,6 +297,10 @@ uint8_t getNormalizedBoolValueFromUInt32(uint32_t *value) {
 }
 uint8_t getNormalizedBoolValueFromUInt8(uint8_t *value) {
   return *value != 0;
+}
+
+uint32_t getNormalizedCharValueFromUInt64(uint64_t *value) {
+  return (uint32_t) *value;
 }
 
 const char *getSign(int32_t value) {

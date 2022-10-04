@@ -37,6 +37,7 @@ char *getInitializedType(Type type);
 char *getUninitializedType(Type type);
 
 void addPrintFunction(FILE *out);
+void addCharPrintFunction(FILE *out);
 void prepareFileForCompile(FILE *out);
 void postCompile(CompilerOptions *compilerOptions);
 

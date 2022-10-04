@@ -110,10 +110,119 @@ void addPrintFunction(FILE *out) {
   fputs("  add   rsp, 40\n", out);
   fputs("ret\n", out);
 }
+void addCharPrintFunction(FILE *out) {
+  fputs("; edi - input 32 bit char\n", out);
+  fputs("printChar:\n", out);
+  fputs("  ; JA SAM KORISTIO\n", out);
+  fputs("  ; RSP\n", out);
+  fputs("  ; UMESTO JEBENI\n", out);
+  fputs("  ; RBP\n", out);
+  fputs("  ; 😡\n", out);
+  fputs("\n", out);
+  fputs("  push rbp\n", out);
+  fputs("  mov rbp, rsp\n", out);
+  fputs("  sub rsp, 8\n", out);
+  fputs("  mov rdx, 0\n", out);
+  fputs("\n", out);
+  fputs("  mov eax, edi\n", out);
+  fputs("  mov DWORD [rbp - 4], 0\n", out);
+  fputs("\n", out);
+  fputs("  ; So we can more easly use each byte\n", out);
+  fputs("  mov [rbp - 8], eax\n", out);
+  fputs("\n", out);
+  fputs("  cmp edi, 0x7F\n", out);
+  fputs("  jg printChar2\n", out);
+  fputs("  mov [rbp - 4], eax\n", out);
+  fputs("  mov rdx, 1\n", out);
+  fputs("  jmp printCharPrint\n", out);
+  fputs("\n", out);
+  fputs("  printChar2:\n", out);
+  fputs("  cmp edi, 0x7FF\n", out);
+  fputs("  jg printChar3\n", out);
+  fputs("\n", out);
+  fputs("  mov bx, [rbp - 8]\n", out);
+  fputs("  shr bx, 6\n", out);
+  fputs("  or bx, 0xC0\n", out);
+  fputs("  mov [rbp - 4], bl\n", out);
+  fputs("\n", out);
+  fputs("  mov bx, [rbp - 8]\n", out);
+  fputs("  and bx, 0x3F\n", out);
+  fputs("  or bx, 0x80\n", out);
+  fputs("  mov [rbp - 3], bl\n", out);
+  fputs("\n", out);
+  fputs("  mov rdx, 2\n", out);
+  fputs("  jmp printCharPrint\n", out);
+  fputs("\n", out);
+  fputs("  printChar3:\n", out);
+  fputs("  cmp edi, 0xFFFF\n", out);
+  fputs("  jg printChar4\n", out);
+  fputs("\n", out);
+  fputs("  mov bx, [rbp - 8]\n", out);
+  fputs("  shr bx, 12\n", out);
+  fputs("  or bx, 0xE0\n", out);
+  fputs("  mov [rbp - 4], bl\n", out);
+  fputs("\n", out);
+  fputs("  mov bx, [rbp - 8]\n", out);
+  fputs("  shr bx, 6\n", out);
+  fputs("  and bx, 0x3F\n", out);
+  fputs("  or bx, 0x80\n", out);
+  fputs("  mov [rbp - 3], bl\n", out);
+  fputs("\n", out);
+  fputs("  mov bx, [rbp - 8]\n", out);
+  fputs("  and bx, 0x3F\n", out);
+  fputs("  or bx, 0x80\n", out);
+  fputs("  mov [rbp - 2], bl\n", out);
+  fputs("\n", out);
+  fputs("  mov rdx, 3\n", out);
+  fputs("  jmp printCharPrint\n", out);
+  fputs("\n", out);
+  fputs("  printChar4:\n", out);
+  fputs("  cmp edi, 0x10FFFF\n", out);
+  fputs("  jg printCharEnd ; Any larger then this is invalid, I think, and I hope\n", out);
+  fputs("\n", out);
+  fputs("  mov ebx, [rbp - 8]\n", out);
+  fputs("  shr ebx, 18\n", out);
+  fputs("  or bx, 0xF0\n", out);
+  fputs("  mov [rbp - 4], bl\n", out);
+  fputs("\n", out);
+  fputs("  mov ebx, [rbp - 8]\n", out);
+  fputs("  shr ebx, 12\n", out);
+  fputs("  and bx, 0x3F\n", out);
+  fputs("  or bx, 0x80\n", out);
+  fputs("  mov [rbp - 3], bl\n", out);
+  fputs("\n", out);
+  fputs("  mov ebx, [rbp - 8]\n", out);
+  fputs("  shr ebx, 6\n", out);
+  fputs("  and bx, 0x3F\n", out);
+  fputs("  or bx, 0x80\n", out);
+  fputs("  mov [rbp - 2], bl\n", out);
+  fputs("\n", out);
+  fputs("  mov ebx, [rbp - 8]\n", out);
+  fputs("  and ebx, 0x3F\n", out);
+  fputs("  or ebx, 0x80\n", out);
+  fputs("  mov [rbp - 1], bl\n", out);
+  fputs("\n", out);
+  fputs("  mov rdx, 4\n", out);
+  fputs("  jmp printCharPrint\n", out);
+  fputs("\n", out);
+  fputs("  printCharPrint:\n", out);
+  fputs("\n", out);
+  fputs("  mov rax, 1\n", out);
+  fputs("  mov rdi, 1\n", out);
+  fputs("  lea rsi, [rbp - 4]\n", out);
+  fputs("  ; RDX is length\n", out);
+  fputs("  syscall\n", out);
+  fputs("\n", out);
+  fputs("  printCharEnd:\n", out);
+  fputs("  mov rsp, rbp\n", out);
+  fputs("  pop rbp\n", out);
+  fputs("ret\n", out);
+}
 void prepareFileForCompile(FILE *out) {
   fputs("BITS 64\n", out);
   fputs("section .text\n", out);
   addPrintFunction(out);
+  addCharPrintFunction(out);
 }
 void postCompile(CompilerOptions *compilerOptions) {
   fputs("global _start\n", compilerOptions->output);
@@ -637,10 +746,27 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
 
               fprintf(
                 compilerOptions->output,
-                "mov BYTE [rbp %s %" PRIi32 "], %" PRIu8 "\n",
+                "mov QWORD [rbp %s %" PRIi32 "], %" PRIu8 "\n",
                 offsetSign,
                 offsetValue,
                 *((uint8_t*) valueData->data)
+              );
+              break;
+            }
+            case BASIC_TYPE_CHAR: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN CHAR VALUE %" PRIu32 " -> INT %s ---\n",
+                getCharValue(valueData->data),
+                data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov QWORD [rbp %s %" PRIi32 "], %" PRIu32 "\n",
+                offsetSign,
+                offsetValue,
+                getCharValue(valueData->data)
               );
               break;
             }
@@ -687,6 +813,24 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               );
               break;
             }
+            case BASIC_TYPE_CHAR: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN CHAR VALUE %" PRIu32 " (Normalized: %" PRIu8 ") -> BOOL %s ---\n",
+                getCharValue(valueData->data),
+                getNormalizedBoolValueFromUInt32(valueData->data),
+                data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov BYTE [rbp %s %" PRIi32 "], %" PRIu8 "\n",
+                offsetSign,
+                offsetValue,
+                getNormalizedBoolValueFromUInt32(valueData->data)
+              );
+              break;
+            }
             default: {
               ASSERT(false, "Type not supported!");
             }
@@ -714,6 +858,66 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 "mov [rbp %s %" PRIi32 "], rax\n",
                 offsetSign,
                 offsetValue
+              );
+              break;
+            }
+            default: {
+              ASSERT(false, "Type not supported!");
+            }
+          }
+          break;
+        }
+        case BASIC_TYPE_CHAR: {
+          switch(valueData->type.basicType) {
+            case BASIC_TYPE_CHAR: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN CHAR VALUE %" PRIu32 " -> CHAR %s ---\n",
+                getCharValue(valueData->data),
+                data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov DWORD [rbp %s %" PRIi32 "], %" PRIu32 "\n",
+                offsetSign,
+                offsetValue,
+                getCharValue(valueData->data)
+              );
+              break;
+            }
+            case BASIC_TYPE_BOOL: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN BOOL VALUE %s -> CHAR %s ---\n",
+                getBoolStringFromValue(valueData->data),
+                data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov DWORD [rbp %s %" PRIi32 "], %" PRIu8 "\n",
+                offsetSign,
+                offsetValue,
+                getBoolValue(valueData->data)
+              );
+              break;
+            }
+            case BASIC_TYPE_INT: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN INT VALUE %" PRIu64 " (Normalized: %" PRIu32 ") -> CHAR %s ---\n",
+                getIntValue(valueData->data),
+                getNormalizedCharValueFromUInt64(valueData->data),
+                data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov DWORD [rbp %s %" PRIi32 "], %" PRIu32 "\n",
+                offsetSign,
+                offsetValue,
+                getNormalizedCharValueFromUInt64(valueData->data)
               );
               break;
             }
@@ -781,6 +985,28 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               );
               break;
             }
+            case BASIC_TYPE_CHAR: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN NAME CHAR %s -> INT %s ---\n",
+                nextData->variableName, data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov eax, DWORD [rbp %s %" PRIi32 "]\n",
+                // We can use EAX, as it zeroes out the whole RAX for some reason
+                nextOffsetSign,
+                nextOffsetValue
+              );
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %s %" PRIi32 "], rax\n",
+                offsetSign,
+                offsetValue
+              );
+              break;
+            }
             default: {
               ASSERT(false, "Type not supported!");
             }
@@ -819,6 +1045,28 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fputs("xor rbx, rbx\n", compilerOptions->output);
               fprintf(
                 compilerOptions->output,
+                "cmp QWORD [rbp %s %" PRIi32 "], 0\n",
+                nextOffsetSign,
+                nextOffsetValue
+              );
+              fputs("setne bl\n", compilerOptions->output);
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %s %" PRIi32 "], bl\n",
+                offsetSign,
+                offsetValue
+              );
+              break;
+            }
+            case BASIC_TYPE_CHAR: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN NAME CHAR %s -> BOOL %s ---\n",
+                nextData->variableName, data->variableName
+              );
+              fputs("xor rbx, rbx\n", compilerOptions->output);
+              fprintf(
+                compilerOptions->output,
                 "cmp DWORD [rbp %s %" PRIi32 "], 0\n",
                 nextOffsetSign,
                 nextOffsetValue
@@ -826,7 +1074,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fputs("setne bl\n", compilerOptions->output);
               fprintf(
                 compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], rbx\n",
+                "mov [rbp %s %" PRIi32 "], bl\n",
                 offsetSign,
                 offsetValue
               );
@@ -856,6 +1104,76 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
               fprintf(
                 compilerOptions->output,
                 "mov [rbp %s %" PRIi32 "], rax\n",
+                offsetSign,
+                offsetValue
+              );
+              break;
+            }
+            default: {
+              ASSERT(false, "Type not supported!");
+            }
+          }
+          break;
+        }
+        case BASIC_TYPE_CHAR: {
+          switch(nextData->type->basicType) {
+            case BASIC_TYPE_CHAR: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN NAME CHAR %s -> CHAR %s ---\n",
+                nextData->variableName, data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov eax, DWORD [rbp %s %" PRIi32 "]\n",
+                nextOffsetSign,
+                nextOffsetValue
+              );
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %s %" PRIi32 "], eax\n",
+                offsetSign,
+                offsetValue
+              );
+              break;
+            }
+            case BASIC_TYPE_INT: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN NAME INT %s -> CHAR %s ---\n",
+                nextData->variableName, data->variableName
+              );
+              fprintf(
+                compilerOptions->output,
+                "mov rax, [rbp %s %" PRIi32 "]\n",
+                nextOffsetSign,
+                nextOffsetValue
+              );
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %s %" PRIi32 "], eax\n",
+                offsetSign,
+                offsetValue
+              );
+              break;
+            }
+            case BASIC_TYPE_BOOL: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN NAME BOOL %s -> CHAR %s ---\n",
+                nextData->variableName, data->variableName
+              );
+
+              fprintf(
+                compilerOptions->output,
+                "mov eax, BYTE [rbp %s %" PRIi32 "]\n",
+                nextOffsetSign,
+                nextOffsetValue
+              );
+              fprintf(
+                compilerOptions->output,
+                "mov [rbp %s %" PRIi32 "], eax\n",
                 offsetSign,
                 offsetValue
               );
@@ -1025,6 +1343,21 @@ void generateValueAsm(CompilerOptions *compilerOptions, Token *token, Register d
       );
       break;
     }
+    case BASIC_TYPE_CHAR: {
+      fprintf(
+        compilerOptions->output,
+        "; --- TOKEN VALUE CHAR %" PRIu32 " ---\n",
+        getCharValue(data->data)
+      );
+
+      fprintf(
+        compilerOptions->output,
+        "mov %s, %" PRIu32 "\n",
+        get32BitRegister(destination),
+        getCharValue(data->data)
+      );
+      break;
+    }
     default: {
       ASSERT(false, "Type not supported!");
     }
@@ -1170,13 +1503,24 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program) {
             const char *offsetSign = getSign(offset);
             int32_t offsetValue = abs(offset);
 
-            fprintf(
-              compilerOptions->output,
-              "mov rdi, [rbp %s %" PRIi32 "]\n",
-              offsetSign,
-              offsetValue
-            );
-            fputs("call print64\n", compilerOptions->output);
+            if(data->type->basicType == BASIC_TYPE_CHAR) {
+              fprintf(
+                compilerOptions->output,
+                "mov edi, [rbp %s %" PRIi32 "]\n",
+                offsetSign,
+                offsetValue
+              );
+              fputs("call printChar\n", compilerOptions->output);
+              break;
+            } else {
+              fprintf(
+                compilerOptions->output,
+                "mov rdi, [rbp %s %" PRIi32 "]\n",
+                offsetSign,
+                offsetValue
+              );
+              fputs("call print64\n", compilerOptions->output);
+            }
             break;
           }
           case TOKEN_VALUE: {
@@ -1185,7 +1529,12 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program) {
               "; --- TOKEN PRINT VALUE ---\n"
             );
             generateValueAsm(compilerOptions, child, REGISTER_DI);
-            fputs("call print64\n", compilerOptions->output);
+            ValueData *valueData = child->data;
+            if(valueData->type.basicType == BASIC_TYPE_CHAR) {
+              fputs("call printChar\n", compilerOptions->output);
+            } else {
+              fputs("call print64\n", compilerOptions->output);
+            }
             break;
           }
           default: {

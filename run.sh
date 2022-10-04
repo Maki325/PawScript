@@ -2,9 +2,9 @@
 
 if [ "$1" = "r" ]
 then
-  nasm -g -felf64 ./tests/pawscript/out/005-add-function.asm
-  ld -o ./tests/pawscript/out/005-add-function ./tests/pawscript/out/005-add-function.o
-  ././tests/pawscript/out/005-add-function
+  nasm -g -felf64 ./tests/pawscript/out/009-chars.test.asm
+  ld -o ./tests/pawscript/out/009-chars ./tests/pawscript/out/009-chars.test.o
+  ././tests/pawscript/out/009-chars
 elif [ "$1" = "s" ]
 then
   # ./build/pawscript int ./tests/pawscript/start.ps
