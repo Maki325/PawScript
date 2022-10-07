@@ -21,7 +21,8 @@ then
   # ./build/pawscript com ./tests/pawscript/006-scopes.ps -r -s -o ./tests/pawscript/out/006-scopes
   # ./build/pawscript com ./tests/pawscript/007-if.ps -r -s -o ./tests/pawscript/out/007-if
   # ./build/pawscript com ./tests/pawscript/008-recursion-number-print.ps -r -s -o ./tests/pawscript/out/008-recursion-number-print
-  ./build/pawscript com ./tests/pawscript/009-chars.ps -r -s -o ./tests/pawscript/out/009-chars
+  # ./build/pawscript com ./tests/pawscript/009-chars.ps -r -s -o ./tests/pawscript/out/009-chars
+  ./build/pawscript com ./tests/pawscript/010-arrays.ps -r -s -o ./tests/pawscript/out/010-arrays
 else
   ./build/pawscript "$@"
 fi

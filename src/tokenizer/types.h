@@ -9,6 +9,7 @@ typedef enum BasicType {
   BASIC_TYPE_VOID,
   BASIC_TYPE_CHAR,
   BASIC_TYPE_FUNCTION,
+  BASIC_TYPE_ARRAY,
   BASIC_TYPES_COUNT
 } BasicType;
 
@@ -23,10 +24,17 @@ typedef struct FunctionType {
   Type output;
 } FunctionType;
 
+typedef struct ArrayType {
+  Type type;
+  size_t numberOfElements;
+} ArrayType;
+
 Type *createType(BasicType basicType);
 Type *createNoneType();
 
 bool areTypesEqual(Type a, Type b);
+
+bool canTypesConvert(Type a, Type b);
 
 // Constants
 extern Type CONST_TYPE_NONE;

@@ -100,6 +100,43 @@ ValueData *convertValueData(ValueData *oldValueData, Type newType) {
       }
       break;
     }
+    case BASIC_TYPE_ARRAY: {
+      ArrayType *to = newType.data;
+      switch (oldType.basicType) {
+        case BASIC_TYPE_ARRAY: {
+          ArrayType *from = oldType.data;
+          if(!canTypesConvert(to->type, from->type)) {
+            ASSERT(false, "Type not supported!");
+            break;
+          }
+          List *fromList = oldValueData->data, *toList = createList(fromList->capacity);
+
+          for(size_t i = 0;i < fromList->size;i++) {
+            Token *token = fromList->elements[i];
+            if(token->type == TOKEN_NAME || isOperationTokenType(token->type)) {
+              toList->elements[i] = token;
+              continue;
+            }
+            if(token->type != TOKEN_VALUE) {
+              ASSERT(false, "Unknown token type!");
+              break;
+            }
+            ValueData *toValue = convertValueData(token->data, to->type);
+            Token *valueToken = toList->elements[i] = createToken(token);
+            valueToken->data = toValue;
+          }
+
+          valueData->data = toList;
+
+          return valueData;
+        }
+        default: {
+          ASSERT(false, "Type not supported!");
+          break;
+        }
+      }
+      break;
+    }
     default: {
       ASSERT(false, "Type not supported!");
       break;
@@ -111,8 +148,8 @@ ValueData *convertValueData(ValueData *oldValueData, Type newType) {
 }
 
 void optimizeConstVariables(Program *program, HashTable *constValues) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in optimizeConstVariables!");
-  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in optimizeConstVariables!");
+  ASSERT(TOKEN_COUNT == 30, "Not all operations are implemented in optimizeConstVariables!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in optimizeConstVariables!");
   constValues = createHashTableFrom(constValues);
 
   for(size_t i = 0;i < program->count;i++) {
@@ -169,7 +206,8 @@ void optimizeConstVariables(Program *program, HashTable *constValues) {
           case BASIC_TYPE_INT:
           case BASIC_TYPE_BOOL:
           case BASIC_TYPE_CHAR:
-          case BASIC_TYPE_FUNCTION: {
+          case BASIC_TYPE_FUNCTION:
+          case BASIC_TYPE_ARRAY: {
             setElementInHashTable(
               constValues,
               nameData->name,
@@ -298,22 +336,23 @@ void recalculateOffsets(Program *program) {
 }
 
 void optimizeProgram(Program *program) {
+  (void) program;
   clock_t startClock = clock(), optimizerStart = startClock;
 
-  optimizeConstVariables(program, NULL);
-  startClock = clock() - startClock;
-  printf("[LOG]: [OPTIMIZER] Optimizing const variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  startClock = clock();
+  // optimizeConstVariables(program, NULL);
+  // startClock = clock() - startClock;
+  // printf("[LOG]: [OPTIMIZER] Optimizing const variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  // startClock = clock();
 
-  cleanOffsets(program);
-  startClock = clock() - startClock;
-  printf("[LOG]: [OPTIMIZER] Cleaning offsets             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  startClock = clock();
+  // cleanOffsets(program);
+  // startClock = clock() - startClock;
+  // printf("[LOG]: [OPTIMIZER] Cleaning offsets             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  // startClock = clock();
 
-  recalculateOffsets(program);
-  startClock = clock() - startClock;
-  printf("[LOG]: [OPTIMIZER] Recalculating offsets        : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
-  startClock = clock();
+  // recalculateOffsets(program);
+  // startClock = clock() - startClock;
+  // printf("[LOG]: [OPTIMIZER] Recalculating offsets        : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  // startClock = clock();
 
   startClock = clock() - optimizerStart;
   printf("[LOG]: [OPTIMIZER] Optimizer                    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);

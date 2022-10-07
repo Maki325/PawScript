@@ -33,6 +33,8 @@ typedef enum Register {
 const char *get64BitRegister(Register reg);
 const char *get32BitRegister(Register reg);
 
+const char *getRegisterBySize(Register reg, Type type);
+
 char *getInitializedType(Type type);
 char *getUninitializedType(Type type);
 

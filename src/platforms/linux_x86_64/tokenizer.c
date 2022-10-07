@@ -8,6 +8,10 @@ size_t getTypeByteSize_linux_x86_64(Type type) {
     case BASIC_TYPE_BOOL:     return 1;
     case BASIC_TYPE_CHAR:     return 4;
     case BASIC_TYPE_FUNCTION: return 8;
+    case BASIC_TYPE_ARRAY: {
+      ArrayType *arrayType = type.data;
+      return arrayType->numberOfElements * getTypeByteOffset_linux_x86_64(arrayType->type);
+    }
   
     default: {
       printf("type: %d %s\n", type.basicType, getTypeName(type));
@@ -27,6 +31,10 @@ size_t getTypeByteOffset_linux_x86_64(Type type) {
     case BASIC_TYPE_BOOL:     return 8; // Actual size: 1
     case BASIC_TYPE_CHAR:     return 8; // Actual size: 4
     case BASIC_TYPE_FUNCTION: return 8; // Pointer size: 8
+    case BASIC_TYPE_ARRAY: {
+      ArrayType *arrayType = type.data;
+      return arrayType->numberOfElements * getTypeByteOffset_linux_x86_64(arrayType->type);
+    }
   
     default: {
       printf("type: %d %s\n", type.basicType, getTypeName(type));

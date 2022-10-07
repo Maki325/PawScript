@@ -1,0 +1,34 @@
+// printCharArray => (chars: &[char], index: int) {
+//   if(chars.len() >= index) return;
+//   beta_print chars[index];
+//   printCharArray(chars, index + 1);
+// }
+
+main => (): int {
+
+  // For types [char] | [char; 3]
+  // For indexing [1] | [0] | [10467]
+  // For values ['H', 'e', 'l', 'l', 'o'] | [1, 2, 3, 4, 5]
+
+  // const a = 5;
+  // const aArray = [a];
+
+  // Define with both type and length
+  const hello: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
+
+  // Define with just the type, but we need assignment after it, so we can know the size
+  const newLine: [char] = [10];
+
+  // Define implicitly
+  const world = ['W', 'o', 'r', 'l', 'd'];
+
+  beta_print hello[1];
+
+  const l = hello[2];
+
+
+  // const intArray = [1, 2, 3, 4, 5];
+  // const boolArray = [true, false, false, true];
+
+  return 0;
+}

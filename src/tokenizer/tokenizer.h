@@ -28,6 +28,8 @@ typedef enum TokenType {
   TOKEN_BRACES_CLOSE,       // }
   TOKEN_BRACKETS_OPEN,      // [
   TOKEN_BRACKETS_CLOSE,     // ]
+  TOKEN_BRACKETS,
+  TOKEN_INDEX,
   TOKEN_SCOPE,
   TOKEN_IF,
   TOKEN_ELSE,
@@ -40,7 +42,7 @@ typedef enum TokenType {
 } TokenType;
 
 static inline const char *getTokenTypeName(TokenType type) {
-  ASSERT(TOKEN_COUNT == 29, "Not all tokens are implemented in getTokenTypeName!");
+  ASSERT(TOKEN_COUNT == 31, "Not all tokens are implemented in getTokenTypeName!");
   switch (type) {
     case TOKEN_TYPE:              return "TOKEN_TYPE";
     case TOKEN_NAME:              return "TOKEN_NAME";
@@ -63,6 +65,8 @@ static inline const char *getTokenTypeName(TokenType type) {
     case TOKEN_BRACES_CLOSE:      return "TOKEN_BRACES_CLOSE";
     case TOKEN_BRACKETS_OPEN:     return "TOKEN_BRACKETS_OPEN";
     case TOKEN_BRACKETS_CLOSE:    return "TOKEN_BRACKETS_CLOSE";
+    case TOKEN_BRACKETS:          return "TOKEN_BRACKETS";
+    case TOKEN_INDEX:             return "TOKEN_INDEX";
     case TOKEN_SCOPE:             return "TOKEN_SCOPE";
     case TOKEN_COUNT:             return "TOKEN_COUNT";
     case TOKEN_IF:                return "TOKEN_IF";
@@ -140,6 +144,11 @@ typedef struct NameData {
   bool mutable;
   int32_t *offset;
 } NameData;
+
+typedef struct IndexData {
+  NameData *nameData;
+  size_t index;
+} IndexData;
 
 typedef struct TokenPriorityData {
   struct Program *parent;

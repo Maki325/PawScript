@@ -11,7 +11,7 @@ Type *createNoneType() {
 }
 
 bool areTypesEqual(Type a, Type b) {
-  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in areTypesEqual!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in areTypesEqual!");
 
   if(a.basicType != b.basicType) return false;
 
@@ -36,6 +36,15 @@ bool areTypesEqual(Type a, Type b) {
       }
       return true;
     }
+    case BASIC_TYPE_ARRAY: {
+      if(a.data == b.data) return true;
+      if(!a.data || b.data) return false;
+      ArrayType *typeA = a.data, *typeB = b.data;
+
+      if(!areTypesEqual(typeA->type, typeB->type)) return false;
+      if(typeA->numberOfElements != typeB->numberOfElements) return false;
+      return true;
+    }
 
     default: {
       ASSERT(false, "Unreachable!");
@@ -44,6 +53,43 @@ bool areTypesEqual(Type a, Type b) {
   }
 }
 
+bool canTypesConvert(Type a, Type b) {
+  if(areTypesEqual(a, b)) return true;
+  BasicType basicB = b.basicType;
+  switch(a.basicType) {
+    case BASIC_TYPE_INT: {
+      return basicB == BASIC_TYPE_BOOL || basicB == BASIC_TYPE_CHAR;
+    }
+    case BASIC_TYPE_BOOL: {
+      return basicB == BASIC_TYPE_INT || basicB == BASIC_TYPE_CHAR;
+    }
+    case BASIC_TYPE_CHAR: {
+      return basicB == BASIC_TYPE_INT || basicB == BASIC_TYPE_BOOL;
+    }
+    case BASIC_TYPE_FUNCTION: {
+      FunctionType *af = a.data, *bf = b.data;
+      if(!canTypesConvert(af->output, bf->output)) return false;
+      if(af->inputSize != bf->inputSize) return false;
+      for(size_t i = 0;i < af->inputSize;i++) {
+        if(af->input[i] == bf->input[i]) continue;
+        if(!af->input[i] || !bf->input[i]) return false;
+        if(!canTypesConvert(*af->input[i], *bf->input[i])) return false;
+      }
+
+      return false;
+    }
+    case BASIC_TYPE_ARRAY: {
+      ArrayType *aa = a.data, *ba = b.data;
+      if(aa->numberOfElements != ba->numberOfElements) return false;
+      if(!canTypesConvert(aa->type, ba->type)) return false;
+
+      return true;
+    }
+    default: {
+      ASSERT(false, "Unreachable!");
+    }
+  }
+}
 
 // Constants
 Type CONST_TYPE_NONE     = {.basicType = BASIC_TYPE_NONE,     .data = NULL};

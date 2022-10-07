@@ -48,6 +48,16 @@ const char *get32BitRegister(Register reg) {
   return "REGISTER ERROR!";
 }
 
+const char *getRegisterBySize(Register reg, Type type) {
+  switch(getTypeByteSize(type)) {
+    case 1: ASSERT(false, "Implement!");
+    case 2: ASSERT(false, "Implement!");
+    case 4: return get32BitRegister(reg);
+    case 8: return get64BitRegister(reg);
+    default: ASSERT(false, "Unknown Type!");
+  }
+}
+
 char *getInitializedType(Type type) {
   ASSERT(BASIC_TYPES_COUNT == 5, "Not all types are implemented in getInitializedType!");
   static char* bytes[BASIC_TYPES_COUNT + 1] = {
@@ -927,6 +937,76 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
           }
           break;
         }
+        case BASIC_TYPE_ARRAY: {
+          switch(valueData->type.basicType) {
+            case BASIC_TYPE_ARRAY: {
+              fprintf(
+                compilerOptions->output,
+                "; --- ASSIGN ARRAY VALUE -> ARRAY %s ---\n",
+                data->variableName
+              );
+              ArrayType *arrayType = valueData->type.data;
+              Type elementType = arrayType->type;
+
+              List *list = valueData->data;
+              offsetValue = offsetValue - getTypeByteOffset(valueData->type);
+              for(size_t i = 0;i < list->size;i++) {
+                Token *token = list->elements[i];
+                if(isOperationTokenType(token->type)) {
+                  generateBinaryOperationAsm(compilerOptions, program, next);
+
+                  fprintf(
+                    compilerOptions->output,
+                    "mov [rbp %s %" PRIi32 "], %s\n",
+                    offsetSign,
+                    offsetValue + (int32_t) getTypeByteSize(elementType),
+                    getRegisterBySize(REGISTER_A, elementType)
+                  );
+                  offsetValue = offsetValue + getTypeByteOffset(elementType);
+                  continue;
+                }
+                switch(token->type) {
+                  case TOKEN_VALUE: {
+                    generateValueAsm(compilerOptions, token, REGISTER_A);
+                    fprintf(
+                      compilerOptions->output,
+                      "mov [rbp %s %" PRIi32 "], %s\n",
+                      offsetSign,
+                      offsetValue + (int32_t) getTypeByteSize(elementType),
+                      getRegisterBySize(REGISTER_A, elementType)
+                    );
+                    offsetValue = offsetValue + getTypeByteOffset(elementType);
+                    break;
+                  }
+                  case TOKEN_NAME: {
+                    generateNameAsm(compilerOptions, program, token, REGISTER_A);
+                    fprintf(
+                      compilerOptions->output,
+                      "mov [rbp %s %" PRIi32 "], %s\n",
+                      offsetSign,
+                      offsetValue + (int32_t) getTypeByteSize(elementType),
+                      getRegisterBySize(REGISTER_A, elementType)
+                    );
+                    offsetValue = offsetValue + getTypeByteOffset(elementType);
+                    break;
+                  }
+                  default: {
+                    ASSERT(false, "Type not supported!");
+                  }
+                }
+              }
+              printf("offsetValue: %" PRIi32 ", offset: %" PRIi32 "\n", offsetValue, offset);
+              if(offsetValue != abs(offset)) {
+                ASSERT(false, "Wat?");
+              }
+              break;
+            }
+            default: {
+              ASSERT(false, "Type not supported!");
+            }
+          }
+          break;
+        }
         default: {
           ASSERT(false, "Type not supported!");
           break;
@@ -1184,6 +1264,9 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
             }
           }
           break;
+        }
+        case BASIC_TYPE_ARRAY: {
+          
         }
         default: {
           ASSERT(false, "Type not supported!");
@@ -1537,6 +1620,40 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program) {
             }
             break;
           }
+          case TOKEN_INDEX: {
+            IndexData *indexData = child->data;
+            NameData *data = indexData->nameData;
+            ASSERT(data, "Unreachable!");
+            fprintf(
+              compilerOptions->output,
+              "; --- TOKEN PRINT NAME %s ---\n",
+              data->variableName
+            );
+            int32_t offset = calculateOffset(program, data);
+            const char *offsetSign = getSign(offset);
+            int32_t offsetValue = abs(offset);
+
+            ArrayType *arrayType = data->type->data;
+
+            if(arrayType->type.basicType == BASIC_TYPE_CHAR) {
+              fprintf(
+                compilerOptions->output,
+                "mov edi, [rbp %s %" PRIi32 "]\n",
+                offsetSign,
+                offsetValue
+              );
+              fputs("call printChar\n", compilerOptions->output);
+              break;
+            } else {
+              fprintf(
+                compilerOptions->output,
+                "mov rdi, [rbp %s %" PRIi32 "]\n",
+                offsetSign,
+                offsetValue
+              );
+              fputs("call print64\n", compilerOptions->output);
+            }
+          }
           default: {
             ASSERT(false, "Type not supported!");
           }
@@ -1624,7 +1741,7 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program) {
 }
 
 void generateAsm(CompilerOptions *compilerOptions) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in compile!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in compile!");
 
   char *asmName = calloc(strlen(compilerOptions->basename) + 4 + 1, sizeof(char));
   sprintf(asmName, "%s.asm", compilerOptions->basename);

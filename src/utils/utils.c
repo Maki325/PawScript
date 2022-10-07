@@ -73,8 +73,8 @@ void printProgram(Program *program, unsigned int depth) {
   }
 }
 void printToken(Token *token, unsigned int depth, size_t index) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in createTokenFromString!");
-  ASSERT(BASIC_TYPES_COUNT ==  6, "Not all types are implemented in printToken!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in printToken!");
 
   printf("%*s - ", depth, "");
   printf("[%02zu]: ", index);
@@ -92,6 +92,16 @@ void printToken(Token *token, unsigned int depth, size_t index) {
       }
       break;
     }
+    case TOKEN_INDEX: {
+      IndexData *data = token->data;
+      NameData *value = data->nameData;
+      if(!value->type) {
+        printf("INDEX NAME: %s, INDEX: %zu, CODE NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, data->index, value->name, value->mutable, value->offset != NULL ? *value->offset : 0);
+      } else {
+        printf("INDEX NAME: %s, INDEX: %zu, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, data->index, value->name, value->type, getTypeName(*((Type *) value->type)), value->mutable, value->offset != NULL ? *value->offset : 0);
+      }
+      break;
+    }
     case TOKEN_DECLARE_FUNCTION: {
       printf("TOKEN_DECLARE_FUNCTION: %p\n", token->data);
       break;
@@ -99,6 +109,14 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     case TOKEN_PRIORITY: {
       TokenPriorityData *priorityData = token->data;
       printf("PRIORITY: %p, count: %zu\n", priorityData, priorityData->count);
+      for(size_t i = 0;i < priorityData->count;i++) {
+        printToken(priorityData->instructions[i], depth + 1 * TAB_SPACES, i);
+      }
+      break;
+    }
+    case TOKEN_BRACKETS: {
+      TokenPriorityData *priorityData = token->data;
+      printf("BRACKETS: %p, count: %zu\n", priorityData, priorityData->count);
       for(size_t i = 0;i < priorityData->count;i++) {
         printToken(priorityData->instructions[i], depth + 1 * TAB_SPACES, i);
       }
@@ -131,11 +149,11 @@ void printToken(Token *token, unsigned int depth, size_t index) {
       ValueData *data = token->data;
       switch (data->type.basicType) {
         case BASIC_TYPE_BOOL: {
-          printf("BOOL, value: %s}\n", data->data == 0 ? "FALSE" : "TRUE");
+          printf("BOOL, value: %s}\n", getBoolValue(data->data) == 0 ? "FALSE" : "TRUE");
           break;
         }
         case BASIC_TYPE_INT: {
-          printf("INT, value: %" PRIu64 "}\n", *((uint64_t*) data->data));
+          printf("INT, value: %" PRIu64 "}\n", getIntValue(data->data));
           break;
         }
         case BASIC_TYPE_CHAR: {
@@ -156,6 +174,11 @@ void printToken(Token *token, unsigned int depth, size_t index) {
         }
         case BASIC_TYPES_COUNT: {
           printf("COUNT}\n");
+          break;
+        }
+        case BASIC_TYPE_ARRAY: {
+          // ASSERT(false, "TODO!");
+          printf("ARRAY}\n");
           break;
         }
       }
@@ -329,13 +352,14 @@ Type getFunctionReturnTypeFromCall(FunctionCallData *data) {
 }
 
 const char *getBasicTypeName(BasicType type) {
-  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in getBasicTypeName!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in getBasicTypeName!");
   switch (type) {
     case BASIC_TYPE_INT:      return "int";
     case BASIC_TYPE_BOOL:     return "bool";
     case BASIC_TYPE_VOID:     return "void";
     case BASIC_TYPE_CHAR:     return "char";
     case BASIC_TYPE_FUNCTION: return "function";
+    case BASIC_TYPE_ARRAY: return "array";
     // TODO: Create a better function type such thats it can have actuall input and output types!
     case BASIC_TYPE_NONE:     return "NONE!!!";
     default:            return "Unknown Token!!!";
@@ -343,13 +367,16 @@ const char *getBasicTypeName(BasicType type) {
 }
 
 const char *getTypeName(Type type) {
-  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in getTypeName!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in getTypeName!");
   switch (type.basicType) {
     case BASIC_TYPE_INT:
     case BASIC_TYPE_BOOL:
     case BASIC_TYPE_CHAR:
     case BASIC_TYPE_VOID: return getBasicTypeName(type.basicType);
     case BASIC_TYPE_FUNCTION: {
+      // TODO
+    }
+    case BASIC_TYPE_ARRAY: {
       // TODO
     }
 

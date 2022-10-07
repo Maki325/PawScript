@@ -140,8 +140,8 @@ Token *createCharValueFromString(CreateTokenFromString *createOptions, Token *to
 }
 
 Token *createTokenFromString(CreateTokenFromString *createOptions) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in createTokenFromString!");
-  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in createTokenFromString!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in createTokenFromString!");
   Token *token = malloc(sizeof(Token));
   token->file = createOptions->file;
   token->line = createOptions->line;
@@ -236,8 +236,8 @@ Token *createTokenFromString(CreateTokenFromString *createOptions) {
 }
 
 size_t isStringTokenFromRight(const char *string, size_t length) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in isStringTokenFromRight!");
-  ASSERT(BASIC_TYPES_COUNT ==  6, "Not all types are implemented in isStringTokenFromRight!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in isStringTokenFromRight!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in isStringTokenFromRight!");
   for(size_t i = 0;true;i++) {
     InstructionType *inst = &INSTRUCTION_TYPES[i];
     if(!inst->name) return 0;
@@ -250,7 +250,7 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
 }
 
 int crossreferenceBlocks(Program *program) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in crossrefrenceProgram!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in crossrefrenceProgram!");
   size_t refrences[program->count], count = 0;
   Token token;
   for(size_t i = 0;i < program->count;i++) {
@@ -430,6 +430,75 @@ int crossreferenceBlocks(Program *program) {
         }
         break;
       }
+      
+      case TOKEN_BRACKETS_OPEN: {
+        refrences[count++] = i + 1;
+        break;
+      }
+      case TOKEN_BRACKETS_CLOSE: {
+        size_t start = refrences[--count],
+          length = i - start, pos = 0;
+        if(getProgramInstruction(program, start - 1, false)->type != TOKEN_BRACKETS_OPEN) {
+          exitTokenError(ERROR_BRACKETS_NOT_BALANCED, instruction);
+          return -1;
+        }
+        Token **tokens = calloc(length, sizeof(Token*));
+        for(size_t j = 0;j < length;j++) {
+          tokens[pos++] = getProgramInstruction(program, start, true);
+        }
+        // Get `[` token for location
+        Token *startToken = getProgramInstruction(program, start - 1, true);
+        token.file = startToken->file;
+        token.line = startToken->line;
+        token.column = startToken->column;
+        token.type = TOKEN_BRACKETS;
+        TokenPriorityData *value = malloc(sizeof(TokenPriorityData));
+        value->parent = program;
+        value->instructions = tokens;
+        value->count = length;
+        token.data = value;
+        free(startToken);
+
+        // Replace `]` token with actual priority token
+        free(getProgramInstruction(program, start - 1, false));
+        program->instructions[start - 1] = createToken(&token);
+        i = start - 1;
+
+        if(start < 2) break;
+        Token *nameToken = program->instructions[start - 2];
+        if(nameToken->type != TOKEN_NAME) break;
+
+        if(length != 1) {
+          exitTokenError(ERROR_EXPECTED_ONE_ELEMENT_IN_INDEXING_OPERATOR, program->instructions[start - 1]);
+        }
+        Token *valueToken = value->instructions[0];
+        if(valueToken->type != TOKEN_VALUE) {
+          exitTokenError(ERROR_EXPECTED_NUMBER_VALUE_IN_INDEXING_OPERATOR, valueToken);
+        }
+        ValueData *valueData = valueToken->data;
+        if(valueData->type.basicType != BASIC_TYPE_INT) {
+          exitTokenError(ERROR_EXPECTED_NUMBER_VALUE_IN_INDEXING_OPERATOR, valueToken);
+        }
+        uint64_t index = getIntValue(valueData->data);
+
+        IndexData *indexData = malloc(sizeof(IndexData));
+        indexData->index = index;
+        indexData->nameData = nameToken->data;
+
+        program->instructions[start - 2]->type = TOKEN_INDEX;
+        program->instructions[start - 2]->data = indexData;
+
+        free(valueData->data);
+        free(valueData);
+        free(value->instructions[0]);
+        free(value->instructions);
+        free(value);
+        free(getProgramInstruction(program, start - 1, true));
+        i = start - 2;
+
+        break;
+      }
+
       default:
         break;
     }
@@ -497,7 +566,7 @@ void cleanupElseIfs(Program *program) {
 }
 
 bool shouldGoDeeperBase(TokenType type) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in shouldGoDeeperBase!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in shouldGoDeeperBase!");
   switch (type) {
     case TOKEN_PRIORITY:
     case TOKEN_SCOPE:
@@ -506,6 +575,8 @@ bool shouldGoDeeperBase(TokenType type) {
     case TOKEN_DECLARE_FUNCTION:
     case TOKEN_FUNCTION_CALL:
     case TOKEN_RETURN:
+    case TOKEN_BRACKETS:
+    case TOKEN_PRINT:
       return true;
 
     default:
@@ -514,12 +585,12 @@ bool shouldGoDeeperBase(TokenType type) {
 }
 
 bool shouldGoDeeper(TokenType type) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in shouldGoDeeper!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in shouldGoDeeper!");
   return shouldGoDeeperBase(type) || isOperationTokenType(type);
 }
 
 void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in goDeeper!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in goDeeper!");
   Program *program = NULL, *program2 = NULL;
   Program prog, prog2;
   prog.id = prog2.id = 0;
@@ -529,7 +600,8 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
 
   size_t *p_count = NULL, *p2_count = NULL;
   switch (token->type) {
-    case TOKEN_PRIORITY: {
+    case TOKEN_PRIORITY:
+    case TOKEN_BRACKETS: {
       TokenPriorityData *priorityData = token->data;
 
       prog.count = priorityData->count;
@@ -664,6 +736,16 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
       break;
     }
     
+    case TOKEN_PRINT: {
+      if(!token->data) return;
+      Token *data = token->data;
+
+      prog.count = 1;
+      prog.capacity = 1;
+      prog.instructions = &data;
+      program = &prog;
+      break;
+    }
     default: {
       ASSERT(false, "Unreachable in `goDeeper`!");
       break;
@@ -834,14 +916,14 @@ NameMapValue *createAndAddNameMapVariable(HashTable *nameMap, NameData *nameData
 }
 
 bool isOperationTokenType(TokenType type) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in isOperationTokenType!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in isOperationTokenType!");
   return type == TOKEN_ADD || type == TOKEN_SUBTRACT
           || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN
-          || type == TOKEN_EQUALS|| type == TOKEN_NOT_EQUALS;
+          || type == TOKEN_EQUALS || type == TOKEN_NOT_EQUALS;
 }
 
 void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in crossreferenceVariables!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in crossreferenceVariables!");
   HashTable *nameMap = parentNameMap == NULL ? createHashTable(256) : createHashTableFrom(parentNameMap);
   for(size_t i = 0; i < program->count;i++) {
     Token *instruction = program->instructions[i];
@@ -927,8 +1009,14 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
       goDeeper(instruction, (goDeeperFunction) crossreferenceVariables, 1, nameMap);
       continue;
     }
-    if(instruction->type != TOKEN_NAME) continue;
-    NameData *value = instruction->data;
+    if(instruction->type != TOKEN_NAME && instruction->type != TOKEN_INDEX) continue;
+    NameData *value = NULL;
+    if(instruction->type == TOKEN_NAME) {
+      value = instruction->data;
+    } else {
+      IndexData *data = instruction->data;
+      value = data->nameData;
+    }
     const char *name = value->name;
 
     bool assignType = false;
@@ -979,8 +1067,8 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
 }
 
 void removeUnneededPriorities(Program *program) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in removeUnneededPriorities!");
-  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in removeUnneededPriorities!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in removeUnneededPriorities!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in removeUnneededPriorities!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(token->type != TOKEN_PRIORITY) {
@@ -1049,9 +1137,200 @@ void typesetProgramReturnTypeVoidFunctionError(Token *returnToken) {
   }
 }
 
+void bracketsValueError(Token *token, Type expected, Type tokenType) {
+  fprintf(stderr, "ERROR: %s: Array type: `%s`, token type `%s` at %s:%zu:%zu\n",
+    getPawscriptErrorName(ERROR_ELEMENT_IN_ARRAY_TYPE_MISMATCH),
+    getTypeName(expected), getTypeName(tokenType),
+    token->file, token->line, token->column);
+  exit(ERROR_ELEMENT_IN_ARRAY_TYPE_MISMATCH);
+  return;
+}
+
+void convertBracketsIntoValue(Program *program, size_t i) {
+  Token *token = program->instructions[i];
+  if(token->type != TOKEN_BRACKETS) return;
+  TokenPriorityData *bracketsData = token->data;
+
+  ValueData *valueData = malloc(sizeof(ValueData));
+  valueData->type = CONST_TYPE_NONE;
+  valueData->data = NULL;
+
+  program->instructions[i]->type = TOKEN_VALUE;
+  program->instructions[i]->data = valueData;
+
+  if(bracketsData->count == 0) {
+    if(bracketsData->instructions) free(bracketsData->instructions);
+    free(bracketsData);
+    return;
+  }
+  ArrayType *arrayType = malloc(sizeof(ArrayType));
+  valueData->type.basicType = BASIC_TYPE_ARRAY;
+  valueData->type.data = arrayType;
+  arrayType->numberOfElements = 0;
+  arrayType->type.basicType = BASIC_TYPE_NONE;
+
+  Token *first = bracketsData->instructions[0];
+  if(isOperationTokenType(first->type)) {
+    BinaryOperationData *data = first->data;
+    arrayType->type = data->type;
+  }
+  switch(first->type) {
+    case TOKEN_VALUE: {
+      ValueData *vd = first->data;
+      arrayType->type = vd->type;
+      break;
+    }
+    case TOKEN_NAME: {
+      NameData *nameData = first->data;
+      arrayType->type = *nameData->type;
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+
+  if(arrayType->type.basicType == BASIC_TYPE_NONE) {
+    exitTokenError(ERROR_UNKNOWN_TOKEN_IN_ARRAY, first);
+  }
+
+  size_t size = 1;
+  for(size_t q = 1;q < bracketsData->count;q++) {
+    if(isOperationTokenType(bracketsData->instructions[q]->type)) {
+      BinaryOperationData *bod = bracketsData->instructions[q]->data;
+      if(!canTypesConvert(arrayType->type, bod->type)) {
+        bracketsValueError(bracketsData->instructions[q], arrayType->type, bod->type);
+      }
+      
+      size++;
+      continue;;
+    }
+    switch(bracketsData->instructions[q]->type) {
+      case TOKEN_COMMA: break;
+      case TOKEN_NAME: {
+        NameData *nameData = bracketsData->instructions[q]->data;
+        if(!canTypesConvert(arrayType->type, *nameData->type)) {
+          bracketsValueError(bracketsData->instructions[q], arrayType->type, *nameData->type);
+        }
+        
+        size++;
+        break;
+      }
+      case TOKEN_VALUE: {
+        ValueData *vd = bracketsData->instructions[q]->data;
+        if(!canTypesConvert(arrayType->type, vd->type)) {
+          bracketsValueError(bracketsData->instructions[q], arrayType->type, vd->type);
+        }
+        
+        size++;
+        break;
+      }
+      default: {
+        exitTokenError(ERROR_UNKNOWN_TOKEN_IN_ARRAY, first);
+      }
+    }
+  }
+
+  List *list = valueData->data = createList(size);
+  list->size = size;
+  arrayType->numberOfElements = size;
+  for(size_t q = 0, p = 0;q < bracketsData->count;q++) {
+    if(isOperationTokenType(bracketsData->instructions[q]->type)) {
+      list->elements[p++] = bracketsData->instructions[q];
+      continue;
+    }
+    switch(bracketsData->instructions[q]->type) {
+      case TOKEN_COMMA: {
+        free(bracketsData->instructions[q]);
+        break;
+      }
+      case TOKEN_NAME: {
+        list->elements[p++] = bracketsData->instructions[q];
+        break;
+      }
+      case TOKEN_VALUE: {
+        list->elements[p++] = bracketsData->instructions[q];
+        break;
+      }
+      default: {
+        exitTokenError(ERROR_UNKNOWN_TOKEN_IN_ARRAY, first);
+      }
+    }
+  }
+
+  free(bracketsData->instructions);
+  free(bracketsData);
+  return;
+}
+
+/**
+ * @brief Checks if it can convert brackets into value
+ * 
+ * @param program 
+ * @param i index of token with type TOKEN_NAME
+ */
+void checkConvertBracketsIntoValue(Program *program, size_t i, Type type) {
+  size_t offset = 1;
+  Token *token = program->instructions[i], *next = program->instructions[i + offset];
+  NameData *value = token->data;
+  bool mutable = value->mutable;
+
+  if(i == program->count - offset) {
+    if(!mutable) {
+      typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
+    }
+    return;
+  }
+  next = program->instructions[i + offset++];
+  if(next->type == TOKEN_ASSIGN_TYPE) {
+    offset++;
+  }
+  if(i == program->count - offset) {
+    if(!mutable) {
+      typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
+    }
+    return;
+  }
+  next = program->instructions[i + offset++];
+  if(next->type != TOKEN_ASSIGN) {
+    if(!mutable) {
+      typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
+    }
+    return;
+  }
+
+  if(i == program->count - offset) {
+    if(!mutable) {
+      typesetProgramError(ERROR_NO_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+    }
+    return;
+  }
+  next = program->instructions[i + offset++];
+  if(next->type != TOKEN_BRACKETS) {
+    if(!mutable) {
+      typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+    }
+    return;
+  }
+  convertBracketsIntoValue(program, i + 4);
+  if(next->type != TOKEN_VALUE) {
+    if(!mutable) {
+      typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+    }
+    return;
+  }
+
+  ValueData *valueData = next->data;
+  ArrayType *arrayType = valueData->type.data;
+  if(!canTypesConvert(type, arrayType->type)) {
+    exitTokenError(ERROR_WRONG_ARRAY_TYPE, next);
+    return;
+  }
+}
+
 void typesetProgram(Program *program) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
-  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in typesetProgram!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in typesetProgram!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i], *next;
     if(shouldGoDeeper(token->type)) {
@@ -1100,8 +1379,76 @@ void typesetProgram(Program *program) {
             free(getProgramInstruction(program, i + 1, true));
             break;
           }
+          case TOKEN_BRACKETS: {
+            TokenPriorityData *data = next->data;
+            if(data->count != 1 && data->count != 3) {
+              ASSERT(false, "TODO: Add error message!");
+              // Expected [int] or [int; 3]
+              exit(-1);
+            }
+            Type *type = (Type*) data->instructions[0]->data;
+            size_t size = 0;
+            if(data->count == 3) {
+              ValueData *value = data->instructions[2]->data;
+              size = (size_t) getIntValue(value->data);
+
+              checkConvertBracketsIntoValue(program, i, *type);
+            } else {
+              if(i == program->count - 3) {
+                typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
+                return;
+              }
+              next = program->instructions[i + 3];
+              if(next->type != TOKEN_ASSIGN) {
+                typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
+                return;
+              }
+
+              if(i == program->count - 4) {
+                typesetProgramError(ERROR_NO_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+                return;
+              }
+              next = program->instructions[i + 4];
+              if(next->type != TOKEN_BRACKETS) {
+                typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+                return;
+              }
+              convertBracketsIntoValue(program, i + 4);
+              if(next->type != TOKEN_VALUE) {
+                typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+                return;
+              }
+              ValueData *valueData = next->data;
+              ArrayType *arrayType = valueData->type.data;
+              List *list = valueData->data;
+              size = list->size;
+
+              if(!canTypesConvert(*type, arrayType->type)) {
+                exitTokenError(ERROR_WRONG_ARRAY_TYPE, next);
+                return;
+              }
+
+              next = program->instructions[i + 2];
+            }
+
+            if(value->type->basicType == BASIC_TYPE_NONE) {
+              value->type->basicType = BASIC_TYPE_ARRAY;
+              ArrayType *arrayType = value->type->data = malloc(sizeof(ArrayType));
+              arrayType->numberOfElements = size;
+              arrayType->type = *type;
+            } else if(!areTypesEqual(*value->type, *type)) {
+              typesetProgramError(ERROR_CANT_REASSIGN_VARIABLE_TYPE, value->variableName, token);
+              return;
+            }
+
+            // Free the unneeded instructions (TOKEN_ASSIGN_TYPE and TOKEN_TYPE)
+            free(getProgramInstruction(program, i + 1, true));
+            free(getProgramInstruction(program, i + 1, true));
+            break;
+          }
 
           default: {
+            printProgram(program, 0);
             typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
             return;
           }
@@ -1181,9 +1528,46 @@ void typesetProgram(Program *program) {
             break;
           }
 
+          case TOKEN_BRACKETS: {
+            convertBracketsIntoValue(program, i + 2);
+
+            if(next->type != TOKEN_VALUE) {
+              typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+              return;
+            }
+
+            ValueData *data = next->data;
+            if(value->type->basicType == BASIC_TYPE_NONE) {
+              value->type->basicType = data->type.basicType;
+              value->type->data = data->type.data;
+              break;
+            } else if(!areTypesEqual(*value->type, data->type)) {
+              typesetProgramReassignError(value->variableName, token, *value->type, data->type);
+              return;
+            }
+            break;
+          }
+          case TOKEN_INDEX: {
+            IndexData *data = next->data;
+            NameData *nextValue = data->nameData;
+            if(nextValue->type->basicType == BASIC_TYPE_NONE) {
+              typesetProgramError(ERROR_VARIABLE_NO_TYPE, nextValue->variableName, next);
+              return;
+            } else if(value->type->basicType == BASIC_TYPE_NONE) {
+              value->type->basicType = nextValue->type->basicType;
+              value->type->data = nextValue->type->data;
+              break;
+            } else if(!areTypesEqual(*value->type, *nextValue->type)) {
+              typesetProgramReassignError(value->variableName, token, *value->type, *nextValue->type);
+              return;
+            }
+            break;
+          }
+
           default: {
+            printProgram(program, 0);
             printToken(next, 0, i);
-            typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+            typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, next);
             return;
           }
         }
@@ -1201,9 +1585,48 @@ void typesetProgram(Program *program) {
   }
 }
 
+void createIndexedNameTokens(Program *program) {
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in createIndexedNameTokens!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in createIndexedNameTokens!");
+  for(size_t i = 0;i < program->count;i++) {
+    Token *token = program->instructions[i];
+    if(shouldGoDeeper(token->type)) {
+      goDeeper(token, (goDeeperFunction) createIndexedNameTokens, 0);
+      continue;
+    }
+    if(token->type != TOKEN_INDEX) continue;
+    IndexData *indexData = token->data;
+    NameData *data = indexData->nameData;
+    ArrayType *arrayType = data->type->data;
+    
+    uint64_t index = indexData->index;
+    if(index >= arrayType->numberOfElements) {
+      exitTokenError(ERROR_INDEX_OUT_OF_BOUNDS, token);
+    }
+    
+    int32_t offset = *data->offset;
+    Type elementType = arrayType->type;
+    if(offset > 0) {
+      offset = offset - getTypeByteOffset(*data->type);
+      offset += (index - 1) * getTypeByteOffset(elementType);
+      offset += getTypeByteSize(elementType);
+    } else {
+      offset = offset + getTypeByteOffset(*data->type);
+      offset -= (index - 1) * getTypeByteOffset(elementType);
+      offset -= getTypeByteSize(elementType);
+    }
+
+    int32_t *offsetPtr = malloc(sizeof(int32_t));
+    *offsetPtr = offset;
+    data->offset = offsetPtr;
+
+    free(indexData);
+  }
+}
+
 void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
-  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in typesetProgram!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in typesetProgram!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(token->type == TOKEN_DECLARE_FUNCTION) {
@@ -1260,6 +1683,15 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
     switch(instruction->type) {
       case TOKEN_NAME: {
         NameData *nameData = instruction->data;
+        if(areTypesEqual(*nameData->type, returnType)) {
+          break;
+        }
+        exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
+        return;
+      }
+      case TOKEN_INDEX: {
+        IndexData *data = instruction->data;
+        NameData *nameData = data->nameData;
         if(areTypesEqual(*nameData->type, returnType)) {
           break;
         }
@@ -1369,14 +1801,14 @@ bool canBeUsedInArithmeticOperations(TokenType type) {
           || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY;
 }
 bool canBeUsedInComparisonOperations(TokenType type) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in canBeUsedInComparisonOperations!");
-  return type == TOKEN_NAME || type == TOKEN_VALUE || type == TOKEN_ADD
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in canBeUsedInComparisonOperations!");
+  return type == TOKEN_NAME || type == TOKEN_INDEX || type == TOKEN_VALUE || type == TOKEN_ADD
         || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY
         || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN;
 }
 
 void crossreferenceOperations(Program *program) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *instruction = program->instructions[i];
 
@@ -1486,7 +1918,7 @@ void crossreferenceOperations(Program *program) {
 
         Token *right = getProgramInstruction(program, i + 1, true);
 
-        if(right->type != TOKEN_NAME && right->type != TOKEN_VALUE) {
+        if(right->type != TOKEN_NAME && right->type != TOKEN_INDEX && right->type != TOKEN_VALUE) {
           ASSERT(false, "Beta print token type not supported!");
         }
         instruction->data = right;
@@ -1559,7 +1991,7 @@ void crossreferenceOperations(Program *program) {
 }
 
 void removeFunctionTokens(Program *program) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in typesetProgram!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(token->type == TOKEN_DECLARE_FUNCTION) {
@@ -1584,8 +2016,8 @@ FunctionDefinition *getFunctionFromProgram(Program *program, const char *name) {
 }
 
 void createFunctionCalls(Program *program) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in removeUnneededPriorities!");
-  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in removeUnneededPriorities!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in removeUnneededPriorities!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in removeUnneededPriorities!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(shouldGoDeeper(token->type)) {
@@ -1738,7 +2170,7 @@ void createFunctionCalls(Program *program) {
 }
 
 void fixFunctionVariables(Program *program) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in fixFunctionVariables!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in fixFunctionVariables!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(shouldGoDeeper(token->type)) {
@@ -1763,8 +2195,8 @@ void fixFunctionVariables(Program *program) {
 
 void checkConstVariables(Program *program, HashTable *table) {
   // Check for unary operators if added
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in checkConstVariables!");
-  ASSERT(BASIC_TYPES_COUNT == 6, "Not all types are implemented in checkConstVariables!");
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in checkConstVariables!");
+  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in checkConstVariables!");
   table = createHashTableFrom(table);
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
@@ -1924,6 +2356,11 @@ Program *createProgramFromFile(const char *filePath) {
   calculateOffsets(program);
   startClock = clock() - startClock;
   printf("[LOG]: [TOKENIZER] Calculating offsets          : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
+  createIndexedNameTokens(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: [TOKENIZER] Indexed name tokens          : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
   removeFunctionTokens(program);
