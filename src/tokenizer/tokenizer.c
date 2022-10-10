@@ -251,19 +251,27 @@ size_t isStringTokenFromRight(const char *string, size_t length) {
 
 int crossreferenceBlocks(Program *program) {
   ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in crossrefrenceProgram!");
-  size_t refrences[program->count], count = 0;
+
+  typedef struct Reference {
+    size_t index;
+    TokenType type;
+  } Reference;
+
+  Reference refrences[program->count];
+  size_t count = 0;
   Token token;
   for(size_t i = 0;i < program->count;i++) {
     Token *instruction = program->instructions[i];
     switch (instruction->type) {
       case TOKEN_PARENTHESES_OPEN: {
-        refrences[count++] = i + 1;
+        refrences[count++] = (Reference) {.index = i + 1, .type = TOKEN_PARENTHESES_OPEN};
         break;
       }
       case TOKEN_PARENTHESES_CLOSE: {
-        size_t start = refrences[--count],
+        Reference reference = refrences[--count];
+        size_t start = reference.index,
           length = i - start, pos = 0;
-        if(getProgramInstruction(program, start - 1, false)->type != TOKEN_PARENTHESES_OPEN) {
+        if(reference.type != TOKEN_PARENTHESES_OPEN) {
           exitTokenError(ERROR_PARENTHESES_NOT_BALANCED, instruction);
           return -1;
         }
@@ -289,8 +297,9 @@ int crossreferenceBlocks(Program *program) {
         program->instructions[start - 1] = createToken(&token);
         i = start - 1;
 
-        if(count != 0 && program->instructions[refrences[count - 1]]->type == TOKEN_IF) {
-          Token *ifToken = program->instructions[refrences[count - 1]];
+        if(count != 0 &&refrences[count - 1].type == TOKEN_IF) {
+          Reference reference = refrences[count - 1];
+          Token *ifToken = program->instructions[reference.index];
           ControlFlowBlock *block = malloc(sizeof(ControlFlowBlock));
           ifToken->data = block;
 
@@ -305,30 +314,31 @@ int crossreferenceBlocks(Program *program) {
       }
 
       case TOKEN_BRACES_OPEN: {
-        refrences[count++] = i + 1;
+        refrences[count++] = (Reference) {.index = i + 1, .type = TOKEN_BRACES_OPEN};
         Program *inside = createProgramWithParent(program);
         instruction->data = inside;
         break;
       }
       case TOKEN_BRACES_CLOSE: {
-        size_t start = refrences[--count],
+        Reference reference = refrences[--count];
+        size_t start = reference.index,
           length = i - start;
-        Token *openInstruction = getProgramInstruction(program, start - 1, false);
-        if(openInstruction->type != TOKEN_BRACES_OPEN) {
+        if(reference.type != TOKEN_BRACES_OPEN) {
           exitTokenError(ERROR_BRACES_NOT_BALANCED, instruction);
           return -1;
         }
+        Token *openInstruction = getProgramInstruction(program, start - 1, false);
         Program *inside = openInstruction->data;
         inside->count = length;
         inside->capacity = length;
         Token **tokens = inside->instructions = calloc(length, sizeof(Token*));
-        
+
         //Getting the parent
         if(count == 0) {
           inside->parent = program;
         } else {
           for(int q = count - 1;q >= 0;q--) {
-            Token *tok = program->instructions[refrences[q] - 1];
+            Token *tok = program->instructions[refrences[q].index - 1];
             if(tok->type == TOKEN_BRACES_OPEN) {
               inside->parent = tok->data;
               break;
@@ -355,9 +365,10 @@ int crossreferenceBlocks(Program *program) {
         i = start - 1;
 
         if(count != 0) {
-          switch(program->instructions[refrences[count-1]]->type) {
+          switch(refrences[count-1].type) {
             case TOKEN_IF: {
-              size_t newStart = refrences[--count];
+              Reference reference = refrences[--count];
+              size_t newStart = reference.index;
               Token *ifToken = program->instructions[newStart];
               ControlFlowBlock *block = ifToken->data;
               if(!block) {
@@ -373,13 +384,14 @@ int crossreferenceBlocks(Program *program) {
               block->endInstruction = 1;
               block->nextInstruction = 1;
 
-              if(count != 0 && program->instructions[refrences[count-1]]->type == TOKEN_ELSE) {
+              if(count != 0 && refrences[count-1].type == TOKEN_ELSE) {
                 count--;
               }
               break;
             }
             case TOKEN_ELSE: {
-              size_t newStart = refrences[--count];
+              Reference reference = refrences[--count];
+              size_t newStart = reference.index;
               Token *elseToken = program->instructions[newStart];
               ControlFlowBlock *block = elseToken->data;
               if(block && block->program) break;
@@ -401,7 +413,7 @@ int crossreferenceBlocks(Program *program) {
       }
 
       case TOKEN_IF: {
-        refrences[count++] = i;
+        refrences[count++] = (Reference) {.index = i, .type = TOKEN_IF};
         break;
       }
       case TOKEN_ELSE: {
@@ -409,7 +421,7 @@ int crossreferenceBlocks(Program *program) {
           exitTokenError(ERROR_ELSE_AFTER_IF, program->instructions[i]);
           return 1;
         }
-        refrences[count++] = i;
+        refrences[count++] = (Reference) {.index = i, .type = TOKEN_ELSE};
 
         ControlFlowBlock *block = program->instructions[i - 1]->data;
         block->nextInstruction = (i) - (i - 1);
@@ -432,16 +444,17 @@ int crossreferenceBlocks(Program *program) {
       }
       
       case TOKEN_BRACKETS_OPEN: {
-        refrences[count++] = i + 1;
+        refrences[count++] = (Reference) {.index = i + 1, .type = TOKEN_BRACKETS_OPEN};
         break;
       }
       case TOKEN_BRACKETS_CLOSE: {
-        size_t start = refrences[--count],
-          length = i - start, pos = 0;
-        if(getProgramInstruction(program, start - 1, false)->type != TOKEN_BRACKETS_OPEN) {
+        Reference reference = refrences[--count];
+        if(reference.type != TOKEN_BRACKETS_OPEN) {
           exitTokenError(ERROR_BRACKETS_NOT_BALANCED, instruction);
           return -1;
         }
+        size_t start = reference.index,
+          length = i - start, pos = 0;
         Token **tokens = calloc(length, sizeof(Token*));
         for(size_t j = 0;j < length;j++) {
           tokens[pos++] = getProgramInstruction(program, start, true);
@@ -487,7 +500,6 @@ int crossreferenceBlocks(Program *program) {
           exitTokenError(ERROR_EXPECTED_NUMBER_VALUE_IN_INDEXING_OPERATOR, valueToken);
         }
 
-
         IndexData *indexData = malloc(sizeof(IndexData));
         indexData->index = index;
         indexData->nameData = nameToken->data;
@@ -512,9 +524,9 @@ int crossreferenceBlocks(Program *program) {
   if(count != 0) {
     PSLOG("Count: %zu\n", count);
     for(size_t i = 0;i < count;i++) {
-      PSLOG("Ref[%zu]: %zu\n", i, refrences[i]);
+      PSLOG("Ref[%zu]: %zu %d %s\n", i, refrences[i].index, refrences[i].type, getTokenTypeName(refrences[i].type));
     }
-    // Not all blocks are closed!
+    exit(-1);
     return -1;
   }
 
@@ -566,7 +578,6 @@ void cleanupElseIfs(Program *program) {
       default:
         break;
     }
-
   }
 }
 
@@ -1602,8 +1613,13 @@ void createIndexedNameTokens(Program *program) {
     IndexData *indexData = token->data;
     NameData *data = indexData->nameData;
     ArrayType *arrayType = data->type->data;
-    
-    uint64_t index = indexData->index;
+
+    Token *indexToken = indexData->index;
+    if(indexToken->type != TOKEN_VALUE) {
+      continue;
+    }
+
+    uint64_t index = getIntValue(indexToken->data);
     if(index >= arrayType->numberOfElements) {
       exitTokenError(ERROR_INDEX_OUT_OF_BOUNDS, token);
     }

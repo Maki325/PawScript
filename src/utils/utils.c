@@ -130,10 +130,18 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     }
     case TOKEN_IF: {
       ControlFlowBlock *data = token->data;
-      printf("IF: %p, {next: %zu, end: %zu}\n", data, data->nextInstruction, data->endInstruction);
+      if(!data) {
+        printf("IF (nil)\n");
+        break;
+      }
+      printf("IF: %p, {condition: %p, program: %p}, {next: %zu, end: %zu}\n", data, data->nextInstruction, data->endInstruction, data->condition, data->program);
 
       printf("%*s Condition:\n", depth + 1 * TAB_SPACES + 1, "");
       printToken(data->condition, depth + 2 * TAB_SPACES, 0);
+      if(!data->program) {
+        printf("%*s Program: (nil)\n", depth + 1 * TAB_SPACES + 1, "");
+        break;
+      }
       printProgram(data->program, depth + 2 * TAB_SPACES);
       break;
     }
