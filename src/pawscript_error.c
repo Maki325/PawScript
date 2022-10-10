@@ -3,7 +3,7 @@
 #include "tokenizer/tokenizer.h"
 
 const char *getPawscriptErrorName(PawscriptError error) {
-  ASSERT(ERROR_COUNT == 41, "Not all errors are implemented in getPawscriptErrorName!");
+  ASSERT(ERROR_COUNT == 42, "Not all errors are implemented in getPawscriptErrorName!");
   switch (error) {
     case ERROR_OPEN_FILE:                                  return "Couldn't open file!";
     case ERROR_PARENTHESES_NOT_BALANCED:                   return "Parentheses are not balanced!";
@@ -45,6 +45,7 @@ const char *getPawscriptErrorName(PawscriptError error) {
     case ERROR_EXPECTED_ONE_ELEMENT_IN_INDEXING_OPERATOR:  return "Indexing operator can have only one element!";
     case ERROR_EXPECTED_NUMBER_VALUE_IN_INDEXING_OPERATOR: return "Expected number in indexing operator!";
     case ERROR_INDEX_OUT_OF_BOUNDS:                        return "Index out is out of bounds of the array!";
+    case ERROR_WRONG_ARRAY_TYPE_SYNTAX:                    return "Wrong array type syntax! Expected `[<type>; <size>]` or `[<type>]`!";
     default:                                               return "Unknown Error!!!";
   }
 }

@@ -472,14 +472,21 @@ int crossreferenceBlocks(Program *program) {
           exitTokenError(ERROR_EXPECTED_ONE_ELEMENT_IN_INDEXING_OPERATOR, program->instructions[start - 1]);
         }
         Token *valueToken = value->instructions[0];
-        if(valueToken->type != TOKEN_VALUE) {
+        uint64_t index = 0;
+
+        if(valueToken->type == TOKEN_VALUE) {
+          ValueData *valueData = valueToken->data;
+          if(valueData->type.basicType != BASIC_TYPE_INT) {
+            exitTokenError(ERROR_EXPECTED_NUMBER_VALUE_IN_INDEXING_OPERATOR, valueToken);
+          }
+          index = getIntValue(valueData->data);
+
+          free(valueData->data);
+          free(valueData);
+        } else {
           exitTokenError(ERROR_EXPECTED_NUMBER_VALUE_IN_INDEXING_OPERATOR, valueToken);
         }
-        ValueData *valueData = valueToken->data;
-        if(valueData->type.basicType != BASIC_TYPE_INT) {
-          exitTokenError(ERROR_EXPECTED_NUMBER_VALUE_IN_INDEXING_OPERATOR, valueToken);
-        }
-        uint64_t index = getIntValue(valueData->data);
+
 
         IndexData *indexData = malloc(sizeof(IndexData));
         indexData->index = index;
@@ -488,8 +495,6 @@ int crossreferenceBlocks(Program *program) {
         program->instructions[start - 2]->type = TOKEN_INDEX;
         program->instructions[start - 2]->data = indexData;
 
-        free(valueData->data);
-        free(valueData);
         free(value->instructions[0]);
         free(value->instructions);
         free(value);
@@ -1382,9 +1387,7 @@ void typesetProgram(Program *program) {
           case TOKEN_BRACKETS: {
             TokenPriorityData *data = next->data;
             if(data->count != 1 && data->count != 3) {
-              ASSERT(false, "TODO: Add error message!");
-              // Expected [int] or [int; 3]
-              exit(-1);
+              exitTokenError(ERROR_WRONG_ARRAY_TYPE_SYNTAX, next);
             }
             Type *type = (Type*) data->instructions[0]->data;
             size_t size = 0;
@@ -1550,15 +1553,16 @@ void typesetProgram(Program *program) {
           case TOKEN_INDEX: {
             IndexData *data = next->data;
             NameData *nextValue = data->nameData;
-            if(nextValue->type->basicType == BASIC_TYPE_NONE) {
+            ArrayType *arrayType = nextValue->type->data;
+            if(arrayType->type.basicType == BASIC_TYPE_NONE) {
               typesetProgramError(ERROR_VARIABLE_NO_TYPE, nextValue->variableName, next);
               return;
             } else if(value->type->basicType == BASIC_TYPE_NONE) {
-              value->type->basicType = nextValue->type->basicType;
-              value->type->data = nextValue->type->data;
+              value->type->basicType = arrayType->type.basicType;
+              value->type->data = arrayType->type.data;
               break;
-            } else if(!areTypesEqual(*value->type, *nextValue->type)) {
-              typesetProgramReassignError(value->variableName, token, *value->type, *nextValue->type);
+            } else if(!areTypesEqual(*value->type, arrayType->type)) {
+              typesetProgramReassignError(value->variableName, token, *value->type, arrayType->type);
               return;
             }
             break;
@@ -1608,19 +1612,17 @@ void createIndexedNameTokens(Program *program) {
     Type elementType = arrayType->type;
     if(offset > 0) {
       offset = offset - getTypeByteOffset(*data->type);
-      offset += (index - 1) * getTypeByteOffset(elementType);
+      offset += index * getTypeByteOffset(elementType);
       offset += getTypeByteSize(elementType);
     } else {
       offset = offset + getTypeByteOffset(*data->type);
-      offset -= (index - 1) * getTypeByteOffset(elementType);
+      offset -= index * getTypeByteOffset(elementType);
       offset -= getTypeByteSize(elementType);
     }
 
     int32_t *offsetPtr = malloc(sizeof(int32_t));
     *offsetPtr = offset;
     data->offset = offsetPtr;
-
-    free(indexData);
   }
 }
 

@@ -623,9 +623,285 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program,
   }
 }
 
-void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program *program, size_t *i) {
-  Token *next = nextToken(program, i);
-  int32_t offset = calculateOffset(program, data);
+void generateNameAssignInfo(GenerateNameAssignAsmInfo info) {
+  Program *program = info.program;
+  CompilerOptions *compilerOptions = info.compilerOptions;
+  const char *variableName = info.variableName;
+  Type type = info.type;
+  BasicType basicType = type.basicType;
+
+  int32_t offset = info.offset;
+  const char *offsetSign = getSign(offset);
+  int32_t offsetValue = abs(offset);
+
+  NameData *nextData = info.nextData;
+  Type nextType = info.nextType;
+  int32_t nextOffset = calculateOffset(program, nextData);
+  const char *nextOffsetSign = getSign(nextOffset);
+  int32_t nextOffsetValue = abs(nextOffset);
+
+  switch(basicType) {
+    case BASIC_TYPE_INT: {
+      switch(nextType.basicType) {
+        case BASIC_TYPE_INT: {
+          fprintf(
+            compilerOptions->output,
+            "; --- ASSIGN NAME INT %s -> INT %s ---\n",
+            nextData->variableName, variableName
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov rax, [rbp %s %" PRIi32 "]\n",
+            nextOffsetSign,
+            nextOffsetValue
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov [rbp %s %" PRIi32 "], rax\n",
+            offsetSign,
+            offsetValue
+          );
+          break;
+        }
+        case BASIC_TYPE_BOOL: {
+          fprintf(
+            compilerOptions->output,
+            "; --- ASSIGN NAME BOOL %s -> INT %s ---\n",
+            nextData->variableName, variableName
+          );
+
+          fprintf(
+            compilerOptions->output,
+            "movzx eax, BYTE [rbp %s %" PRIi32 "]\n",
+            // We can use EAX, as it zeroes out the whole RAX for some reason
+            nextOffsetSign,
+            nextOffsetValue
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov [rbp %s %" PRIi32 "], rax\n",
+            offsetSign,
+            offsetValue
+          );
+          break;
+        }
+        case BASIC_TYPE_CHAR: {
+          fprintf(
+            compilerOptions->output,
+            "; --- ASSIGN NAME CHAR %s -> INT %s ---\n",
+            nextData->variableName, variableName
+          );
+
+          fprintf(
+            compilerOptions->output,
+            "mov eax, DWORD [rbp %s %" PRIi32 "]\n",
+            // We can use EAX, as it zeroes out the whole RAX for some reason
+            nextOffsetSign,
+            nextOffsetValue
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov [rbp %s %" PRIi32 "], rax\n",
+            offsetSign,
+            offsetValue
+          );
+          break;
+        }
+        default: {
+          ASSERT(false, "Type not supported!");
+        }
+      }
+      break;
+    }
+    case BASIC_TYPE_BOOL: {
+      switch(nextType.basicType) {
+        case BASIC_TYPE_BOOL: {
+          fprintf(
+            compilerOptions->output,
+            "; --- ASSIGN NAME BOOL %s -> BOOL %s ---\n",
+            nextData->variableName, variableName
+          );
+
+          fprintf(
+            compilerOptions->output,
+            "mov al, [rbp %s %" PRIi32 "]\n",
+            nextOffsetSign,
+            nextOffsetValue
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov [rbp %s %" PRIi32 "], al\n",
+            offsetSign,
+            offsetValue
+          );
+          break;
+        }
+        case BASIC_TYPE_INT: {
+          fprintf(
+            compilerOptions->output,
+            "; --- ASSIGN NAME INT %s -> BOOL %s ---\n",
+            nextData->variableName, variableName
+          );
+          fputs("xor rbx, rbx\n", compilerOptions->output);
+          fprintf(
+            compilerOptions->output,
+            "cmp QWORD [rbp %s %" PRIi32 "], 0\n",
+            nextOffsetSign,
+            nextOffsetValue
+          );
+          fputs("setne bl\n", compilerOptions->output);
+          fprintf(
+            compilerOptions->output,
+            "mov [rbp %s %" PRIi32 "], bl\n",
+            offsetSign,
+            offsetValue
+          );
+          break;
+        }
+        case BASIC_TYPE_CHAR: {
+          fprintf(
+            compilerOptions->output,
+            "; --- ASSIGN NAME CHAR %s -> BOOL %s ---\n",
+            nextData->variableName, variableName
+          );
+          fputs("xor rbx, rbx\n", compilerOptions->output);
+          fprintf(
+            compilerOptions->output,
+            "cmp DWORD [rbp %s %" PRIi32 "], 0\n",
+            nextOffsetSign,
+            nextOffsetValue
+          );
+          fputs("setne bl\n", compilerOptions->output);
+          fprintf(
+            compilerOptions->output,
+            "mov [rbp %s %" PRIi32 "], bl\n",
+            offsetSign,
+            offsetValue
+          );
+          break;
+        }
+        default: {
+          ASSERT(false, "Type not supported!");
+        }
+      }
+      break;
+    }
+    case BASIC_TYPE_FUNCTION: {
+      switch(nextType.basicType) {
+        case BASIC_TYPE_FUNCTION: {
+          fprintf(
+            compilerOptions->output,
+            "; --- ASSIGN NAME FUNCTION %s -> FUNCTION %s ---\n",
+            nextData->variableName, variableName
+          );
+
+          fprintf(
+            compilerOptions->output,
+            "mov rax, [rbp %s %" PRIi32 "]\n",
+            nextOffsetSign,
+            nextOffsetValue
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov [rbp %s %" PRIi32 "], rax\n",
+            offsetSign,
+            offsetValue
+          );
+          break;
+        }
+        default: {
+          ASSERT(false, "Type not supported!");
+        }
+      }
+      break;
+    }
+    case BASIC_TYPE_CHAR: {
+      switch(nextType.basicType) {
+        case BASIC_TYPE_CHAR: {
+          fprintf(
+            compilerOptions->output,
+            "; --- ASSIGN NAME CHAR %s -> CHAR %s ---\n",
+            nextData->variableName, variableName
+          );
+
+          fprintf(
+            compilerOptions->output,
+            "mov eax, DWORD [rbp %s %" PRIi32 "]\n",
+            nextOffsetSign,
+            nextOffsetValue
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov [rbp %s %" PRIi32 "], eax\n",
+            offsetSign,
+            offsetValue
+          );
+          break;
+        }
+        case BASIC_TYPE_INT: {
+          fprintf(
+            compilerOptions->output,
+            "; --- ASSIGN NAME INT %s -> CHAR %s ---\n",
+            nextData->variableName, variableName
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov rax, [rbp %s %" PRIi32 "]\n",
+            nextOffsetSign,
+            nextOffsetValue
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov [rbp %s %" PRIi32 "], eax\n",
+            offsetSign,
+            offsetValue
+          );
+          break;
+        }
+        case BASIC_TYPE_BOOL: {
+          fprintf(
+            compilerOptions->output,
+            "; --- ASSIGN NAME BOOL %s -> CHAR %s ---\n",
+            nextData->variableName, variableName
+          );
+
+          fprintf(
+            compilerOptions->output,
+            "mov eax, BYTE [rbp %s %" PRIi32 "]\n",
+            nextOffsetSign,
+            nextOffsetValue
+          );
+          fprintf(
+            compilerOptions->output,
+            "mov [rbp %s %" PRIi32 "], eax\n",
+            offsetSign,
+            offsetValue
+          );
+          break;
+        }
+        default: {
+          printf("%d %s\n", nextType.basicType, getBasicTypeName(nextType.basicType));
+          ASSERT(false, "Type not supported!");
+        }
+      }
+      break;
+    }
+    default: {
+      ASSERT(false, "Type not supported!");
+      break;
+    }
+  }
+}
+  
+void generateAssignAsm(GenerateAssignAsmInfo info) {
+  Program *program = info.program;
+  CompilerOptions *compilerOptions = info.compilerOptions;
+  const char *variableName = info.variableName;
+  Type type = info.type;
+  BasicType basicType = type.basicType;
+
+  Token *next = info.next;
+  int32_t offset = info.offset;
   const char *offsetSign = getSign(offset);
   int32_t offsetValue = abs(offset);
 
@@ -634,14 +910,14 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
     BinaryOperationData *binaryOperationData = next->data;
     Type operationType = binaryOperationData->type;
 
-    switch(data->type->basicType) {
+    switch(basicType) {
       case BASIC_TYPE_INT: {
         switch(operationType.basicType) {
           case BASIC_TYPE_INT: {
             fprintf(
               compilerOptions->output,
               "; --- ASSIGN OPERATION INT -> INT %s ---\n",
-              data->variableName
+              variableName
             );
             fprintf(
               compilerOptions->output,
@@ -655,7 +931,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
             fprintf(
               compilerOptions->output,
               "; --- ASSIGN OPERATION BOOL -> INT %s ---\n",
-              data->variableName
+              variableName
             );
 
             fprintf(
@@ -678,7 +954,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
             fprintf(
               compilerOptions->output,
               "; --- ASSIGN OPERATION BOOL -> BOOL %s ---\n",
-              data->variableName
+              variableName
             );
 
             fputs("and rax, 1\n", compilerOptions->output);
@@ -694,7 +970,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
             fprintf(
               compilerOptions->output,
               "; --- ASSIGN OPERATION INT -> BOOL %s ---\n",
-              data->variableName
+              variableName
             );
             fputs("xor rbx, rbx\n", compilerOptions->output);
             fputs("cmp rax, 0\n", compilerOptions->output);
@@ -726,7 +1002,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
     case TOKEN_VALUE: {
       ValueData *valueData = next->data;
 
-      switch(data->type->basicType) {
+      switch(basicType) {
         case BASIC_TYPE_INT: {
           switch(valueData->type.basicType) {
             case BASIC_TYPE_INT: {
@@ -734,7 +1010,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN INT VALUE %" PRIu64 " -> INT %s ---\n",
                 *((uint64_t*) valueData->data),
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -751,7 +1027,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN BOOL VALUE %" PRIu8 " -> INT %s ---\n",
                 *((uint8_t*) valueData->data),
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -768,7 +1044,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN CHAR VALUE %" PRIu32 " -> INT %s ---\n",
                 getCharValue(valueData->data),
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -793,7 +1069,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN BOOL VALUE %s -> BOOL %s ---\n",
                 getBoolStringFromValue(valueData->data),
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -811,7 +1087,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 "; --- ASSIGN INT VALUE %" PRIu64 " (Normalized: %" PRIu8 ") -> BOOL %s ---\n",
                 *((uint64_t*) valueData->data),
                 getNormalizedBoolValueFromUInt64(valueData->data),
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -829,7 +1105,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 "; --- ASSIGN CHAR VALUE %" PRIu32 " (Normalized: %" PRIu8 ") -> BOOL %s ---\n",
                 getCharValue(valueData->data),
                 getNormalizedBoolValueFromUInt32(valueData->data),
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -855,7 +1131,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN FUNCTION VALUE %s -> FUNCTION %s ---\n",
                 ftd->name,
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -884,7 +1160,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN CHAR VALUE %" PRIu32 " -> CHAR %s ---\n",
                 getCharValue(valueData->data),
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -901,7 +1177,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN BOOL VALUE %s -> CHAR %s ---\n",
                 getBoolStringFromValue(valueData->data),
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -919,7 +1195,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 "; --- ASSIGN INT VALUE %" PRIu64 " (Normalized: %" PRIu32 ") -> CHAR %s ---\n",
                 getIntValue(valueData->data),
                 getNormalizedCharValueFromUInt64(valueData->data),
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -940,65 +1216,38 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
         case BASIC_TYPE_ARRAY: {
           switch(valueData->type.basicType) {
             case BASIC_TYPE_ARRAY: {
+              if(!canTypesConvert(type, valueData->type)) {
+                ASSERT(false, "Type not supported!");
+              }
               fprintf(
                 compilerOptions->output,
                 "; --- ASSIGN ARRAY VALUE -> ARRAY %s ---\n",
-                data->variableName
+                variableName
               );
-              ArrayType *arrayType = valueData->type.data;
-              Type elementType = arrayType->type;
-
               List *list = valueData->data;
+
+              ArrayType *nameArrayType = type.data;
+              Type nameElementType = nameArrayType->type;
+
               offsetValue = offsetValue - getTypeByteOffset(valueData->type);
               for(size_t i = 0;i < list->size;i++) {
                 Token *token = list->elements[i];
-                if(isOperationTokenType(token->type)) {
-                  generateBinaryOperationAsm(compilerOptions, program, next);
 
-                  fprintf(
-                    compilerOptions->output,
-                    "mov [rbp %s %" PRIi32 "], %s\n",
-                    offsetSign,
-                    offsetValue + (int32_t) getTypeByteSize(elementType),
-                    getRegisterBySize(REGISTER_A, elementType)
-                  );
-                  offsetValue = offsetValue + getTypeByteOffset(elementType);
-                  continue;
-                }
-                switch(token->type) {
-                  case TOKEN_VALUE: {
-                    generateValueAsm(compilerOptions, token, REGISTER_A);
-                    fprintf(
-                      compilerOptions->output,
-                      "mov [rbp %s %" PRIi32 "], %s\n",
-                      offsetSign,
-                      offsetValue + (int32_t) getTypeByteSize(elementType),
-                      getRegisterBySize(REGISTER_A, elementType)
-                    );
-                    offsetValue = offsetValue + getTypeByteOffset(elementType);
-                    break;
-                  }
-                  case TOKEN_NAME: {
-                    generateNameAsm(compilerOptions, program, token, REGISTER_A);
-                    fprintf(
-                      compilerOptions->output,
-                      "mov [rbp %s %" PRIi32 "], %s\n",
-                      offsetSign,
-                      offsetValue + (int32_t) getTypeByteSize(elementType),
-                      getRegisterBySize(REGISTER_A, elementType)
-                    );
-                    offsetValue = offsetValue + getTypeByteOffset(elementType);
-                    break;
-                  }
-                  default: {
-                    ASSERT(false, "Type not supported!");
-                  }
-                }
+                int32_t newOffset = (offset < 0 ? -1 : 1) * (offsetValue + (int32_t) getTypeByteSize(nameElementType));
+                generateAssignAsm((GenerateAssignAsmInfo) {
+                  .compilerOptions = info.compilerOptions,
+                  .next = token,
+                  .offset = newOffset,
+                  .program = info.program,
+                  .type = nameElementType,
+                  .variableName = info.variableName,
+                });
+                offsetValue = offsetValue + getTypeByteOffset(nameElementType);
               }
-              printf("offsetValue: %" PRIi32 ", offset: %" PRIi32 "\n", offsetValue, offset);
               if(offsetValue != abs(offset)) {
                 ASSERT(false, "Wat?");
               }
+
               break;
             }
             default: {
@@ -1015,265 +1264,35 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
       break;
     }
     case TOKEN_NAME: {
-      NameData *nextData = next->data;
-      int32_t nextOffset = calculateOffset(program, nextData);
-      const char *nextOffsetSign = getSign(nextOffset);
-      int32_t nextOffsetValue = abs(nextOffset);
+      NameData *nextData = info.next->data;
+      generateNameAssignInfo((GenerateNameAssignAsmInfo) {
+        .compilerOptions = info.compilerOptions,
+        .next = info.next,
+        .nextData = nextData,
+        .nextType = *nextData->type,
+        .offset = info.offset,
+        .program = info.program,
+        .type = info.type,
+        .variableName = info.variableName,
+      });
+      break;
+    }
+    case TOKEN_INDEX: {
+      IndexData *indexData = next->data;
+      NameData *nextData = indexData->nameData;
 
-      switch(data->type->basicType) {
-        case BASIC_TYPE_INT: {
-          switch(nextData->type->basicType) {
-            case BASIC_TYPE_INT: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN NAME INT %s -> INT %s ---\n",
-                nextData->variableName, data->variableName
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov rax, [rbp %s %" PRIi32 "]\n",
-                nextOffsetSign,
-                nextOffsetValue
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], rax\n",
-                offsetSign,
-                offsetValue
-              );
-              break;
-            }
-            case BASIC_TYPE_BOOL: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN NAME BOOL %s -> INT %s ---\n",
-                nextData->variableName, data->variableName
-              );
+      ArrayType *arrayType = nextData->type->data;
 
-              fprintf(
-                compilerOptions->output,
-                "movzx eax, BYTE [rbp %s %" PRIi32 "]\n",
-                // We can use EAX, as it zeroes out the whole RAX for some reason
-                nextOffsetSign,
-                nextOffsetValue
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], rax\n",
-                offsetSign,
-                offsetValue
-              );
-              break;
-            }
-            case BASIC_TYPE_CHAR: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN NAME CHAR %s -> INT %s ---\n",
-                nextData->variableName, data->variableName
-              );
-
-              fprintf(
-                compilerOptions->output,
-                "mov eax, DWORD [rbp %s %" PRIi32 "]\n",
-                // We can use EAX, as it zeroes out the whole RAX for some reason
-                nextOffsetSign,
-                nextOffsetValue
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], rax\n",
-                offsetSign,
-                offsetValue
-              );
-              break;
-            }
-            default: {
-              ASSERT(false, "Type not supported!");
-            }
-          }
-          break;
-        }
-        case BASIC_TYPE_BOOL: {
-          switch(nextData->type->basicType) {
-            case BASIC_TYPE_BOOL: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN NAME BOOL %s -> BOOL %s ---\n",
-                nextData->variableName, data->variableName
-              );
-
-              fprintf(
-                compilerOptions->output,
-                "mov al, [rbp %s %" PRIi32 "]\n",
-                nextOffsetSign,
-                nextOffsetValue
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], al\n",
-                offsetSign,
-                offsetValue
-              );
-              break;
-            }
-            case BASIC_TYPE_INT: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN NAME INT %s -> BOOL %s ---\n",
-                nextData->variableName, data->variableName
-              );
-              fputs("xor rbx, rbx\n", compilerOptions->output);
-              fprintf(
-                compilerOptions->output,
-                "cmp QWORD [rbp %s %" PRIi32 "], 0\n",
-                nextOffsetSign,
-                nextOffsetValue
-              );
-              fputs("setne bl\n", compilerOptions->output);
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], bl\n",
-                offsetSign,
-                offsetValue
-              );
-              break;
-            }
-            case BASIC_TYPE_CHAR: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN NAME CHAR %s -> BOOL %s ---\n",
-                nextData->variableName, data->variableName
-              );
-              fputs("xor rbx, rbx\n", compilerOptions->output);
-              fprintf(
-                compilerOptions->output,
-                "cmp DWORD [rbp %s %" PRIi32 "], 0\n",
-                nextOffsetSign,
-                nextOffsetValue
-              );
-              fputs("setne bl\n", compilerOptions->output);
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], bl\n",
-                offsetSign,
-                offsetValue
-              );
-              break;
-            }
-            default: {
-              ASSERT(false, "Type not supported!");
-            }
-          }
-          break;
-        }
-        case BASIC_TYPE_FUNCTION: {
-          switch(nextData->type->basicType) {
-            case BASIC_TYPE_FUNCTION: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN NAME FUNCTION %s -> FUNCTION %s ---\n",
-                nextData->variableName, data->variableName
-              );
-
-              fprintf(
-                compilerOptions->output,
-                "mov rax, [rbp %s %" PRIi32 "]\n",
-                nextOffsetSign,
-                nextOffsetValue
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], rax\n",
-                offsetSign,
-                offsetValue
-              );
-              break;
-            }
-            default: {
-              ASSERT(false, "Type not supported!");
-            }
-          }
-          break;
-        }
-        case BASIC_TYPE_CHAR: {
-          switch(nextData->type->basicType) {
-            case BASIC_TYPE_CHAR: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN NAME CHAR %s -> CHAR %s ---\n",
-                nextData->variableName, data->variableName
-              );
-
-              fprintf(
-                compilerOptions->output,
-                "mov eax, DWORD [rbp %s %" PRIi32 "]\n",
-                nextOffsetSign,
-                nextOffsetValue
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], eax\n",
-                offsetSign,
-                offsetValue
-              );
-              break;
-            }
-            case BASIC_TYPE_INT: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN NAME INT %s -> CHAR %s ---\n",
-                nextData->variableName, data->variableName
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov rax, [rbp %s %" PRIi32 "]\n",
-                nextOffsetSign,
-                nextOffsetValue
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], eax\n",
-                offsetSign,
-                offsetValue
-              );
-              break;
-            }
-            case BASIC_TYPE_BOOL: {
-              fprintf(
-                compilerOptions->output,
-                "; --- ASSIGN NAME BOOL %s -> CHAR %s ---\n",
-                nextData->variableName, data->variableName
-              );
-
-              fprintf(
-                compilerOptions->output,
-                "mov eax, BYTE [rbp %s %" PRIi32 "]\n",
-                nextOffsetSign,
-                nextOffsetValue
-              );
-              fprintf(
-                compilerOptions->output,
-                "mov [rbp %s %" PRIi32 "], eax\n",
-                offsetSign,
-                offsetValue
-              );
-              break;
-            }
-            default: {
-              ASSERT(false, "Type not supported!");
-            }
-          }
-          break;
-        }
-        case BASIC_TYPE_ARRAY: {
-          
-        }
-        default: {
-          ASSERT(false, "Type not supported!");
-          break;
-        }
-      }
-
+      generateNameAssignInfo((GenerateNameAssignAsmInfo) {
+        .compilerOptions = info.compilerOptions,
+        .next = info.next,
+        .nextData = nextData,
+        .nextType = arrayType->type,
+        .offset = info.offset,
+        .program = info.program,
+        .type = info.type,
+        .variableName = info.variableName,
+      });
       break;
     }
     case TOKEN_FUNCTION_CALL: {
@@ -1283,7 +1302,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
       const char *name = getFunctionNameFromCall(functionCallData);
       Type returnType = getFunctionReturnTypeFromCall(functionCallData);
 
-      switch(data->type->basicType) {
+      switch(basicType) {
         case BASIC_TYPE_INT: {
           switch(returnType.basicType) {
             case BASIC_TYPE_INT: {
@@ -1291,7 +1310,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN INT FUNCTION %s -> INT %s ---\n",
                 name,
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -1307,7 +1326,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN BOOL FUNCTION %s -> INT %s ---\n",
                 name,
-                data->variableName
+                variableName
               );
 
               fprintf(
@@ -1331,7 +1350,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN BOOL FUNCTION %s -> BOOL %s ---\n",
                 name,
-                data->variableName
+                variableName
               );
 
               fputs("and rax, 1\n", compilerOptions->output);
@@ -1348,7 +1367,7 @@ void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program
                 compilerOptions->output,
                 "; --- ASSIGN BOOL FUNCTION %s -> BOOL %s ---\n",
                 name,
-                data->variableName
+                variableName
               );
 
               fputs("and rax, 1\n", compilerOptions->output);
@@ -1560,7 +1579,14 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program) {
 
         Token *next = program->instructions[++i];
         if(next->type == TOKEN_ASSIGN) {
-          generateAssignAsm(compilerOptions, data, program, &i);
+          generateAssignAsm((GenerateAssignAsmInfo) {
+            .compilerOptions = compilerOptions,
+            .next = nextToken(program, &i),
+            .offset = calculateOffset(program, data),
+            .program = program,
+            .type = *data->type,
+            .variableName = data->variableName,
+          });
         } else {
           generateNameAsm(compilerOptions, program, token, REGISTER_A);
           i--;
@@ -1652,6 +1678,7 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program) {
                 offsetValue
               );
               fputs("call print64\n", compilerOptions->output);
+              break;
             }
           }
           default: {

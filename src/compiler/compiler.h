@@ -51,6 +51,28 @@ void postCompile(CompilerOptions *compilerOptions);
  */
 void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *program, Token *operationToken);
 
+typedef struct GenerateNameAssignAsmInfo {
+  CompilerOptions *compilerOptions;
+  int32_t offset;
+  Type type;
+  const char *variableName;
+  Program *program;
+  Token *next;
+  NameData *nextData;
+  Type nextType;
+} GenerateNameAssignAsmInfo;
+
+void generateNameAssignInfo(GenerateNameAssignAsmInfo info);
+
+typedef struct GenerateAssignAsmInfo {
+  CompilerOptions *compilerOptions;
+  int32_t offset;
+  Type type;
+  const char *variableName;
+  Program *program;
+  Token *next;
+} GenerateAssignAsmInfo;
+
 /**
  * @brief Generates the asm code of the assign token
  * 
@@ -59,7 +81,7 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *progr
  * @param program The pointer to the program of the variable
  * @param i Pointer to the index variable that's used in the parent function
  */
-void generateAssignAsm(CompilerOptions *compilerOptions, NameData *data, Program *program, size_t *i);
+void generateAssignAsm(GenerateAssignAsmInfo info);
 
 void generateValueAsm(CompilerOptions *compilerOptions, Token *token, Register destination);
 void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *token, Register destination);
