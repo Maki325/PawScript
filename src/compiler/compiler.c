@@ -742,9 +742,19 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program,
 
         bytes += getTypeByteOffset(*nextData->type);
       } else if(arg->type == TOKEN_VALUE) {
+        size_t parameterSize = getTypeByteSize(*parameterTypes[i]);
+        generateAddressAssignAsm(
+          compilerOptions,
+          &p,
+          arg,
+          *parameterTypes[i],
+          // -bytes,
+          parameterSize < 8 ? -(bytes - parameterSize) : -(bytes - 8 + parameterSize),
+          true
+        );
         ValueData *valueData = arg->data;
-        generateValueAsm(compilerOptions, arg, REGISTER_A);
-        fprintf(compilerOptions->output, "mov [rbp - %zu], rax\n", bytes);
+        // generateValueAsm(compilerOptions, arg, REGISTER_A);
+        // fprintf(compilerOptions->output, "mov [rbp - %zu], rax\n", bytes);
 
         bytes += getTypeByteOffset(valueData->type);
       } else if(isOperationTokenType(arg->type)) {
@@ -919,7 +929,7 @@ void generateAddressArrayAssignAsm(
     }
   } else if(from->type == TOKEN_VALUE) {
     ValueData *valueData = from->data;
-    List *list = valueData->data;
+    TokenPriorityData *priorityData = valueData->data;
 
     Type nameElementType = toArray->type;
 
@@ -927,20 +937,32 @@ void generateAddressArrayAssignAsm(
     size_t valueOffset = getTypeByteOffset(valueData->type);
     size_t elementSize = getTypeByteSize(nameElementType);
     size_t elementOffset = getTypeByteOffset(nameElementType);
-    offset = offset < 0 ? offset + valueOffset : offset - valueOffset;
-    for(size_t i = 0;i < list->size;i++) {
-      Token *token = list->elements[i];
+
+    if(!reverse) {
+      offset = offset < 0 ? offset + valueOffset : offset - valueOffset;
+    }
+    for(size_t i = 0;i < priorityData->count;i++) {
+      Token *token = priorityData->instructions[i];
 
       generateValueAsm(compilerOptions, token, REGISTER_A);
       generateIntoNameAssignAsm(
         compilerOptions,
-        toOffset < 0 ? offset - elementSize : toOffset + elementSize,
+        reverse ? offset + elementSize : offset - elementSize,
         nameElementType,
         REGISTER_A
       );
-      offset = toOffset < 0 ? offset - elementOffset : toOffset + elementOffset;
+
+      if(reverse) {
+        offset = toOffset < 0 ? offset + elementOffset : toOffset - elementOffset;
+      } else {
+        offset = toOffset < 0 ? offset - elementOffset : toOffset + elementOffset;
+      }
     }
-    ASSERT(offset == toOffset, "Offset check failed");
+    if(reverse) {
+      ASSERT(offset == (int32_t) (toOffset + valueOffset), "Offset check failed");
+    } else {
+      ASSERT(offset == toOffset, "Offset check failed");
+    }
   } else {
     ASSERT(false, "Not implemented yet!");
   }

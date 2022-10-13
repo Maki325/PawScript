@@ -109,12 +109,12 @@ ValueData *convertValueData(ValueData *oldValueData, Type newType) {
             ASSERT(false, "Type not supported!");
             break;
           }
-          List *fromList = oldValueData->data, *toList = createList(fromList->capacity);
+          TokenPriorityData *fromPD = oldValueData->data, *toPD = createPriorityData(fromPD->count, fromPD->parent);
 
-          for(size_t i = 0;i < fromList->size;i++) {
-            Token *token = fromList->elements[i];
+          for(size_t i = 0;i < fromPD->count;i++) {
+            Token *token = fromPD->instructions[i];
             if(token->type == TOKEN_NAME || isOperationTokenType(token->type)) {
-              toList->elements[i] = token;
+              toPD->instructions[i] = token;
               continue;
             }
             if(token->type != TOKEN_VALUE) {
@@ -122,11 +122,11 @@ ValueData *convertValueData(ValueData *oldValueData, Type newType) {
               break;
             }
             ValueData *toValue = convertValueData(token->data, to->type);
-            Token *valueToken = toList->elements[i] = createToken(token);
+            Token *valueToken = toPD->instructions[i] = createToken(token);
             valueToken->data = toValue;
           }
 
-          valueData->data = toList;
+          valueData->data = toPD;
 
           return valueData;
         }

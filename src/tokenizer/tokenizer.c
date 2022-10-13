@@ -8,6 +8,14 @@
 
 size_t PROGRAM_COUNT = 0;
 
+TokenPriorityData *createPriorityData(size_t size, Program *parent) {
+  TokenPriorityData *priorityData = malloc(sizeof(TokenPriorityData));
+  priorityData->count = 0;
+  priorityData->instructions = calloc(size, sizeof(Token *));
+  priorityData->parent = parent;
+  return priorityData;
+}
+
 Program *createProgram() {
   Program *program = malloc(sizeof(Program));
   program->id = PROGRAM_COUNT++;
@@ -464,12 +472,29 @@ int crossreferenceBlocks(Program *program) {
         token.file = startToken->file;
         token.line = startToken->line;
         token.column = startToken->column;
+        // token.type = TOKEN_VALUE;
         token.type = TOKEN_BRACKETS;
+
+        // ValueData *valueData = malloc(sizeof(ValueData));
+        // valueData->type.basicType = BASIC_TYPE_ARRAY;
+        // ArrayType *arrayType = valueData->type.data = malloc(sizeof(ArrayType));
+        // arrayType->numberOfElements = length;
+        // arrayType->type = CONST_TYPE_NONE;
+        // if(length > 0 && tokens[0]->type == TOKEN_VALUE) {
+        //   ValueData *vd = tokens[0]->data;
+        //   arrayType->type = vd->type;
+        // }
+
         TokenPriorityData *value = malloc(sizeof(TokenPriorityData));
         value->parent = program;
         value->instructions = tokens;
         value->count = length;
+
+        //valueData->data = value;
+        //token.data = valueData;
+        
         token.data = value;
+
         free(startToken);
 
         // Replace `]` token with actual priority token
@@ -504,6 +529,8 @@ int crossreferenceBlocks(Program *program) {
         program->instructions[start - 2]->data = indexData;
 
         free(value->instructions);
+        // free(arrayType);
+        // free(valueData);
         free(value);
         free(getProgramInstruction(program, start - 1, true));
         i = start - 2;
@@ -589,6 +616,7 @@ bool shouldGoDeeperBase(TokenType type) {
     case TOKEN_BRACKETS:
     case TOKEN_PRINT:
     case TOKEN_INDEX:
+    case TOKEN_VALUE:
       return true;
 
     default:
@@ -767,6 +795,19 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
       prog.capacity = 1;
       prog.instructions = &data->index;
       program = &prog;
+      break;
+    }
+    case TOKEN_VALUE: {
+      ValueData *valueData = token->data;
+      if(valueData->type.basicType != BASIC_TYPE_ARRAY) return;
+      TokenPriorityData *priorityData = valueData->data;
+
+      prog.count = priorityData->count;
+      prog.capacity = priorityData->count;
+      prog.instructions = priorityData->instructions;
+      prog.parent = priorityData->parent;
+      program = &prog;
+      p_count = &priorityData->count;
       break;
     }
     default: {
@@ -1258,8 +1299,7 @@ void bracketsValueError(Token *token, Type expected, Type tokenType) {
   return;
 }
 
-void convertBracketsIntoValue(Program *program, size_t i) {
-  Token *token = program->instructions[i];
+void convertBracketsIntoValue(Token *token) {
   if(token->type != TOKEN_BRACKETS) return;
   TokenPriorityData *bracketsData = token->data;
 
@@ -1267,8 +1307,8 @@ void convertBracketsIntoValue(Program *program, size_t i) {
   valueData->type = CONST_TYPE_NONE;
   valueData->data = NULL;
 
-  program->instructions[i]->type = TOKEN_VALUE;
-  program->instructions[i]->data = valueData;
+  token->type = TOKEN_VALUE;
+  token->data = valueData;
 
   if(bracketsData->count == 0) {
     if(bracketsData->instructions) free(bracketsData->instructions);
@@ -1343,12 +1383,13 @@ void convertBracketsIntoValue(Program *program, size_t i) {
     }
   }
 
-  List *list = valueData->data = createList(size);
-  list->size = size;
+  TokenPriorityData *priorityData = valueData->data = malloc(sizeof(TokenPriorityData));
+  priorityData->count = size;
+  priorityData->instructions = calloc(size, sizeof(Token*));
   arrayType->numberOfElements = size;
   for(size_t q = 0, p = 0;q < bracketsData->count;q++) {
     if(isOperationTokenType(bracketsData->instructions[q]->type)) {
-      list->elements[p++] = bracketsData->instructions[q];
+      priorityData->instructions[p++] = bracketsData->instructions[q];
       continue;
     }
     switch(bracketsData->instructions[q]->type) {
@@ -1357,11 +1398,11 @@ void convertBracketsIntoValue(Program *program, size_t i) {
         break;
       }
       case TOKEN_NAME: {
-        list->elements[p++] = bracketsData->instructions[q];
+        priorityData->instructions[p++] = bracketsData->instructions[q];
         break;
       }
       case TOKEN_VALUE: {
-        list->elements[p++] = bracketsData->instructions[q];
+        priorityData->instructions[p++] = bracketsData->instructions[q];
         break;
       }
       default: {
@@ -1425,7 +1466,7 @@ void checkConvertBracketsIntoValue(Program *program, size_t i, Type type) {
     }
     return;
   }
-  convertBracketsIntoValue(program, i + 4);
+  convertBracketsIntoValue(program->instructions[i + 4]);
   if(next->type != TOKEN_VALUE) {
     if(!mutable) {
       typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
@@ -1524,15 +1565,15 @@ void typesetProgram(Program *program) {
                 typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
                 return;
               }
-              convertBracketsIntoValue(program, i + 4);
+              convertBracketsIntoValue(program->instructions[i + 4]);
               if(next->type != TOKEN_VALUE) {
                 typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
                 return;
               }
               ValueData *valueData = next->data;
               ArrayType *arrayType = valueData->type.data;
-              List *list = valueData->data;
-              size = list->size;
+              TokenPriorityData *priorityData = valueData->data;
+              size = priorityData->count;
 
               if(!canTypesConvert(*type, arrayType->type)) {
                 exitTokenError(ERROR_WRONG_ARRAY_TYPE, next);
@@ -1640,7 +1681,7 @@ void typesetProgram(Program *program) {
           }
 
           case TOKEN_BRACKETS: {
-            convertBracketsIntoValue(program, i + 2);
+            convertBracketsIntoValue(program->instructions[i + 2]);
 
             if(next->type != TOKEN_VALUE) {
               typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
@@ -2151,7 +2192,7 @@ void createFunctionCalls(Program *program) {
   ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in removeUnneededPriorities!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
-    if(shouldGoDeeper(token->type)) {
+    if(token->type != TOKEN_VALUE && shouldGoDeeper(token->type)) {
       goDeeper(token, (goDeeperFunction) createFunctionCalls, 0);
       continue;
     }
@@ -2160,7 +2201,10 @@ void createFunctionCalls(Program *program) {
     }
     if(token->type == TOKEN_VALUE) {
       ValueData *valueData = token->data;
-      if(valueData->type.basicType != BASIC_TYPE_FUNCTION) continue;
+      if(valueData->type.basicType != BASIC_TYPE_FUNCTION) {
+        goDeeper(token, (goDeeperFunction) createFunctionCalls, 0);
+        continue;
+      }
     }
     if(i + 1 == program->count) {
       continue;
@@ -2192,8 +2236,15 @@ void createFunctionCalls(Program *program) {
         for(size_t arg = 0;arg < priorityData->count;arg++) {
           Token *argument = priorityData->instructions[arg];
 
-          if(!isOperationTokenType(argument->type) && argument->type != TOKEN_NAME && argument->type != TOKEN_VALUE) {
-            exitTokenError(ERROR_UNEXPECTED_TOKEN_IN_FUNCTION_ARGUMENT, argument);
+          if(
+            !isOperationTokenType(argument->type) &&
+            argument->type != TOKEN_NAME &&
+            argument->type != TOKEN_VALUE
+          ) {
+            if(argument->type != TOKEN_BRACKETS) {
+              exitTokenError(ERROR_UNEXPECTED_TOKEN_IN_FUNCTION_ARGUMENT, argument);
+            }
+            convertBracketsIntoValue(argument);
           }
 
           if(arg == priorityData->count - 1) {
@@ -2284,7 +2335,12 @@ void createFunctionCalls(Program *program) {
         switch(argument->type) {
           case TOKEN_VALUE: continue;
           case TOKEN_NAME: continue;
+          case TOKEN_BRACKETS: {
+            convertBracketsIntoValue(argument);
+            continue;
+          }
           default: {
+            printToken(argument, 0, 0);
             exitTokenError(ERROR_UNKNOWN_TOKEN_IN_FUNCTION_CALL, argument);
             return;
           }

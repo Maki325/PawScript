@@ -206,6 +206,8 @@ typedef struct FunctionTypeData {
 
 typedef void (*goDeeperFunction)(Program*, ...);
 
+TokenPriorityData *createPriorityData(size_t size, Program *parent);
+
 Program *createProgram();
 Program *createProgramWithParent(Program *parent);
 void deleteProgram(Program *program);
