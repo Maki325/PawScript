@@ -485,29 +485,24 @@ int crossreferenceBlocks(Program *program) {
           exitTokenError(ERROR_EXPECTED_ONE_ELEMENT_IN_INDEXING_OPERATOR, program->instructions[start - 1]);
         }
         Token *valueToken = value->instructions[0];
-        uint64_t index = 0;
 
+        if(valueToken->type != TOKEN_VALUE && valueToken->type != TOKEN_NAME) {
+          exitTokenError(ERROR_EXPECTED_NUMBER_VALUE_IN_INDEXING_OPERATOR, valueToken);
+        }
         if(valueToken->type == TOKEN_VALUE) {
           ValueData *valueData = valueToken->data;
           if(valueData->type.basicType != BASIC_TYPE_INT) {
             exitTokenError(ERROR_EXPECTED_NUMBER_VALUE_IN_INDEXING_OPERATOR, valueToken);
           }
-          index = getIntValue(valueData->data);
-
-          free(valueData->data);
-          free(valueData);
-        } else {
-          exitTokenError(ERROR_EXPECTED_NUMBER_VALUE_IN_INDEXING_OPERATOR, valueToken);
         }
 
         IndexData *indexData = malloc(sizeof(IndexData));
-        indexData->index = index;
+        indexData->index = valueToken;
         indexData->nameData = nameToken->data;
 
         program->instructions[start - 2]->type = TOKEN_INDEX;
         program->instructions[start - 2]->data = indexData;
 
-        free(value->instructions[0]);
         free(value->instructions);
         free(value);
         free(getProgramInstruction(program, start - 1, true));
@@ -593,6 +588,7 @@ bool shouldGoDeeperBase(TokenType type) {
     case TOKEN_RETURN:
     case TOKEN_BRACKETS:
     case TOKEN_PRINT:
+    case TOKEN_INDEX:
       return true;
 
     default:
@@ -762,6 +758,17 @@ void goDeeper(Token *token, goDeeperFunction fnc, int paramCount, ...) {
       program = &prog;
       break;
     }
+    case TOKEN_INDEX: {
+      if(!token->data) return;
+      IndexData *data = token->data;
+      if(!data->index) return;
+
+      prog.count = 1;
+      prog.capacity = 1;
+      prog.instructions = &data->index;
+      program = &prog;
+      break;
+    }
     default: {
       ASSERT(false, "Unreachable in `goDeeper`!");
       break;
@@ -848,12 +855,39 @@ void crossreferenceFunctions(Program *program) {
       function->functionType->inputSize = 0;
       for(size_t inc = 0;inc < function->parameters->count;inc++) {
         Token *tok = function->parameters->instructions[inc];
-        if(tok->type != TOKEN_TYPE) continue;
+        if(tok->type != TOKEN_NAME) continue;
         function->functionType->inputSize++;
       }
       function->functionType->input = calloc(function->functionType->inputSize, sizeof(Type*));
       for(size_t inc = 0, it = 0;inc < function->parameters->count;inc++) {
         Token *tok = function->parameters->instructions[inc];
+        if(tok->type == TOKEN_BRACKETS) {
+          TokenPriorityData *priorityData = tok->data;
+          if(priorityData->count != 3) {
+            exitTokenError(ERROR_WRONG_ARRAY_TYPE_SYNTAX_BOTH, tok);
+          }
+          if(priorityData->instructions[0]->type != TOKEN_TYPE ||
+              priorityData->instructions[1]->type != TOKEN_SEMICOLON ||
+              priorityData->instructions[2]->type != TOKEN_VALUE) {
+            exitTokenError(ERROR_WRONG_ARRAY_TYPE_SYNTAX_BOTH, tok);
+          }
+
+          Type *tokenType = createType(BASIC_TYPE_ARRAY);
+
+          ArrayType *arrayType = tokenType->data = malloc(sizeof(ArrayType));
+
+          arrayType->type = *(Type*) priorityData->instructions[0]->data;
+
+          ValueData *valueData = priorityData->instructions[2]->data;
+          if(valueData->type.basicType != BASIC_TYPE_INT) {
+            exitTokenError(ERROR_WRONG_ARRAY_TYPE_SYNTAX_BOTH, tok);
+          }
+
+          arrayType->numberOfElements = getIntValue(valueData->data);
+
+          function->functionType->input[it++] = tokenType;
+          continue;
+        }
         if(tok->type != TOKEN_TYPE) continue;
         function->functionType->input[it++] = (Type*) tok->data;
       }
@@ -956,23 +990,44 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
         .id = 0,
         .functions = NULL,
       };
-      for(size_t j = 0;j < inputs->count;j++) {
-        Token *input = inputs->instructions[j];
-        if(input->type == TOKEN_COMMA) {
-          free(getProgramInstruction(&inputsProgram, j, true));
-          continue;
-        }
-        if(input->type != TOKEN_NAME) continue;
-        NameData *inputName = input->data;
 
-        if(j != 0) {
-          Token *last = inputs->instructions[j - 1];
-          if(last->type == TOKEN_MUT || last->type == TOKEN_CONST) {
-            inputName->mutable = last->type == TOKEN_MUT;
-            free(getProgramInstruction(&inputsProgram, j - 1, true));
-            inputs->count = inputsProgram.count;
-            j--;
+      for(size_t j = 0;j < inputs->count;j++) {
+        bool mutable = false;
+        NameData *inputName = NULL;
+
+        Token *input = inputs->instructions[j];
+        if(input->type != TOKEN_NAME && input->type != TOKEN_MUT && input->type != TOKEN_CONST) {
+          exitTokenError(ERROR_UNEXPECTED_FIRST_TOKEN_IN_PARAMETERS, input);
+        }
+        if(input->type == TOKEN_MUT || input->type == TOKEN_CONST) {
+          mutable = input->type == TOKEN_MUT;
+          if(j == inputs->count - 1) {
+            exitTokenError(ERROR_EXPECTED_NAME_TOKEN_IN_PARAMETERS, input);
           }
+          free(getProgramInstruction(&inputsProgram, j, true));
+          inputs->count--;
+          input = inputs->instructions[j];
+          if(input->type != TOKEN_NAME) {
+            exitTokenError(ERROR_EXPECTED_NAME_TOKEN_IN_PARAMETERS, input);
+          }
+        }
+        if(j == inputs->count - 1) {
+          exitTokenError(ERROR_EXPECTED_TOKEN_ASSIGN_TYPE_IN_PARAMETERS, input);
+        }
+
+        inputName = inputs->instructions[j]->data;
+        inputName->mutable = mutable;
+
+        input = inputs->instructions[++j];
+        if(input->type != TOKEN_ASSIGN_TYPE) {
+          exitTokenError(ERROR_EXPECTED_TOKEN_ASSIGN_TYPE_IN_PARAMETERS, input);
+        }
+        if(j == inputs->count - 1) {
+          exitTokenError(ERROR_EXPECTED_TOKEN_TYPE_IN_PARAMETERS, input);
+        }
+        input = inputs->instructions[++j];
+        if(input->type != TOKEN_TYPE && input->type != TOKEN_BRACKETS) {
+          exitTokenError(ERROR_EXPECTED_TOKEN_TYPE_IN_PARAMETERS, input);
         }
 
         NameMapValue *element = createAndAddNameMapVariable(nameMap, inputName, body, j);
@@ -981,24 +1036,51 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
         inputName->mutable            = element->mutable;
         inputName->offset             = element->offset;
 
-        if(j != inputs->count - 1) {
-          Token *next = inputs->instructions[j + 1];
-          if(next->type != TOKEN_ASSIGN_TYPE) {
-            exitTokenError(ERROR_VARIABLE_NO_TYPE, input);
+        Type tokenType = {.basicType = BASIC_TYPE_NONE, .data = NULL};
+        if(input->type == TOKEN_TYPE) {
+          tokenType = *(Type*) input->data;
+        } else if(input->type == TOKEN_BRACKETS) {
+          TokenPriorityData *priorityData = input->data;
+          if(priorityData->count != 3) {
+            exitTokenError(ERROR_WRONG_ARRAY_TYPE_SYNTAX_BOTH, input);
           }
-          next = inputs->instructions[j + 2];
-          if(next->type != TOKEN_TYPE) {
-            exitTokenError(ERROR_VARIABLE_NO_TYPE, input);
+          if(priorityData->instructions[0]->type != TOKEN_TYPE ||
+              priorityData->instructions[1]->type != TOKEN_SEMICOLON ||
+              priorityData->instructions[2]->type != TOKEN_VALUE) {
+            exitTokenError(ERROR_WRONG_ARRAY_TYPE_SYNTAX_BOTH, input);
           }
-          Type *tokenTypeValue = (Type*) next->data;
-          element->type->basicType = tokenTypeValue->basicType;
-          element->type->data = tokenTypeValue->data;
 
-          free(tokenTypeValue);
-          free(getProgramInstruction(&inputsProgram, j + 2, true));
-          free(getProgramInstruction(&inputsProgram, j + 1, true));
-          inputs->count = inputsProgram.count;
+          tokenType.basicType = BASIC_TYPE_ARRAY;
+          ArrayType *arrayType = tokenType.data = malloc(sizeof(ArrayType));
+
+          arrayType->type = *(Type*) priorityData->instructions[0]->data;
+
+          ValueData *valueData = priorityData->instructions[2]->data;
+          if(valueData->type.basicType != BASIC_TYPE_INT) {
+            exitTokenError(ERROR_WRONG_ARRAY_TYPE_SYNTAX_BOTH, input);
+          }
+
+          arrayType->numberOfElements = getIntValue(valueData->data);
+
+          free(getProgramInstruction(&inputsProgram, j--, true));
+          inputs->count--;
+          free(getProgramInstruction(&inputsProgram, j--, true));
+          inputs->count--;
+        } else {
+          ASSERT(false, "Unreachable!");
         }
+        element->type->basicType = tokenType.basicType;
+        element->type->data = tokenType.data;
+
+        if(j == inputs->count - 1) {
+          break;
+        }
+        input = inputs->instructions[++j];
+        if(input->type != TOKEN_COMMA) {
+          exitTokenError(ERROR_EXPECTED_TOKEN_COMMA_IN_PARAMETERS, input);
+        }
+        free(getProgramInstruction(&inputsProgram, j--, true));
+        inputs->count--;
       }
 
       NameData *functionName = malloc(sizeof(NameData));
@@ -1021,7 +1103,7 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
 
       crossreferenceVariables(body, nameMap);
       continue;
-    } else if(shouldGoDeeper(instruction->type)) {
+    } else if(instruction->type != TOKEN_INDEX && shouldGoDeeper(instruction->type)) {
       goDeeper(instruction, (goDeeperFunction) crossreferenceVariables, 1, nameMap);
       continue;
     }
@@ -1031,6 +1113,7 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
       value = instruction->data;
     } else {
       IndexData *data = instruction->data;
+      goDeeper(instruction, (goDeeperFunction) crossreferenceVariables, 1, nameMap);
       value = data->nameData;
     }
     const char *name = value->name;
@@ -1079,7 +1162,20 @@ void crossreferenceVariables(Program *program, HashTable *parentNameMap) {
     value->offset             = element->offset;
   }
 
-  deleteHashTable(nameMap);
+  if(!parentNameMap) {
+    deleteHashTable(nameMap);
+  } else {
+    for(size_t i = 0; i < nameMap->capacity;i++) {
+      if(nameMap->elements[i].key) {
+        if(existsElementInHashTable(parentNameMap, nameMap->elements[i].key)) {
+          continue;
+        }
+        free(nameMap->elements[i].value);
+      }
+    }
+    free(nameMap->elements);
+    free(nameMap);
+  }
 }
 
 void removeUnneededPriorities(Program *program) {
@@ -1309,6 +1405,7 @@ void checkConvertBracketsIntoValue(Program *program, size_t i, Type type) {
   }
   next = program->instructions[i + offset++];
   if(next->type != TOKEN_ASSIGN) {
+    printf("This One?!\n");
     if(!mutable) {
       typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
     }
@@ -1357,12 +1454,6 @@ void typesetProgram(Program *program) {
       continue;
     }
     NameData *value = token->data;
-
-    if(i + 1 == program->count - 1 && program->instructions[i + 1]->type == TOKEN_ASSIGN_TYPE) {
-      typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
-      return;
-    }
-
     if(i == program->count - 1) {
       if(value->type == BASIC_TYPE_NONE) {
         typesetProgramError(ERROR_VARIABLE_NO_TYPE, value->variableName, token);
@@ -1371,6 +1462,12 @@ void typesetProgram(Program *program) {
         continue;
       }
     }
+
+    if(i + 1 == program->count - 1 && program->instructions[i + 1]->type == TOKEN_ASSIGN_TYPE) {
+      typesetProgramError(ERROR_NO_TYPE_AFTER_ASSIGN_TYPE, value->variableName, token);
+      return;
+    }
+
     next = program->instructions[i + 1];
     switch (next->type) {
       case TOKEN_ASSIGN_TYPE: {
@@ -1605,7 +1702,7 @@ void createIndexedNameTokens(Program *program) {
   ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in createIndexedNameTokens!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
-    if(shouldGoDeeper(token->type)) {
+    if(token->type != TOKEN_INDEX && shouldGoDeeper(token->type)) {
       goDeeper(token, (goDeeperFunction) createIndexedNameTokens, 0);
       continue;
     }
@@ -1619,7 +1716,8 @@ void createIndexedNameTokens(Program *program) {
       continue;
     }
 
-    uint64_t index = getIntValue(indexToken->data);
+    ValueData *valueData = indexToken->data;
+    uint64_t index = getIntValue(valueData->data);
     if(index >= arrayType->numberOfElements) {
       exitTokenError(ERROR_INDEX_OUT_OF_BOUNDS, token);
     }
@@ -1627,7 +1725,7 @@ void createIndexedNameTokens(Program *program) {
     int32_t offset = *data->offset;
     Type elementType = arrayType->type;
     if(offset > 0) {
-      offset = offset - getTypeByteOffset(*data->type);
+      // offset = offset - getTypeByteOffset(*data->type);
       offset += index * getTypeByteOffset(elementType);
       offset += getTypeByteSize(elementType);
     } else {
@@ -1785,17 +1883,32 @@ void calculateOffsets(Program *program) {
       FunctionDefinition *data = token->data;
       ASSERT(data, "Unreachable!");
       TokenPriorityData *inputs = data->parameters;
-      int32_t offset = 8;
       for(size_t j = 0;j < inputs->count;j++) {
         Token *input = inputs->instructions[j];
         if(input->type != TOKEN_NAME) continue;
         NameData *inputName = input->data;
         ASSERT(inputName->offset != NULL, "Unreachable");
-        *inputName->offset = offset + getTypeByteSize(*inputName->type);
-        offset = offset + getTypeByteOffset(*inputName->type);
+        *inputName->offset = -11111;
       }
 
       calculateOffsets(data->body);
+
+      int32_t offset = 16;
+      for(int j = inputs->count - 1;j >= 0;j--) {
+        Token *input = inputs->instructions[j];
+        if(input->type != TOKEN_NAME) continue;
+        NameData *inputName = input->data;
+        ASSERT(inputName->offset != NULL, "Unreachable");
+        {
+          int32_t typeOffset = getTypeByteSize(*inputName->type);
+          if(typeOffset <= 8) {
+            *inputName->offset = offset + 8 - typeOffset;
+          } else {
+            *inputName->offset = offset;
+          }
+        }
+        offset = offset + getTypeByteOffset(*inputName->type);
+      }
       continue;
     } else if(shouldGoDeeper(token->type)) {
       goDeeper(token, (goDeeperFunction) calculateOffsets, 0);
@@ -1814,8 +1927,8 @@ void calculateOffsets(Program *program) {
 }
 
 bool canBeUsedInArithmeticOperations(TokenType type) {
-  ASSERT(TOKEN_COUNT == 29, "Not all operations are implemented in canBeUsedInArithmeticOperations!");
-  return type == TOKEN_NAME || type == TOKEN_VALUE || type == TOKEN_ADD
+  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in canBeUsedInArithmeticOperations!");
+  return type == TOKEN_NAME || type == TOKEN_INDEX || type == TOKEN_VALUE || type == TOKEN_ADD
           || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY;
 }
 bool canBeUsedInComparisonOperations(TokenType type) {
@@ -2065,35 +2178,58 @@ void createFunctionCalls(Program *program) {
       FunctionCallData *functionCallData = malloc(sizeof(FunctionCallData));
       functionCallData->function = function;
       functionCallData->nameData = NULL;
+
+      size_t parameterCount = 0;
+      for(size_t arg = 0;arg < functionCallData->function->parameters->count;arg++) {
+        Token *parameter = functionCallData->function->parameters->instructions[arg];
+        // We are fancy, so we use this to remove branching :)
+        parameterCount += parameter->type == TOKEN_NAME;
+      }
+
+      // The priority could have been removed due to our other function called `removeUnneededPriorities`
       if(next->type == TOKEN_PRIORITY) {
         TokenPriorityData *priorityData = next->data;
         for(size_t arg = 0;arg < priorityData->count;arg++) {
           Token *argument = priorityData->instructions[arg];
-          if(argument->type == TOKEN_COMMA) {
-            Program p = {
-              .capacity = priorityData->count,
-              .count = priorityData->count,
-              .instructions = priorityData->instructions,
-            };
-            free(getProgramInstruction(&p, arg--, true));
-            priorityData->count--;
-            continue;
-          } else if(isOperationTokenType(argument->type)) {
-            continue;
+
+          if(!isOperationTokenType(argument->type) && argument->type != TOKEN_NAME && argument->type != TOKEN_VALUE) {
+            exitTokenError(ERROR_UNEXPECTED_TOKEN_IN_FUNCTION_ARGUMENT, argument);
           }
-          switch(argument->type) {
-            case TOKEN_VALUE: continue;
-            case TOKEN_NAME: continue;
-            default: {
-              exitTokenError(ERROR_UNKNOWN_TOKEN_IN_FUNCTION_CALL, argument);
-              return;
-            }
+
+          if(arg == priorityData->count - 1) {
+            break;
           }
-          return;
+          argument = priorityData->instructions[++arg];
+
+          if(argument->type != TOKEN_COMMA) {
+            exitTokenError(ERROR_EXPECTED_TOKEN_COMMA_IN_FUNCTION_ARGUMENT, argument);
+          }
+          Program p = {
+            .capacity = priorityData->count,
+            .count = priorityData->count,
+            .instructions = priorityData->instructions,
+          };
+          free(getProgramInstruction(&p, arg--, true));
+          priorityData->count--;
+          continue;
+          
+          // if(isOperationTokenType(argument->type)) {
+          //   continue;
+          // }
+          // switch(argument->type) {
+          //   case TOKEN_VALUE: continue;
+          //   case TOKEN_NAME: continue;
+          //   default: {
+          //     exitTokenError(ERROR_UNKNOWN_TOKEN_IN_FUNCTION_CALL, argument);
+          //     return;
+          //   }
+          // }
+          // return;
         }
 
         functionCallData->arguments = priorityData;
-        if(functionCallData->function->parameters->count != priorityData->count) {
+
+        if(parameterCount != priorityData->count) {
           exitTokenError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
           return;
         }
@@ -2106,7 +2242,7 @@ void createFunctionCalls(Program *program) {
 
         continue;
       }
-      if(functionCallData->function->parameters->count != 1) {
+      if(parameterCount != 1) {
         exitTokenError(ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH, next);
         return;
       }
@@ -2376,6 +2512,8 @@ Program *createProgramFromFile(const char *filePath) {
   printf("[LOG]: [TOKENIZER] Calculating offsets          : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
+  // printProgram(program, 0);
+
   createIndexedNameTokens(program);
   startClock = clock() - startClock;
   printf("[LOG]: [TOKENIZER] Indexed name tokens          : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
@@ -2388,6 +2526,8 @@ Program *createProgramFromFile(const char *filePath) {
 
   startClock = clock() - tokenizerStart;
   printf("[LOG]: [TOKENIZER] Tokenizer                    : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+
+  // printProgram(program, 0);
 
   return program;
 }

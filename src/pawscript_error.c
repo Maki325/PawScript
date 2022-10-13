@@ -3,7 +3,7 @@
 #include "tokenizer/tokenizer.h"
 
 const char *getPawscriptErrorName(PawscriptError error) {
-  ASSERT(ERROR_COUNT == 42, "Not all errors are implemented in getPawscriptErrorName!");
+  ASSERT(ERROR_COUNT == 52, "Not all errors are implemented in getPawscriptErrorName!");
   switch (error) {
     case ERROR_OPEN_FILE:                                  return "Couldn't open file!";
     case ERROR_PARENTHESES_NOT_BALANCED:                   return "Parentheses are not balanced!";
@@ -26,7 +26,7 @@ const char *getPawscriptErrorName(PawscriptError error) {
     case ERROR_OPERATION_DOESNT_HAVE_BOTH_OPERANDS:        return "Operation doesn't have all the operands!";
     case ERROR_OPERATION_NOT_ENOUGH_OPERANDS:              return "Not enought operands for operation!";
     case ERROR_OPERAND_CANT_BE_USED:                       return "Operand can't be used!";
-    case ERROR_OPERATION_NO_TYPE:                          return "The oepration doesn't have a type!";
+    case ERROR_OPERATION_NO_TYPE:                          return "The operation doesn't have a type!";
     case ERROR_FUNCTION_CALL_ARGUMENTS_LENGTH_MISMATCH:    return "Not the correct amount of arguments!";
     case ERROR_FUNCTION_CALL_ARGUMENTS_MISMATCH:           return "Argument type doesn't match!";
     case ERROR_PLATFORM_NOT_SUPPORTED:                     return "Platform not supported!";
@@ -46,6 +46,16 @@ const char *getPawscriptErrorName(PawscriptError error) {
     case ERROR_EXPECTED_NUMBER_VALUE_IN_INDEXING_OPERATOR: return "Expected number in indexing operator!";
     case ERROR_INDEX_OUT_OF_BOUNDS:                        return "Index out is out of bounds of the array!";
     case ERROR_WRONG_ARRAY_TYPE_SYNTAX:                    return "Wrong array type syntax! Expected `[<type>; <size>]` or `[<type>]`!";
+    case ERROR_WRONG_ARRAY_TYPE_SYNTAX_BOTH:               return "Wrong array type syntax! Expected `[<type>; <size>]`!";
+    case ERROR_UNEXPECTED_TOKEN:                           return "Unexpected token!";
+    case ERROR_UNEXPECTED_FIRST_TOKEN_IN_PARAMETERS:       return "Unexpected token in variable declaration in function parameters! Expected `const`, `mut` or a variable name!";
+    case ERROR_EXPECTED_NAME_TOKEN_IN_PARAMETERS:          return "Unexpected token in variable declaration in function parameters! Expected a variable name!";
+    case ERROR_EXPECTED_TOKEN_ASSIGN_TYPE_IN_PARAMETERS:   return "Unexpected token in variable declaration in function parameters! Expected assign type(`:`) symbol!";
+    case ERROR_EXPECTED_TOKEN_TYPE_IN_PARAMETERS:          return "Unexpected token in variable declaration in function parameters! Expected a type!";
+    case ERROR_EXPECTED_TOKEN_COMMA_IN_PARAMETERS:         return "Unexpected token in function parameters! Expected a comma (`,`)!";
+    case ERROR_UNEXPECTED_TOKEN_IN_FUNCTION_ARGUMENT:      return "Unexpected token in function argument! Expected a value or a variable!";
+    case ERROR_EXPECTED_TOKEN_COMMA_IN_FUNCTION_ARGUMENT:  return "Unexpected token in function argument! Expected a comma (`,`)!";
+    case ERROR_TYPES_DONT_MATCH:                           return "Can't assign to variable! Types don't match!";
     default:                                               return "Unknown Error!!!";
   }
 }

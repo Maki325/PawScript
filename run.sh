@@ -2,9 +2,14 @@
 
 if [ "$1" = "r" ]
 then
-  nasm -g -felf64 ./tests/pawscript/out/009-chars.test.asm
-  ld -o ./tests/pawscript/out/009-chars ./tests/pawscript/out/009-chars.test.o
-  ././tests/pawscript/out/009-chars
+  # nasm -g -felf64 ./tests/pawscript/out/005-add-function.test.asm
+  # ld -o ./tests/pawscript/out/005-add-function.test ./tests/pawscript/out/005-add-function.test.o
+  # ././tests/pawscript/out/005-add-function.test
+
+  nasm -g -felf64 ./tests/pawscript/out/010-arrays.test.asm
+  ld -o ./tests/pawscript/out/010-arrays ./tests/pawscript/out/010-arrays.test.o
+  ././tests/pawscript/out/010-arrays
+
 elif [ "$1" = "s" ]
 then
   # ./build/pawscript int ./tests/pawscript/start.ps
@@ -22,7 +27,7 @@ then
   # ./build/pawscript com ./tests/pawscript/007-if.ps -r -s -o ./tests/pawscript/out/007-if
   # ./build/pawscript com ./tests/pawscript/008-recursion-number-print.ps -r -s -o ./tests/pawscript/out/008-recursion-number-print
   # ./build/pawscript com ./tests/pawscript/009-chars.ps -r -s -o ./tests/pawscript/out/009-chars
-  ./build/pawscript com ./tests/pawscript/010-arrays.ps -r -s -o ./tests/pawscript/out/010-arrays
+  ./build/pawscript com ./tests/pawscript/010-arrays.ps -r -o ./tests/pawscript/out/010-arrays
 else
   ./build/pawscript "$@"
 fi

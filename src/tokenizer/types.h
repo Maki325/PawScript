@@ -36,6 +36,8 @@ bool areTypesEqual(Type a, Type b);
 
 bool canTypesConvert(Type a, Type b);
 
+bool isBasicType(Type type);
+
 // Constants
 extern Type CONST_TYPE_NONE;
 extern Type CONST_TYPE_INT;

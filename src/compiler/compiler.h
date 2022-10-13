@@ -51,18 +51,18 @@ void postCompile(CompilerOptions *compilerOptions);
  */
 void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *program, Token *operationToken);
 
-typedef struct GenerateNameAssignAsmInfo {
-  CompilerOptions *compilerOptions;
-  int32_t offset;
-  Type type;
-  const char *variableName;
-  Program *program;
-  Token *next;
-  NameData *nextData;
-  Type nextType;
-} GenerateNameAssignAsmInfo;
+// typedef struct GenerateNameAssignAsmInfo {
+//   CompilerOptions *compilerOptions;
+//   int32_t offset;
+//   Type type;
+//   const char *variableName;
+//   Program *program;
+//   NameData *nextData;
+//   Type nextType;
+//   int32_t nextOffset;
+// } GenerateNameAssignAsmInfo;
 
-void generateNameAssignInfo(GenerateNameAssignAsmInfo info);
+// void generateNameAssignAsm(GenerateNameAssignAsmInfo info);
 
 typedef struct GenerateAssignAsmInfo {
   CompilerOptions *compilerOptions;
@@ -71,6 +71,7 @@ typedef struct GenerateAssignAsmInfo {
   const char *variableName;
   Program *program;
   Token *next;
+  Token *current;
 } GenerateAssignAsmInfo;
 
 /**
@@ -85,8 +86,20 @@ void generateAssignAsm(GenerateAssignAsmInfo info);
 
 void generateValueAsm(CompilerOptions *compilerOptions, Token *token, Register destination);
 void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *token, Register destination);
+void generateIndexAsm(CompilerOptions *compilerOptions, Program *program, Token *token, Register destination);
+
+void generateAddressAssignAsm(
+  CompilerOptions *compilerOptions,
+  Program *program,
+  Token *from,
+  Type toType,
+  int32_t toOffset,
+  bool reverse
+);
 
 void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program, Token *token);
+
+void generateIntoNameAssignAsm(CompilerOptions *compilerOptions, int32_t offset, Type type, Register source);
 
 /**
  * @brief Generates the asm code of the function

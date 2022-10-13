@@ -67,6 +67,7 @@ bool canTypesConvert(Type a, Type b) {
       return basicB == BASIC_TYPE_INT || basicB == BASIC_TYPE_BOOL;
     }
     case BASIC_TYPE_FUNCTION: {
+      if(basicB != BASIC_TYPE_FUNCTION) return false;
       FunctionType *af = a.data, *bf = b.data;
       if(!canTypesConvert(af->output, bf->output)) return false;
       if(af->inputSize != bf->inputSize) return false;
@@ -79,6 +80,7 @@ bool canTypesConvert(Type a, Type b) {
       return false;
     }
     case BASIC_TYPE_ARRAY: {
+      if(basicB != BASIC_TYPE_ARRAY) return false;
       ArrayType *aa = a.data, *ba = b.data;
       if(aa->numberOfElements != ba->numberOfElements) return false;
       if(!canTypesConvert(aa->type, ba->type)) return false;
@@ -87,6 +89,20 @@ bool canTypesConvert(Type a, Type b) {
     }
     default: {
       ASSERT(false, "Unreachable!");
+    }
+  }
+}
+
+bool isBasicType(Type type) {
+  switch (type.basicType) {
+    case BASIC_TYPE_BOOL:
+    case BASIC_TYPE_CHAR:
+    case BASIC_TYPE_INT:
+    case BASIC_TYPE_FUNCTION: {
+      return true;
+    }
+    default: {
+      return false;
     }
   }
 }

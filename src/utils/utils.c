@@ -96,9 +96,9 @@ void printToken(Token *token, unsigned int depth, size_t index) {
       IndexData *data = token->data;
       NameData *value = data->nameData;
       if(!value->type) {
-        printf("INDEX NAME: %s, INDEX: %zu, CODE NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, data->index, value->name, value->mutable, value->offset != NULL ? *value->offset : 0);
+        printf("INDEX NAME: %s, INDEX: %p, CODE NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, data->index, value->name, value->mutable, value->offset != NULL ? *value->offset : 0);
       } else {
-        printf("INDEX NAME: %s, INDEX: %zu, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, data->index, value->name, value->type, getTypeName(*((Type *) value->type)), value->mutable, value->offset != NULL ? *value->offset : 0);
+        printf("INDEX NAME: %s, INDEX: %p, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, data->index, value->name, value->type, getTypeName(*((Type *) value->type)), value->mutable, value->offset != NULL ? *value->offset : 0);
       }
       break;
     }
@@ -134,7 +134,7 @@ void printToken(Token *token, unsigned int depth, size_t index) {
         printf("IF (nil)\n");
         break;
       }
-      printf("IF: %p, {condition: %p, program: %p}, {next: %zu, end: %zu}\n", data, data->nextInstruction, data->endInstruction, data->condition, data->program);
+      printf("IF: %p, {condition: %p, program: %p}, {next: %zu, end: %zu}\n", data, data->condition, data->program, data->nextInstruction, data->endInstruction);
 
       printf("%*s Condition:\n", depth + 1 * TAB_SPACES + 1, "");
       printToken(data->condition, depth + 2 * TAB_SPACES, 0);
@@ -349,7 +349,7 @@ uint32_t getCharValue(void *data) {
 }
 
 const char *getFunctionNameFromCall(FunctionCallData *data) {
-  if(data->function) return data->function->name;
+  if(data->function) return data->function->variableName;
   return data->nameData->variableName;
 }
 

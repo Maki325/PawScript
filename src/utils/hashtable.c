@@ -26,8 +26,10 @@ HashTable *createHashTableFrom(HashTable *origin) {
 }
 
 void deleteHashTable(HashTable* hashTable) {
-  for(size_t i = 0; i < hashTable->size;i++) {
-    free(hashTable->elements[i].value);
+  for(size_t i = 0; i < hashTable->capacity;i++) {
+    if(hashTable->elements[i].key) {
+      free(hashTable->elements[i].value);
+    }
   }
   free(hashTable->elements);
   free(hashTable);

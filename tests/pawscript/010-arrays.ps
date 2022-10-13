@@ -4,6 +4,25 @@
 //   printCharArray(chars, index + 1);
 // }
 
+printCharArray5 => (chars: [char; 5], index: int) {
+  if(index == 5) {
+    return;
+  }
+  beta_print chars[index];
+
+  printCharArray5(chars, index + 1);
+}
+
+println => (c: char) {
+  const newline: char = 10;
+  if(c == 0) {
+    beta_print newline;
+    return;
+  }
+  beta_print c;
+  beta_print newline;
+}
+
 main => (): int {
 
   // For types [char] | [char; 3]
@@ -17,21 +36,35 @@ main => (): int {
   const hello: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 
   // Define with just the type, but we need assignment after it, so we can know the size
+  // Weird error when uncommenting this??
+  // const newLineChar: char = 10;
+  // const nl: char = 10;
   const newLine: [char] = [10];
+  const space: char = 32;
 
   // Define implicitly
   const world = ['W', 'o', 'r', 'l', 'd'];
 
-  beta_print hello[1];
-  beta_print newLine[0];
+  const testing = hello;
+
+  println(hello[1]);
+  println(testing[1]);
 
   const l = hello[2];
+  println(l);
+  const l2 = testing[2];
+  println(l2);
 
-  const intArray = [1, 2, 3, 4, 5];
-  const boolArray = [true, false, false, true];
-  
-  beta_print intArray[4];
-  beta_print boolArray[1];
+  printCharArray5(hello, 0);
+  beta_print space;
+  printCharArray5(world, 0);
+  println(0);
+
+  // const intArray = [1, 2, 3, 4, 5];
+  // const boolArray = [true, false, false, true];
+  // 
+  // beta_print intArray[4];
+  // beta_print boolArray[1];
 
   return 0;
 }

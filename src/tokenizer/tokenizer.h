@@ -147,7 +147,7 @@ typedef struct NameData {
 
 typedef struct IndexData {
   NameData *nameData;
-  size_t index;
+  Token *index;
 } IndexData;
 
 typedef struct TokenPriorityData {
