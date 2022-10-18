@@ -32,11 +32,11 @@ typedef struct ArrayType {
 Type *createType(BasicType basicType);
 Type *createNoneType();
 
-bool areTypesEqual(Type a, Type b);
+bool areTypesEqual(Type *a, Type *b);
 
-bool canTypesConvert(Type a, Type b);
+bool canTypesConvert(Type *a, Type *b);
 
-bool isBasicType(Type type);
+bool isBasicType(Type *type);
 
 // Constants
 extern Type CONST_TYPE_NONE;

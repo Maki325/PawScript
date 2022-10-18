@@ -33,7 +33,7 @@ typedef enum Register {
 const char *get64BitRegister(Register reg);
 const char *get32BitRegister(Register reg);
 
-const char *getRegisterBySize(Register reg, Type type);
+const char *getRegisterBySize(Register reg, Type *type);
 
 char *getInitializedType(Type type);
 char *getUninitializedType(Type type);
@@ -43,6 +43,56 @@ void addCharPrintFunction(FILE *out);
 void prepareFileForCompile(FILE *out);
 void postCompile(CompilerOptions *compilerOptions);
 
+// #region Assign
+
+void generateAssignArrayVariableToArrayVariableAsm(
+  CompilerOptions *compilerOptions,
+  Type *elementType,
+  size_t size,
+  int32_t toStart,
+  int32_t toEnd,
+  int32_t fromStart,
+  int32_t fromEnd
+);
+
+void generateAssignVariableToVariableAsm(
+  CompilerOptions *compilerOptions,
+  Program *program,
+  int32_t offsetTo,
+  Type *typeTo,
+  int32_t offsetFrom,
+  Type *typeFrom,
+  bool reverse
+);
+
+void generateAssignArrayVariableToArrayVariableAsm(
+  CompilerOptions *compilerOptions,
+  Type *elementType,
+  size_t size,
+  int32_t toStart,
+  int32_t toEnd,
+  TokenPriorityData *from
+);
+
+void generateAssignValueToVariableAsm(
+  CompilerOptions *compilerOptions,
+  Program *program,
+  int32_t offsetTo,
+  Type *typeTo,
+  ValueData *valueData,
+  bool reverse
+);
+
+void generateAssignTokenToVariableAsm(
+  CompilerOptions *compilerOptions,
+  Program *program,
+  NameData *variable,
+  Token *from
+);
+
+// #endregion Assign
+
+
 /**
  * @brief Generated the asm code of the operation
  * 
@@ -51,55 +101,11 @@ void postCompile(CompilerOptions *compilerOptions);
  */
 void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *program, Token *operationToken);
 
-// typedef struct GenerateNameAssignAsmInfo {
-//   CompilerOptions *compilerOptions;
-//   int32_t offset;
-//   Type type;
-//   const char *variableName;
-//   Program *program;
-//   NameData *nextData;
-//   Type nextType;
-//   int32_t nextOffset;
-// } GenerateNameAssignAsmInfo;
-
-// void generateNameAssignAsm(GenerateNameAssignAsmInfo info);
-
-typedef struct GenerateAssignAsmInfo {
-  CompilerOptions *compilerOptions;
-  int32_t offset;
-  Type type;
-  const char *variableName;
-  Program *program;
-  Token *next;
-  Token *current;
-} GenerateAssignAsmInfo;
-
-/**
- * @brief Generates the asm code of the assign token
- * 
- * @param compilerOptions The pointer to CompilerOptions struct
- * @param data The pointer to the data of the variable we want to assign to
- * @param program The pointer to the program of the variable
- * @param i Pointer to the index variable that's used in the parent function
- */
-void generateAssignAsm(GenerateAssignAsmInfo info);
-
 void generateValueAsm(CompilerOptions *compilerOptions, Token *token, Register destination);
-void generateNameAsm(CompilerOptions *compilerOptions, Program *program, Token *token, Register destination);
+void generateNameAsm(CompilerOptions *compilerOptions, Program *program, NameData *nameData, Register destination);
 void generateIndexAsm(CompilerOptions *compilerOptions, Program *program, Token *token, Register destination);
 
-void generateAddressAssignAsm(
-  CompilerOptions *compilerOptions,
-  Program *program,
-  Token *from,
-  Type toType,
-  int32_t toOffset,
-  bool reverse
-);
-
 void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program, Token *token);
-
-void generateIntoNameAssignAsm(CompilerOptions *compilerOptions, int32_t offset, Type type, Register source);
 
 /**
  * @brief Generates the asm code of the function

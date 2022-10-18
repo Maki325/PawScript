@@ -25,7 +25,7 @@ ValueData *convertValueData(ValueData *oldValueData, Type newType) {
   ValueData *valueData = malloc(sizeof(ValueData));
   valueData->type = newType;
 
-  if(areTypesEqual(oldType, newType)) {
+  if(areTypesEqual(&oldType, &newType)) {
     valueData->data = oldValueData->data;
     return valueData;
   }
@@ -105,7 +105,7 @@ ValueData *convertValueData(ValueData *oldValueData, Type newType) {
       switch (oldType.basicType) {
         case BASIC_TYPE_ARRAY: {
           ArrayType *from = oldType.data;
-          if(!canTypesConvert(to->type, from->type)) {
+          if(!canTypesConvert(&to->type, &from->type)) {
             ASSERT(false, "Type not supported!");
             break;
           }
@@ -327,8 +327,8 @@ void recalculateOffsets(Program *program) {
       if(input->type != TOKEN_NAME) continue;
       NameData *inputName = input->data;
       ASSERT(inputName->offset != NULL, "Unreachable");
-      *inputName->offset = offset + getTypeByteSize(*inputName->type);
-      offset = offset + getTypeByteOffset(*inputName->type);
+      *inputName->offset = offset + getTypeByteSize(inputName->type);
+      offset = offset + getTypeByteOffset(inputName->type);
     }
 
     recalculateOffsets(data->body);

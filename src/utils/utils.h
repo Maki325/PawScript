@@ -44,10 +44,10 @@ uint8_t getBoolValue(void *data);
 
 const char *getFunctionNameFromCall(FunctionCallData *data);
 
-Type getFunctionReturnTypeFromCall(FunctionCallData *data);
+Type *getFunctionReturnTypeFromCall(FunctionCallData *data);
 
 const char *getBasicTypeName(BasicType type);
-const char *getTypeName(Type type);
+const char *getTypeName(Type *type);
 
 extern const uint8_t CONT_MASK;
 
