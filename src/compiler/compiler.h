@@ -34,6 +34,7 @@ const char *get64BitRegister(Register reg);
 const char *get32BitRegister(Register reg);
 
 const char *getRegisterBySize(Register reg, Type *type);
+const char *getAsmSizeByType(Type *type);
 
 char *getInitializedType(Type type);
 char *getUninitializedType(Type type);
@@ -57,7 +58,6 @@ void generateAssignArrayVariableToArrayVariableAsm(
 
 void generateAssignVariableToVariableAsm(
   CompilerOptions *compilerOptions,
-  Program *program,
   int32_t offsetTo,
   Type *typeTo,
   int32_t offsetFrom,
@@ -65,13 +65,15 @@ void generateAssignVariableToVariableAsm(
   bool reverse
 );
 
-void generateAssignArrayVariableToArrayVariableAsm(
+void generateAssignArrayValueToArrayVariableAsm(
   CompilerOptions *compilerOptions,
+  Program *program,
   Type *elementType,
   size_t size,
   int32_t toStart,
   int32_t toEnd,
-  TokenPriorityData *from
+  TokenPriorityData *from,
+  bool reverse
 );
 
 void generateAssignValueToVariableAsm(

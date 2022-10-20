@@ -215,7 +215,7 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     case TOKEN_FUNCTION_CALL: {
       FunctionCallData *data = token->data;
       TokenPriorityData *priorityData = data->arguments;
-      printf("FUNCTION CALL: %p \"%s\", count: %zu\n", data->function, data->function ? data->function->name : "NULL", priorityData->count);
+      printf("FUNCTION CALL: %p \"%s\", count: %zu\n", data->function, data->function ? data->function->variableName : "NULL", priorityData->count);
       for(size_t i = 0;i < priorityData->count;i++) {
         printToken(priorityData->instructions[i], depth + 1 * TAB_SPACES, i);
       }

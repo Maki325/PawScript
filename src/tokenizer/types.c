@@ -1,4 +1,5 @@
 #include "types.h"
+#include "../utils/utils.h"
 
 Type *createType(BasicType basicType) {
   Type *type = malloc(sizeof(Type));
@@ -38,7 +39,7 @@ bool areTypesEqual(Type *a, Type *b) {
     }
     case BASIC_TYPE_ARRAY: {
       if(a->data == b->data) return true;
-      if(!a->data || b->data) return false;
+      if(!a->data || !b->data) return false;
       ArrayType *typeA = a->data, *typeB = b->data;
 
       if(!areTypesEqual(&typeA->type, &typeB->type)) return false;
