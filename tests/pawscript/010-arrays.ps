@@ -24,21 +24,10 @@ println => (c: char) {
 }
 
 main => (): int {
-
-  // For types [char] | [char; 3]
-  // For indexing [1] | [0] | [10467]
-  // For values ['H', 'e', 'l', 'l', 'o'] | [1, 2, 3, 4, 5]
-
-  // const a = 5;
-  // const aArray = [a];
-
   // Define with both type and length
   const hello: [char; 5] = ['H', 'e', 'l', 'l', 'o'];
 
   // Define with just the type, but we need assignment after it, so we can know the size
-  // Weird error when uncommenting this??
-  // const newLineChar: char = 10;
-  // const nl: char = 10;
   const newLine: [char] = [10];
   const space: char = 32;
 

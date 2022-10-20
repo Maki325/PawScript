@@ -1766,13 +1766,12 @@ void createIndexedNameTokens(Program *program) {
     int32_t offset = *data->offset;
     Type elementType = arrayType->type;
     if(offset > 0) {
-      // offset = offset - getTypeByteOffset(*data->type);
-      offset += index * getTypeByteOffset(&elementType);
-      offset += getTypeByteSize(&elementType);
-    } else {
-      offset = offset + getTypeByteOffset(data->type);
+      offset = offset - getTypeByteOffset(data->type);
       offset -= index * getTypeByteOffset(&elementType);
       offset -= getTypeByteSize(&elementType);
+    } else {
+      offset += index * getTypeByteOffset(&elementType);
+      offset += getTypeByteSize(&elementType);
     }
 
     int32_t *offsetPtr = malloc(sizeof(int32_t));

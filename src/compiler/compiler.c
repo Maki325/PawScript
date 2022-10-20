@@ -617,7 +617,6 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program,
         size_t parameterSize = getTypeByteSize(parameterTypes[i]);
 
         int32_t offset = calculateOffset(&p, nameData);
-        printf("A\n");
         generateAssignVariableToVariableAsm(
           compilerOptions,
           parameterSize <= 8 ? -(bytes - parameterSize) : -(bytes - 8 + parameterSize),
@@ -634,7 +633,6 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program,
         ArrayType *arrayType = nextData->type->data;
 
         int32_t offset = calculateOffset(&p, nextData);
-        printf("C\n");
         generateAssignVariableToVariableAsm(
           compilerOptions,
           -(bytes - getTypeByteSize(&arrayType->type)),
@@ -654,7 +652,7 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program,
           parameterSize < 8 ? -(bytes - parameterSize) : -(bytes - 8 + parameterSize),
           parameterTypes[i],
           arg->data,
-          true
+          false
         );
         // generateAddressAssignAsm(
         //   compilerOptions,
@@ -971,29 +969,29 @@ void generateAssignVariableToVariableAsm(
   const char *sign = getSign(offsetTo);
   int32_t offsetValue = abs(offsetTo);
 
-  if(areTypesEqual(typeFrom, typeTo)) {
-    if(!isBasicType(typeTo)) {
-      if(typeTo->basicType == BASIC_TYPE_ARRAY) {
-        size_t arrayOffset = getTypeByteOffset(typeTo);
-        ArrayType *arrayType = typeTo->data;
-        
-        int32_t offsetToEnd = offsetTo < 0 ? offsetTo + arrayOffset : offsetTo - arrayOffset;
-        int32_t offsetFromEnd = offsetFrom < 0 ? offsetFrom + arrayOffset : offsetFrom - arrayOffset;
+  if(!isBasicType(typeTo)) {
+    if(typeTo->basicType == BASIC_TYPE_ARRAY) {
+      size_t arrayOffset = getTypeByteOffset(typeTo);
+      ArrayType *arrayType = typeTo->data;
+      
+      int32_t offsetToEnd = offsetTo + arrayOffset;
+      int32_t offsetFromEnd = offsetFrom + arrayOffset;
 
-        generateAssignArrayVariableToArrayVariableAsm(
-          compilerOptions,
-          &arrayType->type,
-          arrayType->numberOfElements,
-          reverse ? offsetToEnd : offsetTo,
-          reverse ? offsetTo : offsetToEnd,
-          offsetFrom,
-          offsetFromEnd
-        );
-        return;
-      }
-      ASSERT(false, "Not implemented yet!");
+      generateAssignArrayVariableToArrayVariableAsm(
+        compilerOptions,
+        &arrayType->type,
+        arrayType->numberOfElements,
+        reverse ? offsetToEnd : offsetTo,
+        reverse ? offsetTo : offsetToEnd,
+        offsetFrom,
+        offsetFromEnd
+      );
+      return;
     }
+    ASSERT(false, "Not implemented yet!");
+  }
 
+  if(areTypesEqual(typeFrom, typeTo)) {
     fprintf(
       compilerOptions->output,
       "mov %s, [rbp %s %" PRIi32 "]\n",
@@ -1335,6 +1333,22 @@ void generateAssignTokenToVariableAsm(
   NameData *variable,
   Token *from
 ) {
+  if(isOperationTokenType(from->type)) {
+    generateBinaryOperationAsm(compilerOptions, program, from);
+
+    int32_t offset = calculateOffset(program, variable);
+    const char *sign = getSign(offset);
+    int32_t offsetValue = abs(offset);
+    fprintf(
+      compilerOptions->output,
+      "mov [rbp %s %" PRIi32 "], %s\n",
+      sign,
+      offsetValue,
+      getRegisterBySize(REGISTER_A, variable->type)
+    );
+
+    return;
+  }
   switch (from->type) {
     case TOKEN_NAME: {
       NameData *fromData = from->data;
@@ -1401,7 +1415,6 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program) {
 
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
-    printToken(token, 0, i);
 
     if(isOperationTokenType(token->type)) {
       generateBinaryOperationAsm(compilerOptions, program, token);
