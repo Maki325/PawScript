@@ -1255,7 +1255,7 @@ void typesetProgramError(PawscriptError pawscriptError, const char *variableName
 void typesetProgramReassignError(const char *variableName, Token *token, Type expected, Type got) {
   fprintf(stderr, "ERROR: %s: Variable `%s` expected type `%s` got `%s` at %s:%zu:%zu\n",
     getPawscriptErrorName(ERROR_CANT_REASSIGN_VARIABLE_TYPE),
-    variableName, getTypeName(expected), getTypeName(got),
+    variableName, getTypeName(&expected), getTypeName(&got),
     token->file, token->line, token->column);
   exit(ERROR_CANT_REASSIGN_VARIABLE_TYPE);
   return;
@@ -1264,7 +1264,7 @@ void typesetProgramReassignError(const char *variableName, Token *token, Type ex
 void typesetProgramReturnTypeError(Token *returnToken, Type expected, Type returnType) {
   fprintf(stderr, "ERROR: %s: Function type: `%s`, return type `%s` at %s:%zu:%zu\n",
     getPawscriptErrorName(ERROR_RETURN_TYPE_NOT_MATCHING),
-    getTypeName(expected), getTypeName(returnType),
+    getTypeName(&expected), getTypeName(&returnType),
     returnToken->file, returnToken->line, returnToken->column);
   exit(ERROR_RETURN_TYPE_NOT_MATCHING);
   return;
@@ -1293,7 +1293,7 @@ void typesetProgramReturnTypeVoidFunctionError(Token *returnToken) {
 void bracketsValueError(Token *token, Type expected, Type tokenType) {
   fprintf(stderr, "ERROR: %s: Array type: `%s`, token type `%s` at %s:%zu:%zu\n",
     getPawscriptErrorName(ERROR_ELEMENT_IN_ARRAY_TYPE_MISMATCH),
-    getTypeName(expected), getTypeName(tokenType),
+    getTypeName(&expected), getTypeName(&tokenType),
     token->file, token->line, token->column);
   exit(ERROR_ELEMENT_IN_ARRAY_TYPE_MISMATCH);
   return;
@@ -1350,7 +1350,7 @@ void convertBracketsIntoValue(Token *token) {
   for(size_t q = 1;q < bracketsData->count;q++) {
     if(isOperationTokenType(bracketsData->instructions[q]->type)) {
       BinaryOperationData *bod = bracketsData->instructions[q]->data;
-      if(!canTypesConvert(arrayType->type, bod->type)) {
+      if(!canTypesConvert(&arrayType->type, &bod->type)) {
         bracketsValueError(bracketsData->instructions[q], arrayType->type, bod->type);
       }
       
@@ -1361,7 +1361,7 @@ void convertBracketsIntoValue(Token *token) {
       case TOKEN_COMMA: break;
       case TOKEN_NAME: {
         NameData *nameData = bracketsData->instructions[q]->data;
-        if(!canTypesConvert(arrayType->type, *nameData->type)) {
+        if(!canTypesConvert(&arrayType->type, nameData->type)) {
           bracketsValueError(bracketsData->instructions[q], arrayType->type, *nameData->type);
         }
         
@@ -1370,7 +1370,7 @@ void convertBracketsIntoValue(Token *token) {
       }
       case TOKEN_VALUE: {
         ValueData *vd = bracketsData->instructions[q]->data;
-        if(!canTypesConvert(arrayType->type, vd->type)) {
+        if(!canTypesConvert(&arrayType->type, &vd->type)) {
           bracketsValueError(bracketsData->instructions[q], arrayType->type, vd->type);
         }
         
@@ -1476,7 +1476,7 @@ void checkConvertBracketsIntoValue(Program *program, size_t i, Type type) {
 
   ValueData *valueData = next->data;
   ArrayType *arrayType = valueData->type.data;
-  if(!canTypesConvert(type, arrayType->type)) {
+  if(!canTypesConvert(&type, &arrayType->type)) {
     exitTokenError(ERROR_WRONG_ARRAY_TYPE, next);
     return;
   }
@@ -1523,7 +1523,7 @@ void typesetProgram(Program *program) {
             if(value->type->basicType == BASIC_TYPE_NONE) {
               value->type->basicType = type->basicType;
               value->type->data = type->data;
-            } else if(!areTypesEqual(*value->type, *type)) {
+            } else if(!areTypesEqual(value->type, type)) {
               typesetProgramError(ERROR_CANT_REASSIGN_VARIABLE_TYPE, value->variableName, token);
               return;
             }
@@ -1575,7 +1575,7 @@ void typesetProgram(Program *program) {
               TokenPriorityData *priorityData = valueData->data;
               size = priorityData->count;
 
-              if(!canTypesConvert(*type, arrayType->type)) {
+              if(!canTypesConvert(type, &arrayType->type)) {
                 exitTokenError(ERROR_WRONG_ARRAY_TYPE, next);
                 return;
               }
@@ -1588,7 +1588,7 @@ void typesetProgram(Program *program) {
               ArrayType *arrayType = value->type->data = malloc(sizeof(ArrayType));
               arrayType->numberOfElements = size;
               arrayType->type = *type;
-            } else if(!areTypesEqual(*value->type, *type)) {
+            } else if(!areTypesEqual(value->type, type)) {
               typesetProgramError(ERROR_CANT_REASSIGN_VARIABLE_TYPE, value->variableName, token);
               return;
             }
@@ -1620,7 +1620,7 @@ void typesetProgram(Program *program) {
               value->type->basicType = data->type.basicType;
               value->type->data = data->type.data;
               break;
-            } else if(!areTypesEqual(*value->type, data->type)) {
+            } else if(!areTypesEqual(value->type, &data->type)) {
               typesetProgramReassignError(value->variableName, token, *value->type, data->type);
               return;
             }
@@ -1635,7 +1635,7 @@ void typesetProgram(Program *program) {
               value->type->basicType = nextValue->type->basicType;
               value->type->data = nextValue->type->data;
               break;
-            } else if(!areTypesEqual(*value->type, *nextValue->type)) {
+            } else if(!areTypesEqual(value->type, nextValue->type)) {
               typesetProgramReassignError(value->variableName, token, *value->type, *nextValue->type);
               return;
             }
@@ -1657,7 +1657,7 @@ void typesetProgram(Program *program) {
               value->type->basicType = data->type.basicType;
               value->type->data = data->type.data;
               break;
-            } else if(!areTypesEqual(*value->type, data->type)) {
+            } else if(!areTypesEqual(value->type, &data->type)) {
               // TODO: Add multiple types support for value token
               typesetProgramReassignError(value->variableName, token, *value->type, data->type);
               return;
@@ -1669,12 +1669,12 @@ void typesetProgram(Program *program) {
             FunctionCallData *nextData = next->data;
             if(value->type->basicType == BASIC_TYPE_NONE) {
               // TODO: Add multiple types support for function token
-              Type returnType = getFunctionReturnTypeFromCall(nextData);
-              value->type->basicType = returnType.basicType;
-              value->type->data = returnType.data;
+              Type *returnType = getFunctionReturnTypeFromCall(nextData);
+              value->type->basicType = returnType->basicType;
+              value->type->data = returnType->data;
               break;
-            } else if(!areTypesEqual(*value->type, getFunctionReturnTypeFromCall(nextData))) {
-              typesetProgramReassignError(value->variableName, token, *value->type, getFunctionReturnTypeFromCall(nextData));
+            } else if(!areTypesEqual(value->type, getFunctionReturnTypeFromCall(nextData))) {
+              typesetProgramReassignError(value->variableName, token, *value->type, *getFunctionReturnTypeFromCall(nextData));
               return;
             }
             break;
@@ -1693,7 +1693,7 @@ void typesetProgram(Program *program) {
               value->type->basicType = data->type.basicType;
               value->type->data = data->type.data;
               break;
-            } else if(!areTypesEqual(*value->type, data->type)) {
+            } else if(!areTypesEqual(value->type, &data->type)) {
               typesetProgramReassignError(value->variableName, token, *value->type, data->type);
               return;
             }
@@ -1710,7 +1710,7 @@ void typesetProgram(Program *program) {
               value->type->basicType = arrayType->type.basicType;
               value->type->data = arrayType->type.data;
               break;
-            } else if(!areTypesEqual(*value->type, arrayType->type)) {
+            } else if(!areTypesEqual(value->type, &arrayType->type)) {
               typesetProgramReassignError(value->variableName, token, *value->type, arrayType->type);
               return;
             }
@@ -1766,13 +1766,12 @@ void createIndexedNameTokens(Program *program) {
     int32_t offset = *data->offset;
     Type elementType = arrayType->type;
     if(offset > 0) {
-      // offset = offset - getTypeByteOffset(*data->type);
-      offset += index * getTypeByteOffset(elementType);
-      offset += getTypeByteSize(elementType);
+      offset = offset - getTypeByteOffset(data->type);
+      offset -= index * getTypeByteOffset(&elementType);
+      offset -= getTypeByteSize(&elementType);
     } else {
-      offset = offset + getTypeByteOffset(*data->type);
-      offset -= index * getTypeByteOffset(elementType);
-      offset -= getTypeByteSize(elementType);
+      offset += index * getTypeByteOffset(&elementType);
+      offset += getTypeByteSize(&elementType);
     }
 
     int32_t *offsetPtr = malloc(sizeof(int32_t));
@@ -1829,7 +1828,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
     Token *instruction = priorityData->instructions[0];
     if(isOperationTokenType(instruction->type)) {
       BinaryOperationData *bod = instruction->data;
-      if(areTypesEqual(bod->type, returnType)) {
+      if(areTypesEqual(&bod->type, &returnType)) {
         functionDefinition->doesReturn = true;
         goDeeper(token, (goDeeperFunction) typesetProgram, 1, functionDefinition);
         continue;
@@ -1840,7 +1839,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
     switch(instruction->type) {
       case TOKEN_NAME: {
         NameData *nameData = instruction->data;
-        if(areTypesEqual(*nameData->type, returnType)) {
+        if(areTypesEqual(nameData->type, &returnType)) {
           break;
         }
         exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
@@ -1849,7 +1848,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
       case TOKEN_INDEX: {
         IndexData *data = instruction->data;
         NameData *nameData = data->nameData;
-        if(areTypesEqual(*nameData->type, returnType)) {
+        if(areTypesEqual(nameData->type, &returnType)) {
           break;
         }
         exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
@@ -1857,7 +1856,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
       }
       case TOKEN_VALUE: {
         ValueData *valueData = instruction->data;
-        if(areTypesEqual(valueData->type, returnType)) {
+        if(areTypesEqual(&valueData->type, &returnType)) {
           break;
         }
         exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
@@ -1865,7 +1864,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
       }
       case TOKEN_FUNCTION_CALL: {
         FunctionCallData *fcd = instruction->data;
-        if(areTypesEqual(getFunctionReturnTypeFromCall(fcd), returnType)) {
+        if(areTypesEqual(getFunctionReturnTypeFromCall(fcd), &returnType)) {
           break;
         }
         exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
@@ -1893,7 +1892,7 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
   }
 }
 
-size_t getTypeByteSize(Type type) {
+size_t getTypeByteSize(Type *type) {
   switch(config.platform) {
     case PLATFORM_LINUX_x86_64: {
       return getTypeByteSize_linux_x86_64(type);
@@ -1905,7 +1904,7 @@ size_t getTypeByteSize(Type type) {
   }
 }
 
-size_t getTypeByteOffset(Type type) {
+size_t getTypeByteOffset(Type *type) {
   switch(config.platform) {
     case PLATFORM_LINUX_x86_64: {
       return getTypeByteOffset_linux_x86_64(type);
@@ -1941,14 +1940,14 @@ void calculateOffsets(Program *program) {
         NameData *inputName = input->data;
         ASSERT(inputName->offset != NULL, "Unreachable");
         {
-          int32_t typeOffset = getTypeByteSize(*inputName->type);
+          int32_t typeOffset = getTypeByteSize(inputName->type);
           if(typeOffset <= 8) {
             *inputName->offset = offset + 8 - typeOffset;
           } else {
             *inputName->offset = offset;
           }
         }
-        offset = offset + getTypeByteOffset(*inputName->type);
+        offset = offset + getTypeByteOffset(inputName->type);
       }
       continue;
     } else if(shouldGoDeeper(token->type)) {
@@ -1962,8 +1961,8 @@ void calculateOffsets(Program *program) {
   for(size_t i = 0;i < variables->size;i++) {
     NameData *variable = variables->elements[i];
     if(*variable->offset != 0) continue;
-    *variable->offset = program->variableOffset - getTypeByteSize(*variable->type);
-    program->variableOffset = program->variableOffset - getTypeByteOffset(*variable->type);
+    *variable->offset = program->variableOffset - getTypeByteSize(variable->type);
+    program->variableOffset = program->variableOffset - getTypeByteOffset(variable->type);
   }
 }
 

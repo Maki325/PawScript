@@ -55,7 +55,7 @@ void printProgram(Program *program, unsigned int depth) {
       if(!functionName) continue;
       FunctionDefinition *data = program->functions->elements[i].value;
       printf("%*s - name: %s (%p)\n", funcDepth, "", functionName, data);
-      printf("%*s - return type: %s\n", funcDepth, "", getTypeName(data->functionType->output));
+      printf("%*s - return type: %s\n", funcDepth, "", getTypeName(&data->functionType->output));
       
       printf("%*s - parameters: %p, count: %zu\n", funcDepth, "", data->parameters, data->parameters->count);
       for(size_t i = 0;i < data->parameters->count;i++) {
@@ -80,7 +80,7 @@ void printToken(Token *token, unsigned int depth, size_t index) {
   printf("[%02zu]: ", index);
   switch(token->type) {
     case TOKEN_TYPE: {
-      printf("TYPE: %s\n", getTypeName(*((Type*) token->data)));
+      printf("TYPE: %s\n", getTypeName(token->data));
       break;
     }
     case TOKEN_NAME: {
@@ -88,7 +88,7 @@ void printToken(Token *token, unsigned int depth, size_t index) {
       if(!value->type) {
         printf("NAME: %s, CODE NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, value->name, value->mutable, value->offset != NULL ? *value->offset : 0);
       } else {
-        printf("NAME: %s, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, value->name, value->type, getTypeName(*((Type *) value->type)), value->mutable, value->offset != NULL ? *value->offset : 0);
+        printf("NAME: %s, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, value->name, value->type, getTypeName(value->type), value->mutable, value->offset != NULL ? *value->offset : 0);
       }
       break;
     }
@@ -98,7 +98,7 @@ void printToken(Token *token, unsigned int depth, size_t index) {
       if(!value->type) {
         printf("INDEX NAME: %s, INDEX: %p, CODE NAME: %s, TYPE: (NULL, NULL), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, data->index, value->name, value->mutable, value->offset != NULL ? *value->offset : 0);
       } else {
-        printf("INDEX NAME: %s, INDEX: %p, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, data->index, value->name, value->type, getTypeName(*((Type *) value->type)), value->mutable, value->offset != NULL ? *value->offset : 0);
+        printf("INDEX NAME: %s, INDEX: %p, CODE NAME: %s, TYPE: (%p, %s), MUTABLE: %d, OFFSET: %" PRIi32 "\n", value->variableName, data->index, value->name, value->type, getTypeName(value->type), value->mutable, value->offset != NULL ? *value->offset : 0);
       }
       break;
     }
@@ -215,7 +215,7 @@ void printToken(Token *token, unsigned int depth, size_t index) {
     case TOKEN_FUNCTION_CALL: {
       FunctionCallData *data = token->data;
       TokenPriorityData *priorityData = data->arguments;
-      printf("FUNCTION CALL: %p \"%s\", count: %zu\n", data->function, data->function ? data->function->name : "NULL", priorityData->count);
+      printf("FUNCTION CALL: %p \"%s\", count: %zu\n", data->function, data->function ? data->function->variableName : "NULL", priorityData->count);
       for(size_t i = 0;i < priorityData->count;i++) {
         printToken(priorityData->instructions[i], depth + 1 * TAB_SPACES, i);
       }
@@ -353,10 +353,10 @@ const char *getFunctionNameFromCall(FunctionCallData *data) {
   return data->nameData->variableName;
 }
 
-Type getFunctionReturnTypeFromCall(FunctionCallData *data) {
+Type *getFunctionReturnTypeFromCall(FunctionCallData *data) {
   FunctionType *ft =
     data->function ? data->function->functionType : data->nameData->type->data;
-  return ft->output;
+  return &ft->output;
 }
 
 const char *getBasicTypeName(BasicType type) {
@@ -367,20 +367,20 @@ const char *getBasicTypeName(BasicType type) {
     case BASIC_TYPE_VOID:     return "void";
     case BASIC_TYPE_CHAR:     return "char";
     case BASIC_TYPE_FUNCTION: return "function";
-    case BASIC_TYPE_ARRAY: return "array";
+    case BASIC_TYPE_ARRAY:    return "array";
     // TODO: Create a better function type such thats it can have actuall input and output types!
     case BASIC_TYPE_NONE:     return "NONE!!!";
-    default:            return "Unknown Token!!!";
+    default:                  return "Unknown Token!!!";
   }
 }
 
-const char *getTypeName(Type type) {
+const char *getTypeName(Type *type) {
   ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in getTypeName!");
-  switch (type.basicType) {
+  switch (type->basicType) {
     case BASIC_TYPE_INT:
     case BASIC_TYPE_BOOL:
     case BASIC_TYPE_CHAR:
-    case BASIC_TYPE_VOID: return getBasicTypeName(type.basicType);
+    case BASIC_TYPE_VOID: return getBasicTypeName(type->basicType);
     case BASIC_TYPE_FUNCTION: {
       // TODO
     }
@@ -388,7 +388,7 @@ const char *getTypeName(Type type) {
       // TODO
     }
 
-    default: return getBasicTypeName(type.basicType);
+    default: return getBasicTypeName(type->basicType);
   }
 }
 
