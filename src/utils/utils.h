@@ -62,9 +62,20 @@ inline static uint32_t utf8_acc_cont_byte(uint32_t ch, uint8_t byte) {
   return (ch << 6) | (byte & CONT_MASK);
 }
 
+typedef struct CodePoint {
+  bool error;
+  uint32_t codePoint;
+} CodePoint;
 // Line by line replica of `next_code_point` from the rust compiler
 // Path: library\core\src\str\validations.rs
-uint32_t turnCharsIntoCodePoint(const char *chars, size_t *length);
+CodePoint turnCharsIntoCodePoint(const char *chars, size_t *length);
+
+typedef struct EscapedChar {
+  PawscriptError error;
+  uint32_t escapedChar;
+  size_t end;
+} EscapedChar;
+EscapedChar getEscapedChar(const char *chars, size_t length);
 
 FILE *openFile(const char *filePath, const char *modes);
 

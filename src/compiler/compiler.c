@@ -822,8 +822,8 @@ void generateIndexAsm(CompilerOptions *compilerOptions, Program *program, Token 
     );
   } else if(data->index->type == TOKEN_NAME) {
     size_t size = getTypeByteSize(&type);
-    if(size <= 8) {
-      offset = offset < 0 ? offset - 8 + size : offset + 8 - size;
+    if(size < 8) {
+      offset = offset < 0 ? offset - size : offset + size;
     }
     sign = getSign(offset);
     offsetValue = abs(offset);

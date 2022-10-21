@@ -397,16 +397,27 @@ const uint8_t CONT_MASK = 0b00111111;
 
 // Line by line replica of `next_code_point` from the rust compiler
 // Path: library/core/src/str/validations.rs
-uint32_t turnCharsIntoCodePoint(const char *chars, size_t *length) {
+CodePoint turnCharsIntoCodePoint(const char *chars, size_t *length) {
   if(*length == 0) {
-    return 0;
+    return (CodePoint) {
+      .error = true,
+      .codePoint = 0
+    };
   }
   uint8_t x = chars[0];
   --(*length);
 
-  if((int) x < 128) return (uint32_t) x;
+  if((int) x < 128) {
+    return (CodePoint) {
+      .codePoint = x,
+      .error = false
+    };
+  }
   if(*length == 0) {
-    return 0;
+    return (CodePoint) {
+      .error = true,
+      .codePoint = 0
+    };
   }
 
   // Multibyte case follows
@@ -424,7 +435,10 @@ uint32_t turnCharsIntoCodePoint(const char *chars, size_t *length) {
     // SAFETY: `bytes` produces an UTF-8-like string,
     // so the iterator must produce a value here.
     if(*length == 0) {
-      return 0;
+      return (CodePoint) {
+        .error = true,
+        .codePoint = 0
+      };
     }
     uint8_t z = chars[2];
     --(*length);
@@ -438,7 +452,10 @@ uint32_t turnCharsIntoCodePoint(const char *chars, size_t *length) {
       // SAFETY: `bytes` produces an UTF-8-like string,
       // so the iterator must produce a value here.
       if(*length == 0) {
-        return 0;
+        return (CodePoint) {
+          .error = true,
+          .codePoint = 0
+        };
       }
       uint8_t w = chars[3];
       --(*length);
@@ -447,7 +464,115 @@ uint32_t turnCharsIntoCodePoint(const char *chars, size_t *length) {
     }
   }
 
-  return ch;
+  return (CodePoint) {
+    .codePoint = ch,
+    .error = false
+  };
+}
+
+/**
+ * @brief Get the Escaped Char from char array
+ * 
+ * @param chars char array starting right after the escape char (`\`)
+ * @param token used for errors
+ * @return uint32_t the extracted char code
+ */
+EscapedChar getEscapedChar(const char *chars, size_t length) {
+  const char BACKSLASH = '\\', SINGLE_QUOTE = '\'', DOUBLE_QUOTE = '"';
+
+  const char CHAR_MAP[][2] = {
+    {SINGLE_QUOTE, SINGLE_QUOTE},
+    {DOUBLE_QUOTE, DOUBLE_QUOTE},
+    {BACKSLASH, BACKSLASH},
+    {'n', '\n'},
+    {'r', '\r'},
+    {'t', '\t'},
+    {'0', '\0'}
+  };
+  size_t CHAR_MAP_SIZE = 7;
+
+  char check = chars[0];
+
+  for(size_t i = 0;i < CHAR_MAP_SIZE;i++) {
+    if(check == CHAR_MAP[i][0]) {
+      if(chars[1] != SINGLE_QUOTE) {
+        return (EscapedChar) {
+          .error = ERROR_TOO_MANY_CHARS,
+          .escapedChar = 0,
+          .end = 0
+        };
+      }
+      return (EscapedChar) {
+        .escapedChar = CHAR_MAP[i][1],
+        .end = 1,
+        .error = 0
+      };
+    }
+  }
+
+  switch(check) {
+    case 'x': {
+      if(chars[1] == SINGLE_QUOTE || chars[2] == SINGLE_QUOTE || chars[3] != SINGLE_QUOTE) {
+        return (EscapedChar) {
+          .error = ERROR_INVALID_BYTE_ESCAPE_SEQUENCE,
+          .escapedChar = 0,
+          .end = 0
+        };
+      }
+      if(!isxdigit(chars[1]) || !isxdigit(chars[2])) {
+        return (EscapedChar) {
+          .error = ERROR_INVALID_BYTE_ESCAPE_SEQUENCE,
+          .escapedChar = 0,
+          .end = 0
+        };
+      }
+      return (EscapedChar) {
+        .escapedChar = strtol(chars + 1, NULL, 16),
+        .end = 3,
+        .error = 0
+      };
+    }
+    case 'u': {
+      if(chars[1] == SINGLE_QUOTE) {
+        return (EscapedChar) {
+          .error = ERROR_INVALID_UNICODE_ESCAPE_SEQUENCE,
+          .escapedChar = 0,
+          .end = 0
+        };
+      }
+      int end = 0;
+      for(size_t i = 1;i < length;i++) {
+        if(chars[i] == SINGLE_QUOTE) {
+          end = i;
+          break;
+        }
+        if(!isxdigit(chars[i])) {
+          return (EscapedChar) {
+            .error = ERROR_INVALID_UNICODE_ESCAPE_SEQUENCE,
+            .escapedChar = 0,
+            .end = 0
+          };
+        }
+        if(i > 6) {
+          return (EscapedChar) {
+            .error = ERROR_INVALID_UNICODE_ESCAPE_SEQUENCE,
+            .escapedChar = 0,
+            .end = 0
+          };
+        }
+      }
+      return (EscapedChar) {
+        .escapedChar = strtol(chars + 1, NULL, 16),
+        .end = end,
+        .error = 0
+      };
+    }
+  }
+  return (EscapedChar) {
+    .error = ERROR_UNKNOWN_ESCAPE_SEQUENCE,
+    .escapedChar = 0,
+    .end = 0
+  };
 }
 
 FILE *openFile(const char *filePath, const char *modes) {

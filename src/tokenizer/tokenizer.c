@@ -112,25 +112,48 @@ Token *createToken(Token *createToken) {
 }
 
 Token *createCharValueFromString(CreateTokenFromString *createOptions, Token *token) {
+  const uint32_t UTF_16_START  = 0xD800;
+  const uint32_t UTF_16_END    = 0xDFFF;
+  const uint32_t CODEPOINT_END = 0x10FFFF;
+
   size_t end = 0;
-  for(size_t i = 1;i < createOptions->length;i++) {
-    if(createOptions->string[i] == '\'') {
-      if(i == 1) {
-        exitTokenError(ERROR_EMPTY_CHAR, token);
-      }
-      end = i;
-      break;
+  uint32_t c = CODEPOINT_END + 1;
+
+  if(createOptions->string[1] == '\\') {
+    EscapedChar ec = getEscapedChar(createOptions->string + 2, createOptions->length - 2);
+    if(ec.error != 0) {
+      exitTokenError(ec.error, token);
     }
-    if(i > 4) {
+    c = ec.escapedChar;
+    end = ec.end + 2;
+  } else {
+    for(size_t i = 1;i < createOptions->length;i++) {
+      if(createOptions->string[i] == '\'') {
+        if(i == 1) {
+          exitTokenError(ERROR_EMPTY_CHAR, token);
+        }
+        end = i;
+        break;
+      }
+      if(i > 4) {
+        exitTokenError(ERROR_TOO_MANY_CHARS, token);
+      }
+    }
+    size_t len = end - 1;
+
+    CodePoint cp = turnCharsIntoCodePoint(createOptions->string + 1, &len);
+    if(len != 0) {
       exitTokenError(ERROR_TOO_MANY_CHARS, token);
     }
+    if(cp.error) {
+      exitTokenError(ERROR_INVALID_UNICODE_CHAR, token);
+    }
+    c = cp.codePoint;
   }
-  size_t len = end - 1;
-  uint32_t c = turnCharsIntoCodePoint(createOptions->string + 1, &len);
+  if((c >= UTF_16_START && c <= UTF_16_END) || c > CODEPOINT_END) {
+    exitTokenError(ERROR_INVALID_UNICODE_CHAR, token);
+  }
 
-  if(len != 0) {
-    exitTokenError(ERROR_TOO_MANY_CHARS, token);
-  }
   createOptions->length -= end + 1;
   if(!createOptions->last) {
     free(token);
@@ -1765,13 +1788,17 @@ void createIndexedNameTokens(Program *program) {
     
     int32_t offset = *data->offset;
     Type elementType = arrayType->type;
+
+    size_t byteOffset = getTypeByteOffset(&elementType);
+    size_t byteSize = getTypeByteSize(&elementType);
+
     if(offset > 0) {
       offset = offset - getTypeByteOffset(data->type);
-      offset -= index * getTypeByteOffset(&elementType);
-      offset -= getTypeByteSize(&elementType);
+      offset -= index * byteOffset;
+      offset -= byteSize;
     } else {
-      offset += index * getTypeByteOffset(&elementType);
-      offset += getTypeByteSize(&elementType);
+      offset += index * byteOffset;
+      offset += byteSize;
     }
 
     int32_t *offsetPtr = malloc(sizeof(int32_t));
@@ -1961,7 +1988,8 @@ void calculateOffsets(Program *program) {
   for(size_t i = 0;i < variables->size;i++) {
     NameData *variable = variables->elements[i];
     if(*variable->offset != 0) continue;
-    *variable->offset = program->variableOffset - getTypeByteSize(variable->type);
+    size_t size = getTypeByteSize(variable->type);
+    *variable->offset = size < 8 ? program->variableOffset - 8 + size : program->variableOffset - size;
     program->variableOffset = program->variableOffset - getTypeByteOffset(variable->type);
   }
 }
@@ -2459,9 +2487,25 @@ Program *createProgramFromFile(const char *filePath) {
     column += trimLeft(&line, &length);
     size_t start = 0, end = 1;
     const size_t lineLength = length;
+    bool inChar = false;
     while(start < lineLength) {
       end = 1;
       while(end <= length) {
+        if(line[end - 1] == '\'') {
+          inChar = !inChar;
+          if(end == 1) {
+            end++;
+            continue;
+          }
+          if(inChar) {
+            end--;
+          }
+          break;
+        }
+        if(inChar) {
+          end++;
+          continue;
+        }
         if(isspace(line[end - 1])) {
           end--;
           break;
