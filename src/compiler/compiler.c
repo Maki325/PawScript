@@ -392,6 +392,7 @@ void generateBinaryOperationAsm(CompilerOptions *compilerOptions, Program *progr
         .capacity = program->capacity,
         .count = program->count,
         .variables = program->variables,
+        .variableMap = program->variableMap,
         .variableOffset = program->variableOffset + 8,
         .functions = program->functions,
         .id = program->id,
@@ -619,7 +620,7 @@ void generateFunctionCallAsm(CompilerOptions *compilerOptions, Program *program,
         int32_t offset = calculateOffset(&p, nameData);
         generateAssignVariableToVariableAsm(
           compilerOptions,
-          parameterSize <= 8 ? -(bytes - parameterSize) : -(bytes - 8 + parameterSize),
+          parameterSize < 8 ? -(bytes - parameterSize) : -(bytes - 8 + parameterSize),
           parameterTypes[i],
           offset,
           nameData->type,
@@ -1228,6 +1229,17 @@ void generateAssignValueToVariableAsm(
         );
         break;
       }
+      case BASIC_TYPE_FUNCTION: {
+        FunctionTypeData *functionTypeData = valueData->data;
+        fprintf(
+          compilerOptions->output,
+          "mov QWORD [rbp %s %" PRIi32 "], %s\n",
+          sign,
+          offsetValue,
+          functionTypeData->name
+        );
+        break;
+      }
       default: {
         ASSERT(false, "Type Not Supported!");
       }
@@ -1393,6 +1405,21 @@ void generateAssignTokenToVariableAsm(
       );
       break;
     }
+    case TOKEN_FUNCTION_CALL: {
+      generateFunctionCallAsm(compilerOptions, program, from);
+
+      int32_t offset = calculateOffset(program, variable);
+      const char *sign = getSign(offset);
+      int32_t offsetValue = abs(offset);
+      fprintf(
+        compilerOptions->output,
+        "mov [rbp %s %" PRIi32 "], %s\n",
+        sign,
+        offsetValue,
+        getRegisterBySize(REGISTER_A, variable->type)
+      );
+      break;
+    }
     default: {
       printf("from->type: %d %s\n", from->type, getTokenTypeName(from->type));
       ASSERT(false, "Type not supported!");
@@ -1475,7 +1502,8 @@ void generateProgramAsm(CompilerOptions *compilerOptions, Program *program) {
             } else {
               fprintf(
                 compilerOptions->output,
-                "mov rdi, [rbp %s %" PRIi32 "]\n",
+                "mov %s, [rbp %s %" PRIi32 "]\n",
+                getRegisterBySize(REGISTER_DI, data->type),
                 offsetSign,
                 offsetValue
               );

@@ -6,9 +6,13 @@ then
   # ld -o ./tests/pawscript/out/005-add-function.test ./tests/pawscript/out/005-add-function.test.o
   # ././tests/pawscript/out/005-add-function.test
 
-  nasm -g -felf64 ./tests/pawscript/out/010-arrays.test.asm
-  ld -o ./tests/pawscript/out/010-arrays ./tests/pawscript/out/010-arrays.test.o
-  ././tests/pawscript/out/010-arrays
+  # nasm -g -felf64 ./tests/pawscript/out/010-arrays.test.asm
+  # ld -o ./tests/pawscript/out/010-arrays ./tests/pawscript/out/010-arrays.test.o
+  # ././tests/pawscript/out/010-arrays
+
+  nasm -g -felf64 ./tests/pawscript/out/005-add-function.asm
+  ld -o ./tests/pawscript/out/005-add-function ./tests/pawscript/out/005-add-function.o
+  ././tests/pawscript/out/005-add-function
 
 elif [ "$1" = "s" ]
 then
