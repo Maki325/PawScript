@@ -12,7 +12,7 @@ Type *createNoneType() {
 }
 
 bool areTypesEqual(Type *a, Type *b) {
-  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in areTypesEqual!");
+  ASSERT(BASIC_TYPES_COUNT == 8, "Not all types are implemented in areTypesEqual!");
 
   if(a->basicType != b->basicType) return false;
 
@@ -45,6 +45,10 @@ bool areTypesEqual(Type *a, Type *b) {
       if(!areTypesEqual(&typeA->type, &typeB->type)) return false;
       if(typeA->numberOfElements != typeB->numberOfElements) return false;
       return true;
+    }
+    case BASIC_TYPE_REFERENCE: {
+      if(a->data == b->data) return true;
+      return areTypesEqual(a->data, b->data);
     }
 
     default: {
@@ -88,6 +92,11 @@ bool canTypesConvert(Type *a, Type *b) {
 
       return true;
     }
+    case BASIC_TYPE_REFERENCE: {
+      // If not equal, can't convert
+      // Maybe add in future
+      return false;
+    }
     default: {
       ASSERT(false, "Unreachable!");
     }
@@ -99,7 +108,8 @@ bool isBasicType(Type *type) {
     case BASIC_TYPE_BOOL:
     case BASIC_TYPE_CHAR:
     case BASIC_TYPE_INT:
-    case BASIC_TYPE_FUNCTION: {
+    case BASIC_TYPE_FUNCTION:
+    case BASIC_TYPE_REFERENCE: {
       return true;
     }
     default: {

@@ -185,8 +185,11 @@ void printToken(Token *token, unsigned int depth, size_t index) {
           break;
         }
         case BASIC_TYPE_ARRAY: {
-          // ASSERT(false, "TODO!");
           printf("ARRAY}\n");
+          break;
+        }
+        case BASIC_TYPE_REFERENCE: {
+          printf("REFERENCE}\n");
           break;
         }
       }
