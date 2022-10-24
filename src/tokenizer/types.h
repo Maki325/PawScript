@@ -30,6 +30,11 @@ typedef struct ArrayType {
   size_t numberOfElements;
 } ArrayType;
 
+typedef struct ReferenceType {
+  Type type;
+  bool mutable;
+} ReferenceType;
+
 Type *createType(BasicType basicType);
 Type *createNoneType();
 

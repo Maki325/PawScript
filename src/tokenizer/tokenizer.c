@@ -1266,6 +1266,27 @@ void removeUnneededPriorities(Program *program) {
   }
 }
 
+void createReferences(Program *program) {
+  ASSERT(TOKEN_COUNT == 33, "Not all operations are implemented in createReferences!");
+  for(size_t i = 0; i < program->count;i++) {
+    Token *instruction = program->instructions[i], *next;
+    if(shouldGoDeeper(instruction->type)) {
+      goDeeper(instruction, (goDeeperFunction) createReferences, 0);
+      continue;
+    }
+    if(instruction->type != TOKEN_AMPERSAND) continue;
+    if(i == program->count - 1) break;
+    next = program->instructions[i + 1];
+    // TODO: Here
+    if(next->type != TOKEN_NAME && next->type != TOKEN_INDEX) continue;
+
+    instruction->type = TOKEN_REFERENCE;
+    instruction->data = next;
+
+    getProgramInstruction(program, i + 1, true);
+  }
+}
+
 void typesetProgramError(PawscriptError pawscriptError, const char *variableName, Token *token) {
   fprintf(stderr, "ERROR: %s: Variable `%s` at %s:%zu:%zu\n",
     getPawscriptErrorName(pawscriptError),
@@ -1589,21 +1610,33 @@ void typesetUsingAssignType(Program *program, Token *token, NameData *value, siz
       break;
     }
     case TOKEN_AMPERSAND: {
+      bool mutable = false;
       if(i == program->count - 3) {
         typesetProgramError(ERROR_NO_TYPE_AFTER_AMPERSAND, value->variableName, token);
         return;
       }
-      next = program->instructions[i + 2];
+      next = program->instructions[i + 3];
+      if(next->type == TOKEN_MUT) {
+        mutable = true;
+        if(i == program->count - 4) {
+          typesetProgramError(ERROR_NO_TYPE_AFTER_AMPERSAND_MUT, value->variableName, token);
+          return;
+        }
+        free(getProgramInstruction(program, i + 3, true));
+        next = program->instructions[i + 3];
+      }
       if(next->type != TOKEN_TYPE && next->type != TOKEN_BRACKETS) {
-        typesetProgramError(ERROR_UNKNOWN_TOKEN_AFTER_AMPERSAND, value->variableName, token);
+        typesetProgramError(ERROR_UNEXPECTED_TOKEN_AFTER_AMPERSAND_EXPECTED_TYPE, value->variableName, token);
         return;
       }
       typesetUsingAssignType(program, token, value, i + 1);
-      Type *type = createType(value->type->basicType);
-      type->data = value->type->data;
+      ReferenceType *ref = malloc(sizeof(ReferenceType));
+      ref->mutable = mutable;
+      ref->type.basicType = value->type->basicType;
+      ref->type.data = value->type->data;
 
       value->type->basicType = BASIC_TYPE_REFERENCE;
-      value->type->data = type;
+      value->type->data = ref;
       free(getProgramInstruction(program, i + 1, true));
       break;
     }
@@ -1614,6 +1647,149 @@ void typesetUsingAssignType(Program *program, Token *token, NameData *value, siz
       return;
     }
   }
+}
+
+void typesetUsingAssign(Program *program, Token *token, NameData *value, size_t i) {
+  Token *next = program->instructions[i + 2];
+  switch (next->type) {
+    case TOKEN_VALUE: {
+      ValueData *data = next->data;
+      if(value->type->basicType == BASIC_TYPE_NONE) {
+        value->type->basicType = data->type.basicType;
+        value->type->data = data->type.data;
+        break;
+      } else if(!areTypesEqual(value->type, &data->type)) {
+        typesetProgramReassignError(value->variableName, token, *value->type, data->type);
+        return;
+      }
+      break;
+    }
+    case TOKEN_NAME: {
+      NameData *nextValue = next->data;
+      if(nextValue->type->basicType == BASIC_TYPE_NONE) {
+        typesetProgramError(ERROR_VARIABLE_NO_TYPE, nextValue->variableName, next);
+        return;
+      } else if(value->type->basicType == BASIC_TYPE_NONE) {
+        value->type->basicType = nextValue->type->basicType;
+        value->type->data = nextValue->type->data;
+        break;
+      } else if(!areTypesEqual(value->type, nextValue->type)) {
+        typesetProgramReassignError(value->variableName, token, *value->type, *nextValue->type);
+        return;
+      }
+      break;
+    }
+    case TOKEN_REFERENCE: {
+      Token *ref = next->data;
+      NameData *nextValue = NULL;
+      Type *nextType = NULL;
+      if(ref->type == TOKEN_NAME) {
+        nextValue = ref->data;
+        nextType = nextValue->type;
+      } else if(ref->type == TOKEN_INDEX) {
+        nextValue = ref->data;
+        ArrayType *arrayType = nextValue->type->data;
+        nextType = &arrayType->type;
+      } else {
+        ASSERT(false, "Unreachable");
+      }
+      if(nextType->basicType == BASIC_TYPE_NONE) {
+        typesetProgramError(ERROR_VARIABLE_NO_TYPE, nextValue->variableName, next);
+        return;
+      } else if(value->type->basicType == BASIC_TYPE_NONE) {
+        value->type->basicType = nextType->basicType;
+        value->type->data = nextType->data;
+        break;
+      } else if(!areTypesEqual(value->type, nextType)) {
+        typesetProgramReassignError(value->variableName, token, *value->type, *nextType);
+        return;
+      }
+      break;
+    }
+
+    case TOKEN_ADD:
+    case TOKEN_SUBTRACT:
+    case TOKEN_GREATER_THAN:
+    case TOKEN_LESS_THAN:
+    case TOKEN_NOT_EQUALS:
+    case TOKEN_EQUALS: {
+      BinaryOperationData *data = next->data;
+      if(data->type.basicType == BASIC_TYPE_NONE) {
+        exitTokenError(ERROR_OPERATION_NO_TYPE, next);
+        return;
+      } else if(value->type->basicType == BASIC_TYPE_NONE) {
+        // TODO: Add multiple types support for value token
+        value->type->basicType = data->type.basicType;
+        value->type->data = data->type.data;
+        break;
+      } else if(!areTypesEqual(value->type, &data->type)) {
+        // TODO: Add multiple types support for value token
+        typesetProgramReassignError(value->variableName, token, *value->type, data->type);
+        return;
+      }
+      break;
+    }
+    
+    case TOKEN_FUNCTION_CALL: {
+      FunctionCallData *nextData = next->data;
+      if(value->type->basicType == BASIC_TYPE_NONE) {
+        // TODO: Add multiple types support for function token
+        Type *returnType = getFunctionReturnTypeFromCall(nextData);
+        value->type->basicType = returnType->basicType;
+        value->type->data = returnType->data;
+        break;
+      } else if(!areTypesEqual(value->type, getFunctionReturnTypeFromCall(nextData))) {
+        typesetProgramReassignError(value->variableName, token, *value->type, *getFunctionReturnTypeFromCall(nextData));
+        return;
+      }
+      break;
+    }
+
+    case TOKEN_BRACKETS: {
+      convertBracketsIntoValue(program->instructions[i + 2]);
+
+      if(next->type != TOKEN_VALUE) {
+        typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
+        return;
+      }
+
+      ValueData *data = next->data;
+      if(value->type->basicType == BASIC_TYPE_NONE) {
+        value->type->basicType = data->type.basicType;
+        value->type->data = data->type.data;
+        break;
+      } else if(!areTypesEqual(value->type, &data->type)) {
+        typesetProgramReassignError(value->variableName, token, *value->type, data->type);
+        return;
+      }
+      break;
+    }
+    case TOKEN_INDEX: {
+      IndexData *data = next->data;
+      NameData *nextValue = data->nameData;
+      ArrayType *arrayType = nextValue->type->data;
+      if(arrayType->type.basicType == BASIC_TYPE_NONE) {
+        typesetProgramError(ERROR_VARIABLE_NO_TYPE, nextValue->variableName, next);
+        return;
+      } else if(value->type->basicType == BASIC_TYPE_NONE) {
+        value->type->basicType = arrayType->type.basicType;
+        value->type->data = arrayType->type.data;
+        break;
+      } else if(!areTypesEqual(value->type, &arrayType->type)) {
+        typesetProgramReassignError(value->variableName, token, *value->type, arrayType->type);
+        return;
+      }
+      break;
+    }
+
+    default: {
+      printProgram(program, 0);
+      printToken(next, 0, i);
+      typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, next);
+      return;
+    }
+  }
+  
 }
 
 void typesetProgram(Program *program) {
@@ -1659,117 +1835,7 @@ void typesetProgram(Program *program) {
           return;
         }
         next = program->instructions[i + 2];
-        switch (next->type) {
-          case TOKEN_VALUE: {
-            ValueData *data = next->data;
-            if(value->type->basicType == BASIC_TYPE_NONE) {
-              value->type->basicType = data->type.basicType;
-              value->type->data = data->type.data;
-              break;
-            } else if(!areTypesEqual(value->type, &data->type)) {
-              typesetProgramReassignError(value->variableName, token, *value->type, data->type);
-              return;
-            }
-            break;
-          }
-          case TOKEN_NAME: {
-            NameData *nextValue = next->data;
-            if(nextValue->type->basicType == BASIC_TYPE_NONE) {
-              typesetProgramError(ERROR_VARIABLE_NO_TYPE, nextValue->variableName, next);
-              return;
-            } else if(value->type->basicType == BASIC_TYPE_NONE) {
-              value->type->basicType = nextValue->type->basicType;
-              value->type->data = nextValue->type->data;
-              break;
-            } else if(!areTypesEqual(value->type, nextValue->type)) {
-              typesetProgramReassignError(value->variableName, token, *value->type, *nextValue->type);
-              return;
-            }
-            break;
-          }
-
-          case TOKEN_ADD:
-          case TOKEN_SUBTRACT:
-          case TOKEN_GREATER_THAN:
-          case TOKEN_LESS_THAN:
-          case TOKEN_NOT_EQUALS:
-          case TOKEN_EQUALS: {
-            BinaryOperationData *data = next->data;
-            if(data->type.basicType == BASIC_TYPE_NONE) {
-              exitTokenError(ERROR_OPERATION_NO_TYPE, next);
-              return;
-            } else if(value->type->basicType == BASIC_TYPE_NONE) {
-              // TODO: Add multiple types support for value token
-              value->type->basicType = data->type.basicType;
-              value->type->data = data->type.data;
-              break;
-            } else if(!areTypesEqual(value->type, &data->type)) {
-              // TODO: Add multiple types support for value token
-              typesetProgramReassignError(value->variableName, token, *value->type, data->type);
-              return;
-            }
-            break;
-          }
-          
-          case TOKEN_FUNCTION_CALL: {
-            FunctionCallData *nextData = next->data;
-            if(value->type->basicType == BASIC_TYPE_NONE) {
-              // TODO: Add multiple types support for function token
-              Type *returnType = getFunctionReturnTypeFromCall(nextData);
-              value->type->basicType = returnType->basicType;
-              value->type->data = returnType->data;
-              break;
-            } else if(!areTypesEqual(value->type, getFunctionReturnTypeFromCall(nextData))) {
-              typesetProgramReassignError(value->variableName, token, *value->type, *getFunctionReturnTypeFromCall(nextData));
-              return;
-            }
-            break;
-          }
-
-          case TOKEN_BRACKETS: {
-            convertBracketsIntoValue(program->instructions[i + 2]);
-
-            if(next->type != TOKEN_VALUE) {
-              typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, token);
-              return;
-            }
-
-            ValueData *data = next->data;
-            if(value->type->basicType == BASIC_TYPE_NONE) {
-              value->type->basicType = data->type.basicType;
-              value->type->data = data->type.data;
-              break;
-            } else if(!areTypesEqual(value->type, &data->type)) {
-              typesetProgramReassignError(value->variableName, token, *value->type, data->type);
-              return;
-            }
-            break;
-          }
-          case TOKEN_INDEX: {
-            IndexData *data = next->data;
-            NameData *nextValue = data->nameData;
-            ArrayType *arrayType = nextValue->type->data;
-            if(arrayType->type.basicType == BASIC_TYPE_NONE) {
-              typesetProgramError(ERROR_VARIABLE_NO_TYPE, nextValue->variableName, next);
-              return;
-            } else if(value->type->basicType == BASIC_TYPE_NONE) {
-              value->type->basicType = arrayType->type.basicType;
-              value->type->data = arrayType->type.data;
-              break;
-            } else if(!areTypesEqual(value->type, &arrayType->type)) {
-              typesetProgramReassignError(value->variableName, token, *value->type, arrayType->type);
-              return;
-            }
-            break;
-          }
-
-          default: {
-            printProgram(program, 0);
-            printToken(next, 0, i);
-            typesetProgramError(ERROR_UNKNOWN_ARGUMENT_AFTER_ASSIGN, value->variableName, next);
-            return;
-          }
-        }
+        typesetUsingAssign(program, token, value, i);
         break;
       }
       default: {
@@ -1831,8 +1897,8 @@ void createIndexedNameTokens(Program *program) {
 }
 
 void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
-  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in typesetProgram!");
-  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in typesetProgram!");
+  ASSERT(TOKEN_COUNT == 33, "Not all operations are implemented in typesetProgram!");
+  ASSERT(BASIC_TYPES_COUNT == 8, "Not all types are implemented in typesetProgram!");
   for(size_t i = 0;i < program->count;i++) {
     Token *token = program->instructions[i];
     if(token->type == TOKEN_DECLARE_FUNCTION) {
@@ -1896,6 +1962,33 @@ void checkReturns(Program *program, FunctionDefinition *functionDefinition) {
         return;
       }
       case TOKEN_INDEX: {
+        IndexData *data = instruction->data;
+        NameData *nameData = data->nameData;
+        if(areTypesEqual(nameData->type, &returnType)) {
+          break;
+        }
+        exitTokenError(ERROR_RETURN_TYPE_NOT_MATCHING, token);
+        return;
+      }
+      case TOKEN_REFERENCE: {
+        Token *ref = instruction->data;
+        Type *type = createType(BASIC_TYPE_REFERENCE);
+        ReferenceType *rt = malloc(sizeof(ReferenceType));
+        type->data = rt;
+
+        if(ref->type == TOKEN_NAME) {
+          NameData *nd = ref->data;
+          rt->mutable = false;
+          rt->type = *nd->type;
+        } else if(ref->type == TOKEN_INDEX) {
+          NameData *nd = ref->data;
+          ArrayType *at = nd->type->data;
+          rt->mutable = false;
+          rt->type = at->type;
+        } else {
+          ASSERT(false, "Unreachable");
+        }
+
         IndexData *data = instruction->data;
         NameData *nameData = data->nameData;
         if(areTypesEqual(nameData->type, &returnType)) {
@@ -2019,13 +2112,13 @@ void calculateOffsets(Program *program) {
 
 bool canBeUsedInArithmeticOperations(TokenType type) {
   ASSERT(TOKEN_COUNT == 33, "Not all operations are implemented in canBeUsedInArithmeticOperations!");
-  return type == TOKEN_NAME || type == TOKEN_INDEX || type == TOKEN_VALUE || type == TOKEN_ADD
-          || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY;
+  return type == TOKEN_NAME || type == TOKEN_INDEX || type == TOKEN_REFERENCE || type == TOKEN_VALUE
+          || type == TOKEN_ADD || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY;
 }
 bool canBeUsedInComparisonOperations(TokenType type) {
   ASSERT(TOKEN_COUNT == 33, "Not all operations are implemented in canBeUsedInComparisonOperations!");
-  return type == TOKEN_NAME || type == TOKEN_INDEX || type == TOKEN_VALUE || type == TOKEN_ADD
-        || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY
+  return type == TOKEN_NAME || type == TOKEN_INDEX || type == TOKEN_REFERENCE || type == TOKEN_VALUE
+        || type == TOKEN_ADD || type == TOKEN_SUBTRACT || type == TOKEN_PRIORITY
         || type == TOKEN_GREATER_THAN || type == TOKEN_LESS_THAN;
 }
 
@@ -2140,7 +2233,7 @@ void crossreferenceOperations(Program *program) {
 
         Token *right = getProgramInstruction(program, i + 1, true);
 
-        if(right->type != TOKEN_NAME && right->type != TOKEN_INDEX && right->type != TOKEN_VALUE) {
+        if(right->type != TOKEN_NAME && right->type != TOKEN_INDEX && right->type != TOKEN_REFERENCE && right->type != TOKEN_VALUE) {
           ASSERT(false, "Beta print token type not supported!");
         }
         instruction->data = right;
@@ -2237,6 +2330,40 @@ FunctionDefinition *getFunctionFromProgram(Program *program, const char *name) {
   return getFunctionFromProgram(program->parent, name);
 }
 
+void checkFunctionCallArguments(TokenPriorityData *priorityData) {
+  for(size_t arg = 0;arg < priorityData->count;arg++) {
+    Token *argument = priorityData->instructions[arg];
+
+    if(
+      !isOperationTokenType(argument->type) &&
+      argument->type != TOKEN_NAME &&
+      argument->type != TOKEN_REFERENCE &&
+      argument->type != TOKEN_VALUE
+    ) {
+      if(argument->type != TOKEN_BRACKETS) {
+        exitTokenError(ERROR_UNEXPECTED_TOKEN_IN_FUNCTION_ARGUMENT, argument);
+      }
+      convertBracketsIntoValue(argument);
+    }
+
+    if(arg == priorityData->count - 1) {
+      break;
+    }
+    argument = priorityData->instructions[++arg];
+
+    if(argument->type != TOKEN_COMMA) {
+      exitTokenError(ERROR_EXPECTED_TOKEN_COMMA_IN_FUNCTION_ARGUMENT, argument);
+    }
+    Program p = {
+      .capacity = priorityData->count,
+      .count = priorityData->count,
+      .instructions = priorityData->instructions,
+    };
+    free(getProgramInstruction(&p, arg--, true));
+    priorityData->count--;
+  }
+}
+
 void createFunctionCalls(Program *program) {
   ASSERT(TOKEN_COUNT == 33, "Not all operations are implemented in removeUnneededPriorities!");
   ASSERT(BASIC_TYPES_COUNT == 8, "Not all types are implemented in removeUnneededPriorities!");
@@ -2283,50 +2410,7 @@ void createFunctionCalls(Program *program) {
       // The priority could have been removed due to our other function called `removeUnneededPriorities`
       if(next->type == TOKEN_PRIORITY) {
         TokenPriorityData *priorityData = next->data;
-        for(size_t arg = 0;arg < priorityData->count;arg++) {
-          Token *argument = priorityData->instructions[arg];
-
-          if(
-            !isOperationTokenType(argument->type) &&
-            argument->type != TOKEN_NAME &&
-            argument->type != TOKEN_VALUE
-          ) {
-            if(argument->type != TOKEN_BRACKETS) {
-              exitTokenError(ERROR_UNEXPECTED_TOKEN_IN_FUNCTION_ARGUMENT, argument);
-            }
-            convertBracketsIntoValue(argument);
-          }
-
-          if(arg == priorityData->count - 1) {
-            break;
-          }
-          argument = priorityData->instructions[++arg];
-
-          if(argument->type != TOKEN_COMMA) {
-            exitTokenError(ERROR_EXPECTED_TOKEN_COMMA_IN_FUNCTION_ARGUMENT, argument);
-          }
-          Program p = {
-            .capacity = priorityData->count,
-            .count = priorityData->count,
-            .instructions = priorityData->instructions,
-          };
-          free(getProgramInstruction(&p, arg--, true));
-          priorityData->count--;
-          continue;
-          
-          // if(isOperationTokenType(argument->type)) {
-          //   continue;
-          // }
-          // switch(argument->type) {
-          //   case TOKEN_VALUE: continue;
-          //   case TOKEN_NAME: continue;
-          //   default: {
-          //     exitTokenError(ERROR_UNKNOWN_TOKEN_IN_FUNCTION_CALL, argument);
-          //     return;
-          //   }
-          // }
-          // return;
-        }
+        checkFunctionCallArguments(priorityData);
 
         functionCallData->arguments = priorityData;
 
@@ -2353,6 +2437,8 @@ void createFunctionCalls(Program *program) {
       priorityData->instructions = calloc(1, sizeof(Token*));
       priorityData->instructions[0] = getProgramInstruction(program, i + 1, true);
 
+      checkFunctionCallArguments(priorityData);
+
       // TODO: check types of the single argument
       
       program->instructions[i]->type = TOKEN_FUNCTION_CALL;
@@ -2368,35 +2454,7 @@ void createFunctionCalls(Program *program) {
     functionCallData->nameData = nameData;
     if(next->type == TOKEN_PRIORITY) {
       TokenPriorityData *priorityData = next->data;
-      for(size_t arg = 0;arg < priorityData->count;arg++) {
-        Token *argument = priorityData->instructions[arg];
-        if(argument->type == TOKEN_COMMA) {
-          Program p = {
-            .capacity = priorityData->count,
-            .count = priorityData->count,
-            .instructions = priorityData->instructions,
-          };
-          free(getProgramInstruction(&p, arg--, true));
-          priorityData->count--;
-          continue;
-        } else if(isOperationTokenType(argument->type)) {
-          continue;
-        }
-        switch(argument->type) {
-          case TOKEN_VALUE: continue;
-          case TOKEN_NAME: continue;
-          case TOKEN_BRACKETS: {
-            convertBracketsIntoValue(argument);
-            continue;
-          }
-          default: {
-            printToken(argument, 0, 0);
-            exitTokenError(ERROR_UNKNOWN_TOKEN_IN_FUNCTION_CALL, argument);
-            return;
-          }
-        }
-        return;
-      }
+      checkFunctionCallArguments(priorityData);
 
       functionCallData->arguments = priorityData;
       // TODO: check lenght, and types of all the arguments
@@ -2410,6 +2468,7 @@ void createFunctionCalls(Program *program) {
     priorityData->count = 1;
     priorityData->instructions = calloc(1, sizeof(Token*));
     priorityData->instructions[0] = getProgramInstruction(program, i + 1, true);
+    checkFunctionCallArguments(priorityData);
 
     // TODO: check types of the single argument
     program->instructions[i]->type = TOKEN_FUNCTION_CALL;
@@ -2594,6 +2653,11 @@ Program *createProgramFromFile(const char *filePath) {
   printf("[LOG]: [TOKENIZER] Crossreferencing variables   : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
 
+  createReferences(program);
+  startClock = clock() - startClock;
+  printf("[LOG]: [TOKENIZER] Creating references          : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
+  startClock = clock();
+
   crossreferenceOperations(program);
   startClock = clock() - startClock;
   printf("[LOG]: [TOKENIZER] Crossreferencing operations  : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
@@ -2623,6 +2687,8 @@ Program *createProgramFromFile(const char *filePath) {
   startClock = clock() - startClock;
   printf("[LOG]: [TOKENIZER] Checking returns             : %f sec\n", ((double) startClock)/CLOCKS_PER_SEC);
   startClock = clock();
+
+  /// DOING
 
   checkConstVariables(program, NULL);
   startClock = clock() - startClock;

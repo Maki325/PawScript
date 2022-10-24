@@ -48,7 +48,9 @@ bool areTypesEqual(Type *a, Type *b) {
     }
     case BASIC_TYPE_REFERENCE: {
       if(a->data == b->data) return true;
-      return areTypesEqual(a->data, b->data);
+      ReferenceType *art = a->data, *brt = b->data;
+      if(art->mutable != brt->mutable) return false;
+      return areTypesEqual(&art->type, &brt->type);
     }
 
     default: {

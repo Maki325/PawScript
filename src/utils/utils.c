@@ -73,8 +73,8 @@ void printProgram(Program *program, unsigned int depth) {
   }
 }
 void printToken(Token *token, unsigned int depth, size_t index) {
-  ASSERT(TOKEN_COUNT == 31, "Not all operations are implemented in createTokenFromString!");
-  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in printToken!");
+  ASSERT(TOKEN_COUNT == 33, "Not all operations are implemented in createTokenFromString!");
+  ASSERT(BASIC_TYPES_COUNT == 8, "Not all types are implemented in printToken!");
 
   printf("%*s - ", depth, "");
   printf("[%02zu]: ", index);
@@ -363,22 +363,23 @@ Type *getFunctionReturnTypeFromCall(FunctionCallData *data) {
 }
 
 const char *getBasicTypeName(BasicType type) {
-  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in getBasicTypeName!");
+  ASSERT(BASIC_TYPES_COUNT == 8, "Not all types are implemented in getBasicTypeName!");
   switch (type) {
-    case BASIC_TYPE_INT:      return "int";
-    case BASIC_TYPE_BOOL:     return "bool";
-    case BASIC_TYPE_VOID:     return "void";
-    case BASIC_TYPE_CHAR:     return "char";
-    case BASIC_TYPE_FUNCTION: return "function";
-    case BASIC_TYPE_ARRAY:    return "array";
+    case BASIC_TYPE_INT:       return "int";
+    case BASIC_TYPE_BOOL:      return "bool";
+    case BASIC_TYPE_VOID:      return "void";
+    case BASIC_TYPE_CHAR:      return "char";
+    case BASIC_TYPE_FUNCTION:  return "function";
+    case BASIC_TYPE_ARRAY:     return "array";
+    case BASIC_TYPE_REFERENCE: return "reference";
     // TODO: Create a better function type such thats it can have actuall input and output types!
-    case BASIC_TYPE_NONE:     return "NONE!!!";
-    default:                  return "Unknown Token!!!";
+    case BASIC_TYPE_NONE:      return "NONE!!!";
+    default:                   return "Unknown Token!!!";
   }
 }
 
 const char *getTypeName(Type *type) {
-  ASSERT(BASIC_TYPES_COUNT == 7, "Not all types are implemented in getTypeName!");
+  ASSERT(BASIC_TYPES_COUNT == 8, "Not all types are implemented in getTypeName!");
   switch (type->basicType) {
     case BASIC_TYPE_INT:
     case BASIC_TYPE_BOOL:
@@ -388,6 +389,9 @@ const char *getTypeName(Type *type) {
       // TODO
     }
     case BASIC_TYPE_ARRAY: {
+      // TODO
+    }
+    case BASIC_TYPE_REFERENCE: {
       // TODO
     }
 

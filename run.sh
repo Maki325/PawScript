@@ -31,7 +31,8 @@ then
   # ./build/pawscript com ./tests/pawscript/007-if.ps -r -s -o ./tests/pawscript/out/007-if
   # ./build/pawscript com ./tests/pawscript/008-recursion-number-print.ps -r -s -o ./tests/pawscript/out/008-recursion-number-print
   # ./build/pawscript com ./tests/pawscript/009-chars.ps -r -s -o ./tests/pawscript/out/009-chars
-  ./build/pawscript com ./tests/pawscript/010-arrays.ps -r -o ./tests/pawscript/out/010-arrays
+  # ./build/pawscript com ./tests/pawscript/010-arrays.ps -r -o ./tests/pawscript/out/010-arrays
+  ./build/pawscript com ./tests/pawscript/011-references.ps -r -o ./tests/pawscript/out/011-references
 else
   ./build/pawscript "$@"
 fi

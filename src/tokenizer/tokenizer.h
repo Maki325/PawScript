@@ -167,6 +167,23 @@ typedef struct ControlFlowBlock {
   size_t endInstruction;
 } ControlFlowBlock;
 
+/*
+The plan is simple
+Use `ReferenceData` instead of `Token` as data for TOKEN_REFERENCE
+
+In calculateOffsets (or preferably somewhere before) set all the
+references to use the same offset pointers as the `NameData`s they
+are pointing to, as well as changing the token back to the `toRef`
+one (because it's uneeded to dereference an offset if we know it
+at compile time) if possible (i.e. we can't do that for function
+parameters, as we don't know the offset of the variable they are
+referencing to at compile time)
+*/
+typedef struct ReferenceData {
+  Token *toRef;
+  bool mutable;
+} ReferenceData;
+
 typedef struct FunctionDefinition {
   const char *variableName;
   const char *name;
