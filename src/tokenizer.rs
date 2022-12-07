@@ -11,7 +11,7 @@ pub enum BinaryOperation {
 }
 
 #[derive(Debug)]
-pub struct Paramater (pub Type, pub String);
+pub struct Paramater (pub String, pub Type);
 
 #[derive(Debug)]
 pub struct Function {
@@ -24,6 +24,7 @@ pub struct Function {
 pub enum Token {
   Space,
   Comment,
+  Comma,
   Identifier(String),
   StringLiteral(String),
   NumberLiteral(u64),
@@ -46,8 +47,11 @@ impl Program {
   }
 }
 
+enum Holder {
+  Holder(String)
+}
 pub struct Tokenizer<'a> {
-  content: Option<&'a String>,
+  content: String,
   row: usize,
   column: usize,
 }
@@ -73,18 +77,12 @@ lazy_static! {
 }
 
 impl<'a> Tokenizer<'a> {
-  pub fn new() -> Tokenizer<'a> {
+  pub fn new(content: String) -> Tokenizer<'a> {
     Tokenizer {
-      content: None,
+      content: content,
       row: 0,
       column: 0,
     }
-  }
-
-  pub fn init(&mut self, content: &'a mut String) {
-    self.content = Some(content);
-    self.row = 0;
-    self.column = 0;
   }
 
   fn get_next_token_from_spec(&mut self, text: &str, from_start: bool) -> Option<Token> {
@@ -115,8 +113,15 @@ impl<'a> Tokenizer<'a> {
     None
   }
 
+  fn get_str(self) -> &'a String {
+    &self.content[0..]
+  }
+
   pub fn get_next_token(&mut self) -> Option<Token> {
-    let content = self.content.expect("Exists");
+    // let content = match self.content {
+    //   Holder::Holder(s) => s,
+    // };
+    let content = self.get_str();
     if self.column >= content.len() {
       return None;
     }
