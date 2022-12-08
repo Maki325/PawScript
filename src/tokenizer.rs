@@ -120,6 +120,7 @@ impl Tokenizer {
     }
 
     let end = match self.content[self.column..].find(" ") {
+      Some(0) => 0,
       Some(end) => self.column + end,
       None => 0,
     };
