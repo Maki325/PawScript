@@ -1,16 +1,18 @@
 use std::fs;
 use std::io;
 
-use crate::tokenizer::BinaryOperation;
-use crate::tokenizer::BinaryOperationStatement;
-use crate::tokenizer::Function;
-use crate::tokenizer::Literal;
-use crate::tokenizer::Statement;
-use crate::tokenizer::Tokenizer;
-use crate::tokenizer::Program;
-use crate::tokenizer::Token;
-use crate::tokenizer::Variable;
-use crate::tokenizer::AssignVariable;
+use crate::tokenizer::{
+  BinaryOperation,
+  BinaryOperationStatement,
+  Function,
+  Literal,
+  Statement,
+  Tokenizer,
+  Program,
+  Token,
+  Variable,
+  AssignVariable,
+};
 use crate::types::Type;
 
 pub struct Parser {
