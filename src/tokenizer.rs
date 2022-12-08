@@ -197,8 +197,8 @@ impl Tokenizer {
           smallest_start = Some(start);
           continue;
         }
-        if let Some(smallStart) = smallest_start {
-          if start < smallStart {
+        if let Some(value) = smallest_start {
+          if start < value {
             smallest_start = Some(start);
             continue;
           }
