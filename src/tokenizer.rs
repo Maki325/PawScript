@@ -5,7 +5,7 @@ use crate::types::Type;
 #[derive(Debug)]
 pub enum BinaryOperation {
   Add,
-  Substract,
+  Subtract,
   Equal,
   NotEqual
 }
@@ -82,6 +82,7 @@ pub enum Statement {
 pub struct Program {
   body: Vec<Statement>,
 }
+
 impl Program {
   pub fn new() -> Program {
     Program {body: Vec::new()}
@@ -104,7 +105,7 @@ struct Spec {
 }
 
 lazy_static! {
-  static ref SPECS: [Spec; 17] = [
+  static ref SPECS: [Spec; 22] = [
     Spec {regex: Regex::new(r#"\s+"#).unwrap(), create: |_| Token::Space},
     Spec {regex: Regex::new(r#"//.*"#).unwrap(), create: |s| Token::Comment(s)},
     Spec {regex: Regex::new(r#"\d+"#).unwrap(), create: |s: String| Token::Literal(Literal::NumberLiteral(s.parse::<u64>().unwrap()))},
@@ -117,11 +118,16 @@ lazy_static! {
     Spec {regex: Regex::new(r#"u64"#).unwrap(), create: |_| Token::Type(Type::U64)},
     Spec {regex: Regex::new(r#"bool"#).unwrap(), create: |_| Token::Type(Type::Bool)},
     Spec {regex: Regex::new(r#":"#).unwrap(), create: |_| Token::AssignType},
-    Spec {regex: Regex::new(r#"="#).unwrap(), create: |_| Token::Assign},
     Spec {regex: Regex::new(r#"mut"#).unwrap(), create: |_| Token::Mut},
     Spec {regex: Regex::new(r#"const"#).unwrap(), create: |_| Token::Const},
+    Spec {regex: Regex::new(r#","#).unwrap(), create: |_| Token::Comma},
     Spec {regex: Regex::new(r#";"#).unwrap(), create: |_| Token::Semicolon},
+    Spec {regex: Regex::new(r#"+"#).unwrap(), create: |_| Token::BinaryOperation(BinaryOperation::Add)},
+    Spec {regex: Regex::new(r#"-"#).unwrap(), create: |_| Token::BinaryOperation(BinaryOperation::Subtract)},
+    Spec {regex: Regex::new(r#"=="#).unwrap(), create: |_| Token::BinaryOperation(BinaryOperation::Equal)},
+    Spec {regex: Regex::new(r#"!="#).unwrap(), create: |_| Token::BinaryOperation(BinaryOperation::NotEqual)},
     Spec {regex: Regex::new(r#"return"#).unwrap(), create: |_| Token::Return},
+    Spec {regex: Regex::new(r#"="#).unwrap(), create: |_| Token::Assign},
   ];
 }
 
