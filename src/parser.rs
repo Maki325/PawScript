@@ -19,24 +19,6 @@ pub struct Parser {
   seek: Option<Token>,
 }
 
-macro_rules! token_pattern2 {
-  ($self: expr, $PATTERN:pat) => {
-    Some($PATTERN) => {
-      let token = $self.seek.take().expect("Exists");
-      $self.next_token();
-      token
-    },
-  };
-  ($self: expr, $($PATTERN:pat), +) => {
-    Some($PATTERN) => {
-      let token = $self.seek.take().expect("Exists");
-      $self.next_token();
-      token
-    },
-    token_pattern!(+)
-  };
-}
-
 macro_rules! token_pattern {
   ($self: expr, $PATTERN:pat) => {
     $PATTERN
@@ -47,19 +29,6 @@ macro_rules! token_pattern {
 }
 
 macro_rules! expect_token {
-  // ($self: expr, $($PATTERN:pat), +) => {
-  //   match &mut $self.seek {
-  //     None => panic!("Expected a token!"),
-  //     token_pattern!($self, $($PATTERN), +)
-  //     // Some($PATTERN) => {
-  //     //   let token = $self.seek.take().expect("Exists");
-  //     //   $self.next_token();
-  //     //   token
-  //     // },
-  //     // +,
-  //     _ => panic!("Unexpected token!"),
-  //   }
-  // }
   ($self: expr, $($PATTERN:pat), +) => {
     match &mut $self.seek {
       None => panic!("Expected a token!"),
@@ -68,12 +37,6 @@ macro_rules! expect_token {
         $self.next_token();
         token
       },
-      // Some($PATTERN) => {
-      //   let token = $self.seek.take().expect("Exists");
-      //   $self.next_token();
-      //   token
-      // },
-      // +,
       _ => panic!("Unexpected token!, Got: ${:?}", $self.seek),
     }
   }
@@ -94,7 +57,6 @@ impl Parser {
 
   fn next_token(&mut self) {
     self.seek = self.tokenizer.get_next_token();
-    // println!("next R: {:?}", self.seek);
   }
 
   fn expect_type(&mut self) -> Type {
