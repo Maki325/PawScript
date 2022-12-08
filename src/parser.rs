@@ -81,7 +81,27 @@ impl Parser {
     program
   }
 
-  pub fn parse_binary_operation(&mut self, left: Literal, operation: BinaryOperation) -> Statement {
+  fn parse_statement(&mut self) -> Option<Statement> {
+    let token = match &self.seek {
+      Some(_) => self.seek.take().expect("Checked it exists in match!"),
+      None => return None,
+    };
+    self.next_token();
+
+    match token {
+      Token::Literal(literal) => return Some(self.parse_literal(literal)),
+      Token::Comment(comment) => return Some(Statement::Comment(comment)),
+      Token::Identifier(name) => return Some(self.parse_identifier(name)),
+      Token::Return => return Some(self.parse_return()),
+      Token::Mut | Token::Const => return Some(self.parse_declare_variable(token)),
+      _ => (),
+    }
+
+    println!("Unreachable: {:?}", token);
+    unreachable!()
+  }
+
+  fn parse_binary_operation(&mut self, left: Literal, operation: BinaryOperation) -> Statement {
     let token = expect_token!(self, Token::Literal(Literal::NumberLiteral(_)));
     let right = match token {
       Token::Literal(literal) => literal,
@@ -108,7 +128,7 @@ impl Parser {
     }
   }
 
-  pub fn parse_number_literal(&mut self, literal: Literal) -> Statement {
+  fn parse_number_literal(&mut self, literal: Literal) -> Statement {
     let token = expect_token!(self, Token::BinaryOperation(_), Token::Semicolon);
     return match token {
       Token::BinaryOperation(operation) => self.parse_binary_operation(literal, operation),
@@ -117,14 +137,14 @@ impl Parser {
     }
   }
 
-  pub fn parse_literal(&mut self, literal: Literal) -> Statement {
+  fn parse_literal(&mut self, literal: Literal) -> Statement {
     match literal {
       Literal::NumberLiteral(_) => self.parse_number_literal(literal),
       _ => unimplemented!("Not implemented!"),
     }
   }
 
-  pub fn parse_function_declaration(&mut self, name: String) -> Statement {
+  fn parse_function_declaration(&mut self, name: String) -> Statement {
     let mut paramaters: Vec<Variable> = Vec::new();
     let mut body: Vec<Statement> = Vec::new();
     
@@ -176,13 +196,13 @@ impl Parser {
     return Statement::DeclareFunction(function);
   }
 
-  pub fn parse_assign_variable(&mut self, name: String) -> Statement {
+  fn parse_assign_variable(&mut self, name: String) -> Statement {
     return Statement::AssignVariable(
       AssignVariable { name, to: Box::new(self.parse_statement().expect("Expected variable assignment!")) }
     );
   }
 
-  pub fn parse_identifier(&mut self, name: String) -> Statement {
+  fn parse_identifier(&mut self, name: String) -> Statement {
     let token = expect_token!(self, Token::ParenthesesOpen, Token::Assign);
 
     match token {
@@ -199,77 +219,59 @@ impl Parser {
     }
   }
 
-  pub fn parse_statement(&mut self) -> Option<Statement> {
-    let token = match &self.seek {
-      Some(_) => self.seek.take().expect("Checked it exists in match!"),
-      None => return None,
+  fn parse_declare_variable(&mut self, mut_or_const: Token) -> Statement {
+    let mutable = match mut_or_const {
+      Token::Mut => true,
+      Token::Const => false,
+      _ => unreachable!()
     };
-    self.next_token();
+    let identifier = expect_token!(self, Token::Identifier(_));
+    let name = match identifier {
+      Token::Identifier(name) => name,
+      _ => unreachable!(),
+    };
+    let mut typee: Option<Type> = None;
 
+    let token = expect_token!(self, Token::Assign, Token::AssignType, Token::Semicolon);
     match token {
-      Token::Literal(literal) => return Some(self.parse_literal(literal)),
-      Token::Comment(comment) => return Some(Statement::Comment(comment)),
-      Token::Identifier(name) => return Some(self.parse_identifier(name)),
-      Token::Return => return Some(self.parse_return()),
-      Token::Mut | Token::Const => {
-        let mutable = match token {
-          Token::Mut => true,
-          Token::Const => false,
-          _ => unreachable!()
-        };
-        let identifier = expect_token!(self, Token::Identifier(_));
-        let name = match identifier {
-          Token::Identifier(name) => name,
-          _ => unreachable!(),
-        };
-        let mut typee: Option<Type> = None;
+      Token::Assign => {
+        return Statement::DeclareAndAssignVariable(
+          Variable {name: name.clone(), typee, mutable},
+          AssignVariable { name, to: Box::new(self.parse_statement().expect("Expected variable assignment!")) }
+        );
+      },
+      Token::AssignType => {
+        typee = Some(self.expect_type());
+        let token = expect_token!(self, Token::Assign, Token::Semicolon);
 
-        let token = expect_token!(self, Token::Assign, Token::AssignType, Token::Semicolon);
         match token {
           Token::Assign => {
-            return Some(Statement::DeclareAndAssignVariable(
+            return Statement::DeclareAndAssignVariable(
               Variable {name: name.clone(), typee, mutable},
               AssignVariable { name, to: Box::new(self.parse_statement().expect("Expected variable assignment!")) }
-            ));
-          },
-          Token::AssignType => {
-            typee = Some(self.expect_type());
-            let token = expect_token!(self, Token::Assign, Token::Semicolon);
-
-            match token {
-              Token::Assign => {
-                return Some(Statement::DeclareAndAssignVariable(
-                  Variable {name: name.clone(), typee, mutable},
-                  AssignVariable { name, to: Box::new(self.parse_statement().expect("Expected variable assignment!")) }
-                ));
-              },
-              Token::Semicolon => {
-                if let Token::Const = token {
-                  panic!("Const variables must have value at declaration!");
-                }
-                return Some(Statement::DeclareVariable(
-                  Variable {name: name.clone(), typee, mutable}
-                ));
-              },
-              _ => unreachable!(),
-            }
+            );
           },
           Token::Semicolon => {
             if let Token::Const = token {
               panic!("Const variables must have value at declaration!");
             }
-            return Some(Statement::DeclareVariable(
+            return Statement::DeclareVariable(
               Variable {name: name.clone(), typee, mutable}
-            ));
+            );
           },
           _ => unreachable!(),
         }
       },
-      _ => (),
+      Token::Semicolon => {
+        if let Token::Const = token {
+          panic!("Const variables must have value at declaration!");
+        }
+        return Statement::DeclareVariable(
+          Variable {name: name.clone(), typee, mutable}
+        );
+      },
+      _ => unreachable!(),
     }
-
-    println!("Unreachable: {:?}", token);
-    unreachable!()
   }
 }
 
