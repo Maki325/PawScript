@@ -47,10 +47,7 @@ impl Program {
   }
 }
 
-enum Holder {
-  Holder(String)
-}
-pub struct Tokenizer<'a> {
+pub struct Tokenizer {
   content: String,
   row: usize,
   column: usize,
@@ -76,8 +73,8 @@ lazy_static! {
   ];
 }
 
-impl<'a> Tokenizer<'a> {
-  pub fn new(content: String) -> Tokenizer<'a> {
+impl Tokenizer {
+  pub fn new(content: String) -> Tokenizer {
     Tokenizer {
       content: content,
       row: 0,
@@ -85,7 +82,11 @@ impl<'a> Tokenizer<'a> {
     }
   }
 
-  fn get_next_token_from_spec(&mut self, text: &str, from_start: bool) -> Option<Token> {
+  fn get_next_token_from_spec(&mut self, end: usize, from_start: bool) -> Option<Token> {
+    let text = match end {
+      0 => &self.content[self.column..],
+      _ => &self.content[self.column..end],
+    };
     for spec in SPECS.as_ref() {
       for capture in spec.regex.captures_iter(text) {
         let m = capture.get(0).expect("Match should exist");
@@ -113,35 +114,29 @@ impl<'a> Tokenizer<'a> {
     None
   }
 
-  fn get_str(self) -> &'a String {
-    &self.content[0..]
-  }
-
   pub fn get_next_token(&mut self) -> Option<Token> {
-    // let content = match self.content {
-    //   Holder::Holder(s) => s,
-    // };
-    let content = self.get_str();
-    if self.column >= content.len() {
+    if self.column >= self.content.len() {
       return None;
     }
 
-    let space = content[self.column..].find(" ");
-    let text = match space {
-      Some(0) => &content[self.column..],
-      Some(end) => &content[self.column..self.column + end],
-      None => &content[self.column..],
+    let end = match self.content[self.column..].find(" ") {
+      Some(end) => self.column + end,
+      None => 0,
     };
 
-    let mut token = self.get_next_token_from_spec(text, true);
+    let mut token = self.get_next_token_from_spec(end, true);
     if let Some(_) = token {
       return token;
     }
-    token = self.get_next_token_from_spec(text, false);
+    token = self.get_next_token_from_spec(end, false);
     if let Some(_) = token {
       return token;
     }
 
+    let text = match end {
+      0 => &self.content[self.column..],
+      _ => &self.content[self.column..self.column + end],
+    };
     self.column += text.len();
     return Some(Token::Identifier(text.to_string()));
   }
