@@ -117,6 +117,7 @@ impl Parser {
           left: Box::new(Statement::Literal(left)),
           right: Box::new(Statement::Literal(right)),
           operation: operation,
+          typee: None,
         })
       },
       Token::BinaryOperation(right_operation) => {
@@ -124,6 +125,7 @@ impl Parser {
           left: Box::new(Statement::Literal(left)),
           right: Box::new(self.parse_binary_operation(right, right_operation)),
           operation: operation,
+          typee: None,
         })
       },
       _ => unreachable!(),
@@ -163,7 +165,7 @@ impl Parser {
         Token::Type(typee) => typee,
         _ => unreachable!(),
       };
-      paramaters.push(Variable{name, typee: Some(typee), mutable: false});
+      paramaters.push(Variable{name, typee: Some(typee), mutable: false, compiled_name: None});
       match self.seek {
         Some(Token::Comma) => self.next_token(),
         Some(Token::ParenthesesClose) => (),
@@ -205,11 +207,12 @@ impl Parser {
   }
 
   fn parse_identifier(&mut self, name: String) -> Statement {
-    let token = expect_token!(self, Token::ParenthesesOpen, Token::Assign);
+    let token = expect_token!(self, Token::ParenthesesOpen, Token::Assign, Token::Semicolon);
 
     match token {
       Token::ParenthesesOpen => return self.parse_function_declaration(name),
       Token::Assign => return self.parse_assign_variable(name),
+      Token::Semicolon => return Statement::Variable(name),
       _ => unreachable!(),
     }
   }
@@ -238,7 +241,7 @@ impl Parser {
     match token {
       Token::Assign => {
         return Statement::DeclareAndAssignVariable(
-          Variable {name: name.clone(), typee, mutable},
+          Variable {name: name.clone(), typee, mutable, compiled_name: None},
           AssignVariable { name, to: Box::new(self.parse_statement().expect("Expected variable assignment!")) }
         );
       },
@@ -249,7 +252,7 @@ impl Parser {
         match token {
           Token::Assign => {
             return Statement::DeclareAndAssignVariable(
-              Variable {name: name.clone(), typee, mutable},
+              Variable {name: name.clone(), typee, mutable, compiled_name: None},
               AssignVariable { name, to: Box::new(self.parse_statement().expect("Expected variable assignment!")) }
             );
           },
@@ -258,7 +261,7 @@ impl Parser {
               panic!("Const variables must have value at declaration!");
             }
             return Statement::DeclareVariable(
-              Variable {name: name.clone(), typee, mutable}
+              Variable {name: name.clone(), typee, mutable, compiled_name: None}
             );
           },
           _ => unreachable!(),
@@ -269,7 +272,7 @@ impl Parser {
           panic!("Const variables must have value at declaration!");
         }
         return Statement::DeclareVariable(
-          Variable {name: name.clone(), typee, mutable}
+          Variable {name: name.clone(), typee, mutable, compiled_name: None}
         );
       },
       _ => unreachable!(),
